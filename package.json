@@ -1,0 +1,22 @@
+{
+  "name": "gursch",
+  "version": "1.0.0",
+  "description": "Gursch – onlinekortspel för 2–6 spelare",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node test/sim.js && node test/e2e.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.3.0",
+    "socket.io": "^4.8.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}

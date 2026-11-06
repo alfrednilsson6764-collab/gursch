@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>GURSCH</title>
+  <meta name="theme-color" content="#0d3b2a">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="conn" class="conn hidden">Ansluter…</div>
+
+  <!-- Startsida -->
+  <section id="home" class="screen">
+    <div class="home-card">
+      <h1 class="logo">GURSCH</h1>
+      <p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>
+      <label class="field">Ditt namn
+        <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
+      </label>
+      <button id="createBtn" class="btn primary big">Skapa spel</button>
+      <div class="divider"><span>eller gå med i ett spel</span></div>
+      <div class="join-row">
+        <input id="code" maxlength="5" placeholder="RUMSKOD" autocapitalize="characters" autocomplete="off">
+        <button id="joinBtn" class="btn">Gå med</button>
+      </div>
+      <p id="homeError" class="error"></p>
+    </div>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby" class="screen hidden">
+    <div class="home-card wide">
+      <h1 class="logo small">GURSCH</h1>
+      <div class="room-code">Rumskod <strong id="lobbyCode"></strong></div>
+      <div class="invite">
+        <input id="inviteLink" readonly>
+        <button id="copyBtn" class="btn">Kopiera länk</button>
+      </div>
+      <h3>Spelare <span id="playerCount" class="muted"></span></h3>
+      <ul id="lobbyPlayers" class="player-list"></ul>
+      <div class="settings">
+        <label>Antal spelare
+          <select id="maxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
+        </label>
+        <label>Poängmultiplikator
+          <input id="multiplier" type="number" min="1" max="100" value="2">
+        </label>
+      </div>
+      <div class="lobby-actions">
+        <button id="readyBtn" class="btn">Jag är redo</button>
+        <button id="startBtn" class="btn primary">Starta spelet</button>
+        <button id="leaveBtn" class="btn ghost">Lämna rummet</button>
+      </div>
+      <p id="lobbyInfo" class="muted center"></p>
+      <p id="lobbyError" class="error"></p>
+    </div>
+  </section>
+
+  <!-- Spelbord -->
+  <section id="game" class="screen hidden">
+    <header class="topbar">
+      <div class="brand">GURSCH <span id="gCode" class="muted"></span></div>
+      <div id="roundInfo" class="round-info"></div>
+      <button id="historyBtn" class="btn small">Historik</button>
+    </header>
+    <div class="table-wrap">
+      <div id="table" class="table">
+        <div id="seats"></div>
+        <div class="table-center">
+          <div id="centerTitle" class="center-title"></div>
+          <div id="pile" class="pile"></div>
+          <div id="deckInfo" class="muted tiny"></div>
+        </div>
+      </div>
+      <aside id="history" class="history">
+        <h3>Spelhistorik <button id="historyClose" class="btn small ghost">✕</button></h3>
+        <ol id="historyList"></ol>
+      </aside>
+    </div>
+    <div class="me-area">
+      <div id="status" class="status"></div>
+      <div id="offer" class="offer hidden"></div>
+      <div id="hand" class="hand"></div>
+      <div class="me-bar">
+        <div class="me-info"><span id="meName"></span> · Kortvärde <strong id="meValue">0</strong></div>
+        <div id="actions" class="actions"></div>
+      </div>
+    </div>
+    <div id="toast" class="toast hidden"></div>
+  </section>
+
+  <!-- Resultat -->
+  <div id="results" class="overlay hidden">
+    <div class="home-card wide">
+      <h2>Resultat</h2>
+      <table class="results-table">
+        <thead><tr><th></th><th>Spelare</th><th>Kort kvar</th><th>Kortvärde</th><th>Slutpoäng</th></tr></thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+      <p id="resultsMult" class="muted center"></p>
+      <div class="lobby-actions">
+        <button id="againBtn" class="btn primary">Ny omgång med samma spelare</button>
+        <button id="lobbyBtn" class="btn">Tillbaka till rummet</button>
+      </div>
+      <p id="resultsInfo" class="muted center"></p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
