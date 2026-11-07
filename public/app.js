@@ -1,11 +1,12 @@
 'use strict';
 /* Gursch klient. All spellogik finns på servern – klienten visar bara läget och skickar drag. */
 const $ = (id) => document.getElementById(id);
-const socket = io();
+const socket = window.GURSCH_LOCAL ? window.GURSCH_LOCAL() : io();
 const store = {
-  get: (k) => localStorage.getItem('gursch.' + k),
-  set: (k, v) => (v == null ? localStorage.removeItem('gursch.' + k) : localStorage.setItem('gursch.' + k, v)),
+  get: (k) => { try { return localStorage.getItem('gursch.' + k); } catch { return null; } },
+  set: (k, v) => { try { v == null ? localStorage.removeItem('gursch.' + k) : localStorage.setItem('gursch.' + k, v); } catch {} },
 };
+const setUrl = (u) => { if (window.GURSCH_LOCAL) return; try { history.replaceState(null, '', u); } catch {} };
 let S = null;            // senaste läget från servern
 let selected = new Set(); // valda kort-id
 let seenSeq = 0;
@@ -53,7 +54,7 @@ if (urlCode) $('code').value = urlCode.toUpperCase();
 function enter(res) {
   if (!res.ok) { $('homeError').textContent = res.error; store.set('code', null); show('home'); return; }
   store.set('code', res.code); store.set('token', res.token);
-  history.replaceState(null, '', '?rum=' + res.code);
+  setUrl('?rum=' + res.code);
 }
 function needName() {
   const n = $('name').value.trim();
@@ -84,7 +85,7 @@ $('copyBtn').onclick = async () => {
 };
 $('readyBtn').onclick = () => { const me = S.lobby.players.find((p) => p.id === S.you); socket.emit('ready', !me.ready); };
 $('startBtn').onclick = () => socket.emit('start', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
-$('leaveBtn').onclick = () => { socket.emit('leave'); store.set('code', null); S = null; history.replaceState(null, '', location.pathname); show('home'); };
+$('leaveBtn').onclick = () => { socket.emit('leave'); store.set('code', null); S = null; setUrl(location.pathname); show('home'); };
 const pushSettings = () => socket.emit('settings', { maxPlayers: $('maxPlayers').value, multiplier: $('multiplier').value }, (r) => { if (!r.ok) $('lobbyError').textContent = r.error; });
 $('maxPlayers').onchange = pushSettings;
 $('multiplier').onchange = pushSettings;
