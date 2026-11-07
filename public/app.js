@@ -161,7 +161,7 @@ function renderGame() {
     const isTurn = turnId === p.id || waiting.includes(p.id);
     const offer = ex && ex.offers[p.id];
     const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
-    return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" style="left:${pos[k].x}%;top:${pos[k].y}%">
+    return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" data-pid="${p.id}" style="left:${pos[k].x}%;top:${pos[k].y}%">
       <div class="seat-name">${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}${esc(p.name)}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
@@ -184,8 +184,8 @@ function renderGame() {
     const tbl = pl.table.length ? pl.table : pl.lastTable;
     title = pl.table.length ? `Runda ${pl.roundNo}` : `Runda ${pl.roundNo} – ${esc(nameOf(pl.turnId || G.leaderId))} väljer kombination`;
     const key = tbl.map((t) => t.cards.map((c) => c.id).join()).join('|');
-    const fresh = key !== lastPileKey; lastPileKey = key;
-    pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type} ${fresh && k === tbl.length - 1 ? 'enter' : ''}">
+    lastPileKey = key;
+    pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type}" data-by="${t.by}" data-key="${t.cards.map((c) => c.id).join()}">
       <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small' })).join('')}</div>
       <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : t.type === 'out' ? ' · gick ut' : ' · lägsta'}</div>
     </div>`).join('')}</div>`;
@@ -205,10 +205,12 @@ function renderGame() {
   $('history').querySelector('ol').innerHTML = G.history.map((h) => `<li class="${h.type}">${esc(h.text)}</li>`).reverse().join('');
 
   renderActions(G);
+  animateChanges(G);
 
   // ny styrspelare – visa tydligt
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
+    if (ev.type === 'hidden') flyBacks(null, ev.playerId, ev.count);
     if (ev.type === 'out') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader');
     if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
   }
@@ -248,7 +250,7 @@ function renderActions(G) {
         const n = offer.length;
         status = n === 1 ? 'Ditt ersättningskort. Behåll det synliga kortet eller ta ett dolt istället.'
           : `Dina ${n} ersättningskort. Behåll alla synliga eller ta ${n} dolda istället.`;
-        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c, { cls: 'enter' })).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
+        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c)).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
         acts.push(btn(n === 1 ? 'Behåll kortet' : `Behåll alla ${n}`, () => send('exchangeReplace', { keep: true }), 'primary'));
         acts.push(btn(n === 1 ? 'Ta ett dolt kort' : `Ta ${n} dolda kort`, () => send('exchangeReplace', { keep: false })));
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
@@ -315,7 +317,7 @@ function renderActions(G) {
 let dealShownFor = null;
 function renderDeal(G) {
   const key = G.dealReveal.map((r) => r.cards.map((c) => c.id).join()).join('|');
-  if (G.phase !== 'exchange' || dealShownFor === key) return;
+  if (G.phase !== 'exchange' || dealShownFor === key || dealing) return;
   dealShownFor = key;
   const leader = G.leaderId;
   const rounds = Math.max(...G.dealReveal.map((r) => r.cards.length));
@@ -326,7 +328,7 @@ function renderDeal(G) {
   $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`;
   $('deal').classList.remove('hidden');
 }
-$('dealOk').onclick = () => $('deal').classList.add('hidden');
+$('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('animDone'); };
 
 function renderResults(G) {
   const show = G.phase === 'finished';
@@ -350,8 +352,115 @@ $('lobbyBtn').onclick = () => socket.emit('toLobby');
 
 socket.on('state', (state) => {
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
-  if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; }
+  if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
-  if (S.game) { show('game'); renderGame(); }
+  if (S.game) {
+    show('game');
+    const G = S.game;
+    const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
+    if (fresh && !reduceMotion) startDealAnim();
+    renderGame();
+  }
   else { $('results').classList.add('hidden'); show('lobby'); renderLobby(); }
 });
+
+// ---------- animationer ----------
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let dealing = false;
+let seenPlays = new Set(), prevHand = null, prevCounts = {}, seenOffers = new Set();
+function resetAnim() { seenPlays = new Set(); prevHand = null; prevCounts = {}; seenOffers = new Set(); }
+
+const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+function seatEl(pid) { return pid === S.you ? $('hand') : document.querySelector(`.seat[data-pid="${pid}"]`); }
+
+/** Låter en kort-klon flyga mellan två element. */
+function fly(fromEl, toEl, html, delay = 0, dur = 420) {
+  if (!fromEl || !toEl || reduceMotion) return;
+  const a = center(fromEl), b = center(toEl);
+  const el = document.createElement('div');
+  el.className = 'fly';
+  el.innerHTML = html;
+  el.style.left = a.x + 'px'; el.style.top = a.y + 'px';
+  el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 200ms ease ${delay + dur}ms`;
+  $('fx').appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)`;
+    el.style.opacity = '0';
+  }));
+  setTimeout(() => el.remove(), delay + dur + 260);
+}
+const BACK = '<div class="card back small"></div>';
+function flyBacks(fromPid, toPid, n, delay = 0) {
+  const from = fromPid ? seatEl(fromPid) : $('deckPile'), to = toPid ? seatEl(toPid) : $('deckPile');
+  for (let k = 0; k < n; k++) fly(from, to, BACK, delay + k * 110);
+}
+/** Ger ett element en start-förskjutning så att det "kommer från" ett annat element. */
+function arriveFrom(el, fromEl, delay = 0) {
+  if (!el || !fromEl || reduceMotion) return;
+  const a = center(fromEl), b = center(el);
+  el.style.setProperty('--fx', `${a.x - b.x}px`); el.style.setProperty('--fy', `${a.y - b.y}px`);
+  el.style.animationDelay = `${delay}ms`;
+  el.classList.add('arrive');
+}
+
+function animateChanges(G) {
+  if (dealing) return;
+  const deck = $('deckPile');
+  // lagda kort flyger från spelaren till bordet
+  document.querySelectorAll('#pile .play').forEach((el) => {
+    const key = el.dataset.key;
+    if (seenPlays.has(key)) return;
+    seenPlays.add(key);
+    if (prevHand !== null) arriveFrom(el, seatEl(el.dataset.by));
+  });
+  // ersättningskort med framsidan upp kommer från kortleken
+  const ex = G.exchange;
+  if (ex) for (const [pid, cards] of Object.entries(ex.offers)) {
+    const key = cards.map((c) => c.id).join();
+    if (seenOffers.has(key)) continue;
+    seenOffers.add(key);
+    const els = pid === S.you ? document.querySelectorAll('#offer .card') : document.querySelectorAll(`.seat[data-pid="${pid}"] .seat-offer .card`);
+    els.forEach((el, k) => arriveFrom(el, deck, k * 140));
+  }
+  // slängda kort flyger till kortleken (under bytet)
+  if (G.phase === 'exchange') for (const p of G.players) {
+    const before = prevCounts[p.id];
+    if (before !== undefined && p.handCount < before) flyBacks(p.id, null, before - p.handCount);
+  }
+  prevCounts = Object.fromEntries(G.players.map((p) => [p.id, p.handCount]));
+  // nya kort i min hand kommer från kortleken
+  const ids = G.me.hand.map((c) => c.id);
+  if (prevHand !== null) {
+    let k = 0;
+    document.querySelectorAll('#hand .card').forEach((el) => { if (!prevHand.includes(el.dataset.id)) arriveFrom(el, deck, 200 + 110 * k++); });
+  }
+  prevHand = ids;
+}
+
+/** Utdelning i början: fem dolda kort runt bordet, sedan ett öppet, sedan eventuella avgörandekort. */
+function startDealAnim() {
+  dealing = true;
+  $('game').classList.add('dealing');
+  requestAnimationFrame(() => {
+    const G = S.game, n = G.players.length, deck = $('deckPile');
+    const reveal = Object.fromEntries(G.dealReveal.map((r) => [r.playerId, r.cards]));
+    const step = 95;
+    let t = 300;
+    for (let r = 0; r < 6; r++) for (const p of G.players) {
+      const html = r < 5 ? BACK : cardHTML(reveal[p.id][0], { cls: 'small' });
+      fly(deck, seatEl(p.id), html, t, 380);
+      t += r < 5 ? step : step * 2.5;
+    }
+    const extra = Math.max(...G.dealReveal.map((r) => r.cards.length));
+    for (let e = 1; e < extra; e++) {
+      t += 500;
+      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 420); t += step * 3; }
+    }
+    setTimeout(() => {
+      dealing = false;
+      $('game').classList.remove('dealing');
+      resetAnim();
+      if (S && S.game) renderGame();
+    }, t + 500);
+  });
+}

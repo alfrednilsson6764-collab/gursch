@@ -162,3 +162,16 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 .offer-cards { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .seat-turn.ok { color: #81c784; animation: none; }
 .actions .btn.small { padding: 8px 10px; }
+
+/* ---------- animationer ---------- */
+.fx { position: fixed; inset: 0; pointer-events: none; z-index: 35; }
+.fly { position: fixed; transform: translate(0, 0); margin: -33px 0 0 -23px; will-change: transform; }
+.fly .card { box-shadow: 0 6px 18px rgba(0,0,0,.45); }
+.deck-pile { position: relative; width: 46px; height: 66px; margin: 8px auto 2px; }
+.deck-pile .card { position: absolute; left: 0; top: 0; width: 46px; height: 66px; border-width: 2px; }
+.deck-pile .card:nth-child(2) { transform: translate(2px, -2px); } .deck-pile .card:nth-child(3) { transform: translate(4px, -4px); }
+.arrive { animation: arrive .5s cubic-bezier(.25,.8,.3,1.1) both; }
+@keyframes arrive { from { transform: translate(var(--fx), var(--fy)) scale(.85) rotate(-8deg); opacity: .3; } }
+.hand .card.arrive.selected { animation: none; }
+.dealing .hand .card, .dealing .seat-cards, .dealing .seat-public, .dealing #pile, .dealing #actions, .dealing #status { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .arrive, .play.enter, .card.enter { animation: none !important; } }

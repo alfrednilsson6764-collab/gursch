@@ -108,10 +108,12 @@ function setHands(g, hands) {
   g.act(o2.id, { type: 'exchangeOther', discard: false });
   assert.strictEqual(g.exchange.step, 'replace');
   assert.strictEqual(g.exchange.offers[L.id].length, 2, 'alla ersättningskort på en gång');
+  assert.ok(!g.exchange.offers[o1.id], 'styrspelaren får sina först, sedan nästa');
+  throwsGame(() => g.act(o1.id, { type: 'exchangeReplace', keep: true }), 'inte o1:s tur än');
+  g.act(L.id, { type: 'exchangeReplace', keep: false });
   const offered = g.exchange.offers[o1.id].map((c) => c.id);
   g.act(o1.id, { type: 'exchangeReplace', keep: true });
   assert.ok(offered.every((id) => o1.hand.some((c) => c.id === id) && o1.publicIds.has(id)), 'behållna kort syns för alla');
-  g.act(L.id, { type: 'exchangeReplace', keep: false });
   assert.strictEqual(g.exchange.round, 2);
   g.act(L.id, { type: 'exchangeLeader', cardIds: [] });
   throwsGame(() => g.act(o2.id, { type: 'exchangeOther', discard: true }), 'låst ute från runda 2');
@@ -126,7 +128,7 @@ function setHands(g, hands) {
   g.act(o1.id, { type: 'exchangeVote', yes: true });
   assert.strictEqual(g.exchange.step, 'extraDiscard');
   for (const p of g.players) g.act(p.id, { type: 'exchangeExtraDiscard', cardIds: [p.hand[5].id] });
-  for (const p of g.players) g.act(p.id, { type: 'exchangeReplace', keep: Math.random() < 0.5 });
+  while (g.exchange.step === 'replace') g.act(Object.keys(g.exchange.offers)[0], { type: 'exchangeReplace', keep: Math.random() < 0.5 });
   assert.strictEqual(g.exchange.step, 'extra');
   // nytt förslag, någon säger nej → spelet börjar
   g.act(L.id, { type: 'exchangePropose', count: 3 });

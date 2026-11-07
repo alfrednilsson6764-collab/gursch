@@ -4,9 +4,9 @@ window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
   const { botMove } = window.GurschBots;
   const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
-  const BOT_DELAY = 750;
+  const BOT_DELAY = 900;
   const handlers = {};
-  let room = null, botTimer = null;
+  let room = null, botTimer = null, holdTimer = null;
 
   const fire = (ev, d) => (handlers[ev] || []).forEach((f) => f(d));
   const reply = (cb, d) => typeof cb === 'function' && cb(d);
@@ -27,7 +27,7 @@ window.GURSCH_LOCAL = function () {
   function scheduleBots() {
     clearTimeout(botTimer);
     const g = room && room.game;
-    if (!g || g.phase === 'finished') return;
+    if (!g || g.phase === 'finished' || room.hold) return; // vänta tills utdelningen har visats
     for (const p of room.players.filter((x) => x.bot)) {
       const move = botMove(g, p.id);
       if (!move) continue;
@@ -57,11 +57,17 @@ window.GURSCH_LOCAL = function () {
       }
       case 'start':
         room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier });
+        room.hold = true;
+        clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => { if (room) { room.hold = false; scheduleBots(); } }, 30000);
         reply(cb, { ok: true }); return broadcast();
       case 'action':
         try { room.game.act('me', data); reply(cb, { ok: true }); }
         catch (e) { reply(cb, { ok: false, error: e instanceof GameError ? e.message : 'Något gick fel.' }); if (!(e instanceof GameError)) console.error(e); }
         return broadcast();
+      case 'animDone':
+        if (room) { room.hold = false; clearTimeout(holdTimer); scheduleBots(); }
+        return;
       case 'toLobby':
         room.game = null; return broadcast();
       case 'leave':

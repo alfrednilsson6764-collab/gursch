@@ -172,12 +172,26 @@ class Game {
     if (Object.values(ex.decisions).every((d) => d !== null)) this.startReplacements();
   }
 
-  // Alla som slängt får sina ersättningskort samtidigt, med framsidan upp.
+  // Ersättningskorten delas ut en spelare i taget, med början hos styrspelaren och sedan medurs.
+  // Spelaren får alla sina kort på en gång med framsidan upp och väljer innan nästa spelare får sina.
   startReplacements() {
     const ex = this.exchange;
     ex.step = 'replace';
-    for (const [pid, n] of Object.entries(ex.pending)) if (n > 0) ex.offers[pid] = Array.from({ length: n }, () => this.draw());
-    this.maybeFinishExchange();
+    const n = this.players.length;
+    ex.replaceQueue = [];
+    for (let k = 0; k < n; k++) {
+      const pid = this.players[(this.leader + k) % n].id;
+      if (ex.pending[pid] > 0) ex.replaceQueue.push(pid);
+    }
+    this.dealNextOffer();
+  }
+
+  dealNextOffer() {
+    const ex = this.exchange;
+    const pid = ex.replaceQueue.shift();
+    if (!pid) return this.maybeFinishExchange();
+    ex.offers[pid] = Array.from({ length: ex.pending[pid] }, () => this.draw());
+    this.event('offer', { playerId: pid, count: ex.offers[pid].length });
   }
 
   // Behåll alla synliga kort, eller avstå från alla och få lika många dolda.
@@ -194,10 +208,11 @@ class Game {
       this.discard.push(...offer);
       for (let k = 0; k < offer.length; k++) p.hand.push(this.draw());
       this.log(`${this.name(i)} avstår från ${offer.map((c) => rankName(c.rank)).join(', ')} och tar ${offer.length} dolda kort.`);
+      this.event('hidden', { playerId: pid, count: offer.length });
     }
     this.sortHand(p);
     ex.pending[pid] = 0;
-    this.maybeFinishExchange();
+    this.dealNextOffer();
   }
 
   maybeFinishExchange() {
@@ -456,6 +471,7 @@ class Game {
               : this.players.map((p) => p.id).filter((k) => !ex.satisfied[k]))
               : [this.players[this.leader].id],
         proposal: ex.proposal,
+        replaceQueue: ex.replaceQueue || [],
         satisfied: ex.satisfied,
         offers: ex.offers, // synliga ersättningskort visas för alla
         pending: ex.pending,

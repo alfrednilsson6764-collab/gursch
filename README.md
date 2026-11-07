@@ -37,7 +37,7 @@ npm test           # 2000 simulerade spel + regeltester + hela spel över nätve
 6. Man ska aldrig ha färre kort än rundan kräver (händer det ändå läggs alla kort).
 7. Tar kortleken slut blandas slänghögen till en ny lek.
 8. Avgörandekort vid lika högsta kort läggs undan.
-9. Ersättningskort delas ut alla på en gång med framsidan upp (alla ser dem). Man behåller alla eller tar lika många dolda.
+9. Ersättningskort delas ut en spelare i taget, med början hos styrspelaren och sedan medurs. Spelaren får alla sina kort på en gång med framsidan upp (alla ser dem) och behåller alla eller tar lika många dolda innan nästa spelare får sina.
 10. Efter de två bytesrundorna kan vem som helst fråga om alla vill slänga ett visst antal kort till. Är alla med slänger alla det antalet; säger någon nej, eller är alla nöjda, börjar spelet.
 11. Att slå: lika många kort av samma valör som är samma eller högre tar styret. Lika många kort som alla är samma eller högre men av olika valör "lägger över" – det tar inte styret och den ursprungliga kombinationen gäller. Kan man lägga över måste man; annars läggs de lägsta korten.
 12. Lägst poäng vinner, flera med samma lägsta vinner tillsammans. Högst poäng förlorar, flera med samma högsta förlorar tillsammans. Har alla samma blir det oavgjort.
