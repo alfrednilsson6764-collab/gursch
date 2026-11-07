@@ -1,17 +1,24 @@
 'use strict';
 // Poängtavla över flera omgångar med samma sällskap. Delas av servern, testversionen och klienten.
-// En omgång sparas som { scores: { playerId: slutpoäng } }.
-// Plus/minus mot en annan spelare = summan av (hens poäng − mina poäng) i de omgångar båda var med.
-// Lägst poäng är bäst, så plus betyder att man ligger före den spelaren.
+// Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten):
+// vinnaren får (förlorarens poäng − vinnarens poäng) mot förloraren, och förloraren lika mycket i minus.
+// En omgång sparas som { scores, winners, losers }.
 (function (root) {
   function addRound(tally, results) {
-    tally.rounds.push({ scores: Object.fromEntries(results.map((r) => [r.playerId, r.score])) });
+    tally.rounds.push({
+      scores: Object.fromEntries(results.map((r) => [r.playerId, r.score])),
+      winners: results.filter((r) => r.winner).map((r) => r.playerId),
+      losers: results.filter((r) => r.loser).map((r) => r.playerId),
+    });
     for (const r of results) tally.names[r.playerId] = r.name;
   }
 
   function versus(tally, me, other) {
     let sum = 0;
-    for (const r of tally.rounds) if (me in r.scores && other in r.scores) sum += r.scores[other] - r.scores[me];
+    for (const r of tally.rounds) {
+      const w = r.winners || [], l = r.losers || [];
+      if ((w.includes(me) && l.includes(other)) || (l.includes(me) && w.includes(other))) sum += r.scores[other] - r.scores[me];
+    }
     return sum;
   }
 
@@ -35,7 +42,7 @@
     for (const t of T) lines.push(`${t.name}\t${t.total}\t${sign(t.net)}`);
     lines.push('', 'Mot varandra (raden mot kolumnen):');
     lines.push(['', ...T.map((t) => t.name)].join('\t'));
-    for (const a of T) lines.push([a.name, ...T.map((b) => (a === b ? '–' : sign(versus(tally, a.playerId, b.playerId))))].join('\t'));
+    for (const a of T) lines.push([a.name, ...T.map((b) => { const v = versus(tally, a.playerId, b.playerId); return a === b || v === 0 ? '–' : sign(v); })].join('\t'));
     lines.push('', 'Omgångar:');
     tally.rounds.forEach((r, k) => lines.push(`${k + 1}. ` + T.filter((t) => t.playerId in r.scores).map((t) => `${t.name} ${r.scores[t.playerId]}`).join(', ')));
     return lines.join('\n');

@@ -141,15 +141,17 @@ function setHands(g, hands) {
 { // poängtavla
   const Tally = require('../src/tally');
   const t = Tally.create();
-  Tally.addRound(t, [{ playerId: 'a', name: 'A', score: 10 }, { playerId: 'b', name: 'B', score: 30 }, { playerId: 'c', name: 'C', score: 20 }]);
-  Tally.addRound(t, [{ playerId: 'a', name: 'A', score: 40 }, { playerId: 'b', name: 'B', score: 0 }]);
-  assert.strictEqual(Tally.versus(t, 'a', 'b'), 20 - 40); // (30-10) + (0-40)
+  const R = (id, score, w, l) => ({ playerId: id, name: id.toUpperCase(), score, winner: !!w, loser: !!l });
+  Tally.addRound(t, [R('a', 10, 1), R('b', 30, 0, 1), R('c', 20)]); // c i mitten räknas inte
+  Tally.addRound(t, [R('a', 40, 0, 1), R('b', 0, 1), R('c', 40, 0, 1)]); // a och c förlorar tillsammans
+  Tally.addRound(t, [R('a', 5), R('b', 5), R('c', 5)]); // oavgjort: inget räknas
+  assert.strictEqual(Tally.versus(t, 'a', 'b'), 20 - 40); // +20 i första, -40 i andra
   assert.strictEqual(Tally.versus(t, 'b', 'a'), 20);
-  assert.strictEqual(Tally.versus(t, 'a', 'c'), 10); // c var bara med i första
+  assert.strictEqual(Tally.versus(t, 'a', 'c'), 0, 'mitten och två förlorare räknas inte mot varandra');
+  assert.strictEqual(Tally.versus(t, 'b', 'c'), 40);
   const T = Object.fromEntries(Tally.totals(t).map((x) => [x.playerId, x]));
-  assert.deepStrictEqual([T.a.total, T.b.total, T.c.total], [50, 30, 20]);
-  assert.strictEqual(T.a.net + T.b.net + T.c.net, 0, 'plus och minus går jämnt ut');
-  assert.ok(Tally.summaryText(t).includes('A\t50\t-10'));
+  assert.deepStrictEqual([T.a.net, T.b.net, T.c.net], [-20, 60, -40]);
+  assert.ok(Tally.summaryText(t).includes('A\t55\t-20'));
   console.log('OK: poängtavla');
 }
 

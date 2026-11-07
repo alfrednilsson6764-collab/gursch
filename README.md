@@ -8,7 +8,7 @@ Onlinekortspel för 2–6 spelare. Servern (Node.js + Socket.IO) äger all spell
 
 ## Poängtavla
 
-Så länge man spelar flera omgångar i samma rum sparas allas poäng. Rutan i nedre vänstra hörnet visar plus/minus mot varje spelare (summan av deras poäng minus dina, lägre är bättre). "Avsluta och visa ställning" visar slutskärmen med totalpoäng, en tabell över alla mot alla och en text att kopiera.
+Så länge man spelar flera omgångar i samma rum sparas allas poäng. Rutan i nedre vänstra hörnet visar plus/minus mot de spelare man vunnit eller förlorat mot. Bara omgångens vinnare mot förlorare räknas: vinnaren får skillnaden i slutpoäng i plus mot varje förlorare, och förloraren lika mycket i minus. De som hamnar i mitten räknas inte. "Avsluta och visa ställning" visar slutskärmen med totalpoäng, en tabell över alla mot alla och en text att kopiera.
 
 ## Kör lokalt
 

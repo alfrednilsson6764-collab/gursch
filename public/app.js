@@ -384,20 +384,21 @@ const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.lef
 function seatEl(pid) { return pid === S.you ? $('hand') : document.querySelector(`.seat[data-pid="${pid}"]`); }
 
 /** Låter en kort-klon flyga mellan två element. */
-function fly(fromEl, toEl, html, delay = 0, dur = 420) {
+function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
   if (!fromEl || !toEl || reduceMotion) return;
   const a = center(fromEl), b = center(toEl);
   const el = document.createElement('div');
   el.className = 'fly';
   el.innerHTML = html;
   el.style.left = a.x + 'px'; el.style.top = a.y + 'px';
-  el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 200ms ease ${delay + dur}ms`;
+  const stay = linger ? 60000 : 0; // öppna kort ligger kvar tills utdelningen är klar
+  el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 300ms ease ${delay + dur + stay}ms`;
   $('fx').appendChild(el);
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)`;
+    el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)${linger ? ' scale(1.25)' : ''}`;
     el.style.opacity = '0';
   }));
-  setTimeout(() => el.remove(), delay + dur + 260);
+  if (!linger) setTimeout(() => el.remove(), delay + dur + 360);
 }
 const BACK = '<div class="card back small"></div>';
 function flyBacks(fromPid, toPid, n, delay = 0) {
@@ -454,25 +455,39 @@ function startDealAnim() {
   requestAnimationFrame(() => {
     const G = S.game, n = G.players.length, deck = $('deckPile');
     const reveal = Object.fromEntries(G.dealReveal.map((r) => [r.playerId, r.cards]));
-    const step = 95;
-    let t = 300;
-    for (let r = 0; r < 6; r++) for (const p of G.players) {
-      const html = r < 5 ? BACK : cardHTML(reveal[p.id][0], { cls: 'small' });
-      fly(deck, seatEl(p.id), html, t, 380);
-      t += r < 5 ? step : step * 2.5;
-    }
+    // långsamt nog att hinna följa med: dolda kort ett i taget, sedan de öppna korten med paus mellan varje
+    let t = 400;
+    for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK, t, 450); t += 170; }
+    t += 600;
+    banner('Det sjätte kortet delas ut med framsidan upp – högst kort styr', t);
+    t += 900;
+    for (const p of G.players) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][0], { cls: 'small' }), t, 650, true); t += 900; }
     const extra = Math.max(...G.dealReveal.map((r) => r.cards.length));
     for (let e = 1; e < extra; e++) {
-      t += 500;
-      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 420); t += step * 3; }
+      t += 600;
+      banner('Lika högsta kort – ett nytt kort läggs ut', t);
+      t += 900;
+      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 650, true); t += 1000; }
     }
+    t += 300;
+    banner(`${G.leaderId === S.you ? 'Du' : nameOf(G.leaderId)} har högst kort och styr! ♛`, t, 1600);
+    t += 1700;
     setTimeout(() => {
+      $('fx').innerHTML = '';
       dealing = false;
       $('game').classList.remove('dealing');
       resetAnim();
       if (S && S.game) renderGame();
-    }, t + 500);
+    }, t + 200);
   });
+}
+function banner(text, delay, dur = 1100) {
+  setTimeout(() => {
+    const el = document.createElement('div');
+    el.className = 'deal-banner'; el.textContent = text;
+    $('fx').appendChild(el);
+    setTimeout(() => el.remove(), dur);
+  }, delay);
 }
 
 // ---------- poängtavla ----------
@@ -482,24 +497,25 @@ function renderTally() {
   const tally = S.lobby.tally, me = S.you, box = $('tally');
   if (!tally || !tally.rounds.length) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
-  const others = Object.keys(tally.names).filter((id) => id !== me);
-  const total = others.reduce((s, o) => s + T.versus(tally, me, o), 0);
+  // bara de man har vunnit eller förlorat mot (inte de som hamnat i mitten)
+  const others = Object.keys(tally.names).filter((id) => id !== me).map((o) => [o, T.versus(tally, me, o)]).filter(([, v]) => v !== 0);
+  const total = others.reduce((s, [, v]) => s + v, 0);
   box.innerHTML = `<div class="tally-head">Ställning · ${tally.rounds.length} omg.</div>
-    ${others.map((o) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(T.versus(tally, me, o))}</div>`).join('')}
-    <div class="tally-row total"><span>Totalt</span>${signed(total)}</div>`;
+    ${others.length ? others.map(([o, v]) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(v)}</div>`).join('') : '<div class="tally-row muted">Inget att räkna än</div>'}
+    ${others.length ? `<div class="tally-row total"><span>Totalt</span>${signed(total)}</div>` : ''}`;
 }
 function renderEnd() {
   const L = S && S.lobby, show = !!(L && L.ended);
   $('endScreen').classList.toggle('hidden', !show);
   if (!show) return;
-  $('results').classList.add('hidden');
+  $('results').classList.add('hidden'); $('toast').classList.add('hidden');
   const tally = L.tally, tot = T.totals(tally), isHost = L.hostId === S.you;
   $('endInfo').textContent = `${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'} spelade.`;
   const best = tot.length ? tot[0].total : 0;
   $('endBody').innerHTML = tot.map((t) => `<tr class="${t.total === best ? 'winner' : ''}"><td>${t.total === best ? '🏆' : ''}</td>
     <td>${esc(t.name)}${t.playerId === S.you ? ' (du)' : ''}</td><td>${t.rounds}</td><td><strong>${t.total}</strong></td><td>${signed(t.net)}</td></tr>`).join('');
   $('endMatrix').innerHTML = `<tr><th></th>${tot.map((t) => `<th>${esc(t.name)}</th>`).join('')}</tr>` +
-    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => `<td>${a === b ? '–' : signed(T.versus(tally, a.playerId, b.playerId))}</td>`).join('')}</tr>`).join('');
+    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => { const v = T.versus(tally, a.playerId, b.playerId); return `<td>${a === b || v === 0 ? '–' : signed(v)}</td>`; }).join('')}</tr>`).join('');
   $('endText').value = T.summaryText(tally);
   $('closeEndBtn').classList.toggle('hidden', !isHost);
   $('endWait').textContent = isHost ? 'Tillbaka till rummet nollställer ställningen.' : 'Värden avslutar och går tillbaka till rummet.';

@@ -196,6 +196,11 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 #endScreen .home-card { max-height: 92vh; overflow: auto; }
 @media (max-width: 640px) { .tally { left: 6px; bottom: 6px; min-width: 120px; font-size: 11px; padding: 5px 7px; } }
 
+.deal-banner { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); background: rgba(0,0,0,.75); color: var(--gold);
+  font-weight: 800; font-size: 20px; padding: 12px 20px; border-radius: 12px; text-align: center; max-width: 90vw; animation: pop .3s; }
+.dealing .crown, .dealing .seat-turn, .dealing #roundInfo { visibility: hidden; }
+.dealing .seat.turn { border-color: transparent; box-shadow: none; }
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -326,7 +331,7 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
         <tbody id="endBody"></tbody>
       </table>
       <h3>Mot varandra</h3>
-      <p class="tiny muted">Raden mot kolumnen. Plus betyder att raden ligger före (lägre poäng är bäst).</p>
+      <p class="tiny muted">Raden mot kolumnen. Bara omgångens vinnare mot förlorare räknas. Plus betyder att raden ligger före.</p>
       <div class="matrix-wrap"><table id="endMatrix" class="results-table matrix"></table></div>
       <textarea id="endText" class="end-text" readonly rows="6"></textarea>
       <div class="lobby-actions">
@@ -925,18 +930,25 @@ module.exports = { Game, GameError, RULES, makeDeck };
 <script>
 'use strict';
 // Poängtavla över flera omgångar med samma sällskap. Delas av servern, testversionen och klienten.
-// En omgång sparas som { scores: { playerId: slutpoäng } }.
-// Plus/minus mot en annan spelare = summan av (hens poäng − mina poäng) i de omgångar båda var med.
-// Lägst poäng är bäst, så plus betyder att man ligger före den spelaren.
+// Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten):
+// vinnaren får (förlorarens poäng − vinnarens poäng) mot förloraren, och förloraren lika mycket i minus.
+// En omgång sparas som { scores, winners, losers }.
 (function (root) {
   function addRound(tally, results) {
-    tally.rounds.push({ scores: Object.fromEntries(results.map((r) => [r.playerId, r.score])) });
+    tally.rounds.push({
+      scores: Object.fromEntries(results.map((r) => [r.playerId, r.score])),
+      winners: results.filter((r) => r.winner).map((r) => r.playerId),
+      losers: results.filter((r) => r.loser).map((r) => r.playerId),
+    });
     for (const r of results) tally.names[r.playerId] = r.name;
   }
 
   function versus(tally, me, other) {
     let sum = 0;
-    for (const r of tally.rounds) if (me in r.scores && other in r.scores) sum += r.scores[other] - r.scores[me];
+    for (const r of tally.rounds) {
+      const w = r.winners || [], l = r.losers || [];
+      if ((w.includes(me) && l.includes(other)) || (l.includes(me) && w.includes(other))) sum += r.scores[other] - r.scores[me];
+    }
     return sum;
   }
 
@@ -960,7 +972,7 @@ module.exports = { Game, GameError, RULES, makeDeck };
     for (const t of T) lines.push(`${t.name}\t${t.total}\t${sign(t.net)}`);
     lines.push('', 'Mot varandra (raden mot kolumnen):');
     lines.push(['', ...T.map((t) => t.name)].join('\t'));
-    for (const a of T) lines.push([a.name, ...T.map((b) => (a === b ? '–' : sign(versus(tally, a.playerId, b.playerId))))].join('\t'));
+    for (const a of T) lines.push([a.name, ...T.map((b) => { const v = versus(tally, a.playerId, b.playerId); return a === b || v === 0 ? '–' : sign(v); })].join('\t'));
     lines.push('', 'Omgångar:');
     tally.rounds.forEach((r, k) => lines.push(`${k + 1}. ` + T.filter((t) => t.playerId in r.scores).map((t) => `${t.name} ${r.scores[t.playerId]}`).join(', ')));
     return lines.join('\n');
@@ -1452,20 +1464,21 @@ const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.lef
 function seatEl(pid) { return pid === S.you ? $('hand') : document.querySelector(`.seat[data-pid="${pid}"]`); }
 
 /** Låter en kort-klon flyga mellan två element. */
-function fly(fromEl, toEl, html, delay = 0, dur = 420) {
+function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
   if (!fromEl || !toEl || reduceMotion) return;
   const a = center(fromEl), b = center(toEl);
   const el = document.createElement('div');
   el.className = 'fly';
   el.innerHTML = html;
   el.style.left = a.x + 'px'; el.style.top = a.y + 'px';
-  el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 200ms ease ${delay + dur}ms`;
+  const stay = linger ? 60000 : 0; // öppna kort ligger kvar tills utdelningen är klar
+  el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 300ms ease ${delay + dur + stay}ms`;
   $('fx').appendChild(el);
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)`;
+    el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)${linger ? ' scale(1.25)' : ''}`;
     el.style.opacity = '0';
   }));
-  setTimeout(() => el.remove(), delay + dur + 260);
+  if (!linger) setTimeout(() => el.remove(), delay + dur + 360);
 }
 const BACK = '<div class="card back small"></div>';
 function flyBacks(fromPid, toPid, n, delay = 0) {
@@ -1522,25 +1535,39 @@ function startDealAnim() {
   requestAnimationFrame(() => {
     const G = S.game, n = G.players.length, deck = $('deckPile');
     const reveal = Object.fromEntries(G.dealReveal.map((r) => [r.playerId, r.cards]));
-    const step = 95;
-    let t = 300;
-    for (let r = 0; r < 6; r++) for (const p of G.players) {
-      const html = r < 5 ? BACK : cardHTML(reveal[p.id][0], { cls: 'small' });
-      fly(deck, seatEl(p.id), html, t, 380);
-      t += r < 5 ? step : step * 2.5;
-    }
+    // långsamt nog att hinna följa med: dolda kort ett i taget, sedan de öppna korten med paus mellan varje
+    let t = 400;
+    for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK, t, 450); t += 170; }
+    t += 600;
+    banner('Det sjätte kortet delas ut med framsidan upp – högst kort styr', t);
+    t += 900;
+    for (const p of G.players) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][0], { cls: 'small' }), t, 650, true); t += 900; }
     const extra = Math.max(...G.dealReveal.map((r) => r.cards.length));
     for (let e = 1; e < extra; e++) {
-      t += 500;
-      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 420); t += step * 3; }
+      t += 600;
+      banner('Lika högsta kort – ett nytt kort läggs ut', t);
+      t += 900;
+      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 650, true); t += 1000; }
     }
+    t += 300;
+    banner(`${G.leaderId === S.you ? 'Du' : nameOf(G.leaderId)} har högst kort och styr! ♛`, t, 1600);
+    t += 1700;
     setTimeout(() => {
+      $('fx').innerHTML = '';
       dealing = false;
       $('game').classList.remove('dealing');
       resetAnim();
       if (S && S.game) renderGame();
-    }, t + 500);
+    }, t + 200);
   });
+}
+function banner(text, delay, dur = 1100) {
+  setTimeout(() => {
+    const el = document.createElement('div');
+    el.className = 'deal-banner'; el.textContent = text;
+    $('fx').appendChild(el);
+    setTimeout(() => el.remove(), dur);
+  }, delay);
 }
 
 // ---------- poängtavla ----------
@@ -1550,24 +1577,25 @@ function renderTally() {
   const tally = S.lobby.tally, me = S.you, box = $('tally');
   if (!tally || !tally.rounds.length) { box.classList.add('hidden'); return; }
   box.classList.remove('hidden');
-  const others = Object.keys(tally.names).filter((id) => id !== me);
-  const total = others.reduce((s, o) => s + T.versus(tally, me, o), 0);
+  // bara de man har vunnit eller förlorat mot (inte de som hamnat i mitten)
+  const others = Object.keys(tally.names).filter((id) => id !== me).map((o) => [o, T.versus(tally, me, o)]).filter(([, v]) => v !== 0);
+  const total = others.reduce((s, [, v]) => s + v, 0);
   box.innerHTML = `<div class="tally-head">Ställning · ${tally.rounds.length} omg.</div>
-    ${others.map((o) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(T.versus(tally, me, o))}</div>`).join('')}
-    <div class="tally-row total"><span>Totalt</span>${signed(total)}</div>`;
+    ${others.length ? others.map(([o, v]) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(v)}</div>`).join('') : '<div class="tally-row muted">Inget att räkna än</div>'}
+    ${others.length ? `<div class="tally-row total"><span>Totalt</span>${signed(total)}</div>` : ''}`;
 }
 function renderEnd() {
   const L = S && S.lobby, show = !!(L && L.ended);
   $('endScreen').classList.toggle('hidden', !show);
   if (!show) return;
-  $('results').classList.add('hidden');
+  $('results').classList.add('hidden'); $('toast').classList.add('hidden');
   const tally = L.tally, tot = T.totals(tally), isHost = L.hostId === S.you;
   $('endInfo').textContent = `${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'} spelade.`;
   const best = tot.length ? tot[0].total : 0;
   $('endBody').innerHTML = tot.map((t) => `<tr class="${t.total === best ? 'winner' : ''}"><td>${t.total === best ? '🏆' : ''}</td>
     <td>${esc(t.name)}${t.playerId === S.you ? ' (du)' : ''}</td><td>${t.rounds}</td><td><strong>${t.total}</strong></td><td>${signed(t.net)}</td></tr>`).join('');
   $('endMatrix').innerHTML = `<tr><th></th>${tot.map((t) => `<th>${esc(t.name)}</th>`).join('')}</tr>` +
-    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => `<td>${a === b ? '–' : signed(T.versus(tally, a.playerId, b.playerId))}</td>`).join('')}</tr>`).join('');
+    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => { const v = T.versus(tally, a.playerId, b.playerId); return `<td>${a === b || v === 0 ? '–' : signed(v)}</td>`; }).join('')}</tr>`).join('');
   $('endText').value = T.summaryText(tally);
   $('closeEndBtn').classList.toggle('hidden', !isHost);
   $('endWait').textContent = isHost ? 'Tillbaka till rummet nollställer ställningen.' : 'Värden avslutar och går tillbaka till rummet.';
