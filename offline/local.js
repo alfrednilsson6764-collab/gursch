@@ -75,8 +75,6 @@ window.GURSCH_LOCAL = function () {
         room.ended = true; return broadcast();
       case 'closeSession':
         room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
-      case 'toLobby':
-        room.game = null; return broadcast();
       case 'leave':
         clearTimeout(botTimer); room = null; return;
       default:

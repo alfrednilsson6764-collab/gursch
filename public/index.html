@@ -5,10 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>GURSCH</title>
   <meta name="theme-color" content="#0d3b2a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;800&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="conn" class="conn hidden">Ansluter…</div>
+  <div id="bgCards" class="bg-cards" aria-hidden="true"></div>
 
   <!-- Startsida -->
   <section id="home" class="screen">
@@ -115,8 +119,7 @@
       <p id="resultsMult" class="muted center"></p>
       <div class="lobby-actions">
         <button id="againBtn" class="btn primary">Ny omgång med samma spelare</button>
-        <button id="lobbyBtn" class="btn">Tillbaka till rummet</button>
-        <button id="endBtn" class="btn">Avsluta och visa ställning</button>
+        <button id="endBtn" class="btn">Avsluta</button>
       </div>
       <p id="resultsInfo" class="muted center"></p>
     </div>
@@ -124,20 +127,14 @@
 
   <!-- Slutskärm med ställning -->
   <div id="endScreen" class="overlay hidden">
-    <div class="home-card wide">
-      <h2>Slutställning</h2>
+    <div class="home-card end-card">
+      <h2>Ställning</h2>
       <p id="endInfo" class="muted center"></p>
-      <table class="results-table">
-        <thead><tr><th></th><th>Spelare</th><th>Omgångar</th><th>Totalpoäng</th><th>Plus/minus</th></tr></thead>
-        <tbody id="endBody"></tbody>
-      </table>
-      <h3>Mot varandra</h3>
-      <p class="tiny muted">Raden mot kolumnen. Bara omgångens vinnare mot förlorare räknas. Plus betyder att raden ligger före.</p>
-      <div class="matrix-wrap"><table id="endMatrix" class="results-table matrix"></table></div>
-      <textarea id="endText" class="end-text" readonly rows="6"></textarea>
+      <ol id="endList" class="end-list"></ol>
+      <textarea id="endText" class="end-text hidden" readonly rows="6"></textarea>
       <div class="lobby-actions">
-        <button id="copyEndBtn" class="btn primary">Kopiera ställningen</button>
-        <button id="closeEndBtn" class="btn">Tillbaka till rummet</button>
+        <button id="copyEndBtn" class="btn">Kopiera</button>
+        <button id="closeEndBtn" class="btn primary">Till menyn</button>
       </div>
       <p id="endWait" class="muted center"></p>
     </div>

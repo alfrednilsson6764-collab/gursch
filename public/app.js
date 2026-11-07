@@ -23,9 +23,10 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
   if (back || !c) return `<div class="card back ${cls}"></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
-  return `<div class="card ${red} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
+  const face = c.rank >= 11;
+  return `<div class="card ${red} ${face ? 'face' : ''} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
     <span class="corner tl">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
-    <span class="pip">${SUIT[c.suit]}</span>
+    <span class="pip">${face ? `<b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i>` : SUIT[c.suit]}</span>
     <span class="corner br">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
     ${c.public ? '<span class="eye" title="Synligt för alla">👁</span>' : ''}
   </div>`;
@@ -33,6 +34,7 @@ function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
 
 function show(screen) {
   for (const s of ['home', 'lobby', 'game']) $(s).classList.toggle('hidden', s !== screen);
+  $('bgCards').classList.toggle('hidden', screen === 'game');
 }
 function toast(text, cls = '') {
   const t = $('toast');
@@ -211,12 +213,13 @@ function renderGame() {
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
     if (ev.type === 'hidden') flyBacks(null, ev.playerId, ev.count);
-    if (ev.type === 'out') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader');
-    if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
+    if (ev.type === 'out') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader'); burst('🔥', 'out'); }
+    if (ev.type === 'leader' && ev.reason === 'beat') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader'); burst('♛'); }
   }
   renderTally();
   renderDeal(G);
   renderResults(G);
+  celebrate(G);
 }
 
 const lowestTxt = (pron, n) => n === 1 ? `${pron === 'mina' ? 'mitt' : 'ditt'} lägsta kort` : `${pron} ${n} lägsta kort`;
@@ -312,6 +315,7 @@ function renderActions(G) {
   }
   const myTurn = acts.length > 0;
   $('hand').classList.toggle('active', myTurn && !offerHTML);
+  document.querySelector('.me-area').classList.toggle('my-turn', myTurn);
   document.title = myTurn ? '● Din tur – GURSCH' : 'GURSCH';
 }
 
@@ -345,18 +349,16 @@ function renderResults(G) {
     : `${winners.length > 1 ? 'Vinner tillsammans: ' : 'Vinnare: '}${winners.join(', ')}. ${losers.length > 1 ? 'Förlorar tillsammans: ' : 'Förlorare: '}${losers.join(', ')}.`);
   const isHost = S.lobby.hostId === S.you;
   $('againBtn').classList.toggle('hidden', !isHost);
-  $('lobbyBtn').classList.toggle('hidden', !isHost);
   $('endBtn').classList.toggle('hidden', !isHost);
   $('resultsInfo').textContent = isHost ? '' : 'Väntar på att värden startar en ny omgång…';
 }
 $('againBtn').onclick = () => socket.emit('start', null, (r) => !r.ok && toast(r.error, 'bad'));
-$('lobbyBtn').onclick = () => socket.emit('toLobby');
 $('endBtn').onclick = () => socket.emit('endSession');
 $('closeEndBtn').onclick = () => socket.emit('closeSession');
 $('copyEndBtn').onclick = async () => {
   const t = $('endText');
   try { await navigator.clipboard.writeText(t.value); toast('Ställningen är kopierad'); }
-  catch { t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
+  catch { t.classList.remove('hidden'); t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
 };
 
 socket.on('state', (state) => {
@@ -509,14 +511,63 @@ function renderEnd() {
   $('endScreen').classList.toggle('hidden', !show);
   if (!show) return;
   $('results').classList.add('hidden'); $('toast').classList.add('hidden');
-  const tally = L.tally, tot = T.totals(tally), isHost = L.hostId === S.you;
-  $('endInfo').textContent = `${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'} spelade.`;
-  const best = tot.length ? tot[0].total : 0;
-  $('endBody').innerHTML = tot.map((t) => `<tr class="${t.total === best ? 'winner' : ''}"><td>${t.total === best ? '🏆' : ''}</td>
-    <td>${esc(t.name)}${t.playerId === S.you ? ' (du)' : ''}</td><td>${t.rounds}</td><td><strong>${t.total}</strong></td><td>${signed(t.net)}</td></tr>`).join('');
-  $('endMatrix').innerHTML = `<tr><th></th>${tot.map((t) => `<th>${esc(t.name)}</th>`).join('')}</tr>` +
-    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => { const v = T.versus(tally, a.playerId, b.playerId); return `<td>${a === b || v === 0 ? '–' : signed(v)}</td>`; }).join('')}</tr>`).join('');
+  const tally = L.tally, isHost = L.hostId === S.you;
+  const rows = T.totals(tally).sort((a, b) => b.net - a.net);
+  $('endInfo').textContent = `Efter ${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'}`;
+  const best = rows.length ? rows[0].net : 0;
+  $('endList').innerHTML = rows.map((r) => `<li class="${r.net === best && r.net > 0 ? 'top' : ''}">
+    <span class="end-name">${r.net === best && r.net > 0 ? '🏆 ' : ''}${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</span>
+    <span class="end-score">${signed(r.net)}</span></li>`).join('');
   $('endText').value = T.summaryText(tally);
   $('closeEndBtn').classList.toggle('hidden', !isHost);
-  $('endWait').textContent = isHost ? 'Tillbaka till rummet nollställer ställningen.' : 'Värden avslutar och går tillbaka till rummet.';
+  $('endWait').textContent = isHost ? '' : 'Väntar på att värden går till menyn…';
+}
+
+// ---------- effekter ----------
+function burst(symbol, kind = '') {
+  if (reduceMotion) return;
+  const el = document.createElement('div');
+  el.className = 'burst ' + kind;
+  el.innerHTML = `<div class="burst-flash"></div><div class="burst-ring"></div><div class="burst-sym">${symbol}</div>`;
+  $('fx').appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+function confetti(ms = 2600) {
+  if (reduceMotion) return;
+  const c = document.createElement('canvas');
+  c.className = 'confetti'; c.width = innerWidth; c.height = innerHeight;
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  const colors = ['#f2c14e', '#ffe08a', '#e53935', '#ffffff', '#43a047', '#29b6f6'];
+  const parts = Array.from({ length: 160 }, () => ({
+    x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
+    s: 4 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: colors[Math.floor(Math.random() * colors.length)],
+  }));
+  const t0 = performance.now();
+  (function frame(t) {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const p of parts) {
+      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+      ctx.globalAlpha = Math.max(0, 1 - (t - t0) / ms); ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore();
+    }
+    if (t - t0 < ms) requestAnimationFrame(frame); else c.remove();
+  })(t0);
+}
+// svävande kort på startsidan
+(function bgCards() {
+  const box = $('bgCards'); if (!box) return;
+  const ranks = [14, 13, 12, 11, 10, 7, 2, 14, 13, 12];
+  box.innerHTML = ranks.map((r, k) => cardHTML({ id: 'bg' + k, rank: r, suit: 'SHDC'[k % 4] }, {
+    cls: 'bg-card', style: `left:${(k * 37 + 5) % 95}%;animation-delay:${-k * 2.3}s;animation-duration:${16 + (k % 5) * 3}s`,
+  })).join('');
+})();
+let celebrated = null;
+function celebrate(G) {
+  if (G.phase !== 'finished') return;
+  const key = G.history.length + ':' + G.results.map((r) => r.score).join();
+  if (celebrated === key) return;
+  celebrated = key;
+  const mine = G.results.find((r) => r.playerId === S.you);
+  if (mine && mine.winner) confetti();
 }

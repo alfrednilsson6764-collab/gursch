@@ -36,17 +36,11 @@
   const sign = (n) => (n > 0 ? '+' + n : String(n));
 
   function summaryText(tally) {
-    const T = totals(tally);
-    const lines = [`GURSCH – ställning efter ${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'}`, ''];
-    lines.push('Spelare\tTotalpoäng\tPlus/minus');
-    for (const t of T) lines.push(`${t.name}\t${t.total}\t${sign(t.net)}`);
-    lines.push('', 'Mot varandra (raden mot kolumnen):');
-    lines.push(['', ...T.map((t) => t.name)].join('\t'));
-    for (const a of T) lines.push([a.name, ...T.map((b) => { const v = versus(tally, a.playerId, b.playerId); return a === b || v === 0 ? '–' : sign(v); })].join('\t'));
-    lines.push('', 'Omgångar:');
-    tally.rounds.forEach((r, k) => lines.push(`${k + 1}. ` + T.filter((t) => t.playerId in r.scores).map((t) => `${t.name} ${r.scores[t.playerId]}`).join(', ')));
-    return lines.join('\n');
+    const rows = totals(tally).sort((a, b) => b.net - a.net);
+    const n = tally.rounds.length;
+    return [`GURSCH – ställning efter ${n} omgång${n === 1 ? '' : 'ar'}`, ...rows.map((t) => `${t.name}\t${sign(t.net)}`)].join('\n');
   }
+
 
   const api = { addRound, versus, totals, summaryText, sign, create: () => ({ rounds: [], names: {} }) };
   if (typeof module !== 'undefined') module.exports = api;

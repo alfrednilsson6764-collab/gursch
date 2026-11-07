@@ -151,7 +151,7 @@ function setHands(g, hands) {
   assert.strictEqual(Tally.versus(t, 'b', 'c'), 40);
   const T = Object.fromEntries(Tally.totals(t).map((x) => [x.playerId, x]));
   assert.deepStrictEqual([T.a.net, T.b.net, T.c.net], [-20, 60, -40]);
-  assert.ok(Tally.summaryText(t).includes('A\t55\t-20'));
+  assert.ok(Tally.summaryText(t).includes('A\t-20') && Tally.summaryText(t).split('\n')[1].startsWith('B\t+60'));
   console.log('OK: poängtavla');
 }
 

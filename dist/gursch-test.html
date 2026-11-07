@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>GURSCH – testa mot bottar</title>
   <meta name="theme-color" content="#0d3b2a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;800&display=swap">
   <style>
 :root {
   --felt: #0f5a3c; --felt-dark: #0a3b28; --gold: #f2c14e; --ink: #1d1d1f; --red: #c62828;
@@ -201,6 +204,140 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 .dealing .crown, .dealing .seat-turn, .dealing #roundInfo { visibility: hidden; }
 .dealing .seat.turn { border-color: transparent; box-shadow: none; }
 
+/* =====================================================================
+   TEMA – "10x coolare": djupare bord, riktiga kort, guld och effekter
+   ===================================================================== */
+:root { --gold: #f5c451; --gold-2: #ffe7a3; --gold-dark: #9a6b12; --felt: #0e6b45; --felt-dark: #063823; }
+body { font-family: 'Inter', system-ui, sans-serif;
+  background: radial-gradient(1200px 700px at 50% -10%, #1f7a55 0%, transparent 60%),
+              radial-gradient(900px 600px at 110% 110%, #3b0d12 0%, transparent 55%),
+              linear-gradient(160deg, #04160f, #0a2a1d 45%, #050f0b); }
+body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55)); }
+.screen, .overlay, .toast, .conn { z-index: 1; }
+.overlay { z-index: 40; backdrop-filter: blur(4px); background: rgba(2,10,6,.7); }
+.toast { z-index: 50; }
+
+/* rubriker */
+.logo { font-family: 'Cinzel', serif; letter-spacing: .14em;
+  background: linear-gradient(100deg, var(--gold-dark) 0%, var(--gold) 25%, var(--gold-2) 40%, var(--gold) 55%, var(--gold-dark) 80%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: none; filter: drop-shadow(0 6px 18px rgba(245,196,81,.35)); animation: shimmer 6s linear infinite; }
+@keyframes shimmer { to { background-position: -250% 0; } }
+.brand, .overlay h2, .center-title, .tally-head { font-family: 'Cinzel', serif; }
+.overlay h2 { font-size: 34px; letter-spacing: .06em; }
+
+/* paneler */
+.home-card { background: linear-gradient(180deg, rgba(20,40,30,.85), rgba(6,16,11,.92));
+  border: 1px solid rgba(245,196,81,.28); box-shadow: 0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08); }
+.topbar { background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.2)); border-bottom: 1px solid rgba(245,196,81,.15); }
+
+/* knappar med glansdrag */
+.btn { position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.12); letter-spacing: .01em; }
+.btn.primary { background: linear-gradient(180deg, #ffe08a, var(--gold) 45%, #d99a1e); color: #2a1a00; border-color: #fff2c4;
+  box-shadow: 0 6px 18px rgba(245,196,81,.35), inset 0 1px 0 rgba(255,255,255,.7); text-shadow: 0 1px 0 rgba(255,255,255,.4); }
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #fff0b8, #ffd56b 45%, #e8a92a); transform: translateY(-1px); }
+.btn.primary::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.65), transparent); transform: skewX(-20deg); animation: shine 3.2s ease-in-out infinite; }
+@keyframes shine { 0%, 60% { left: -60%; } 100% { left: 130%; } }
+.btn.primary:disabled::after { display: none; }
+
+/* bordet */
+.table { border-radius: 50% / 42%;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .18 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    radial-gradient(ellipse at 50% 40%, #1d9a66 0%, var(--felt) 45%, var(--felt-dark) 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(245,196,81,.35), inset 0 0 0 14px #4a2a12, inset 0 0 0 16px #2b1607, inset 0 0 0 18px rgba(245,196,81,.25),
+    inset 0 30px 80px rgba(0,0,0,.35), inset 0 -20px 60px rgba(0,0,0,.4), 0 25px 60px rgba(0,0,0,.6), 0 0 0 6px #1a0d04, 0 0 0 8px rgba(245,196,81,.2); }
+.table::before { content: 'GURSCH'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-family: 'Cinzel', serif; font-size: clamp(40px, 9vw, 110px); font-weight: 900; letter-spacing: .2em;
+  color: rgba(255,255,255,.035); pointer-events: none; white-space: nowrap; }
+
+/* platser runt bordet */
+.seat { background: linear-gradient(180deg, rgba(0,0,0,.6), rgba(0,0,0,.4)); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,.4); backdrop-filter: blur(2px); }
+.seat.leader { border-color: rgba(245,196,81,.55); }
+.seat.turn { border: 2px solid var(--gold); animation: seatGlow 1.6s ease-in-out infinite; }
+@keyframes seatGlow { 50% { box-shadow: 0 0 34px rgba(245,196,81,.75), 0 8px 20px rgba(0,0,0,.4); } }
+.crown { text-shadow: 0 0 10px rgba(245,196,81,.9); }
+.seat-cards i { background: repeating-linear-gradient(45deg, #7a0f1a 0 3px, #a3192a 3px 6px); border-color: #f3e2b0; }
+
+/* korten */
+.card { border-radius: 8px; border: 1px solid #d9d2c3;
+  background: linear-gradient(160deg, #ffffff 0%, #fbf7ee 60%, #efe7d6 100%);
+  box-shadow: 0 3px 8px rgba(0,0,0,.35), inset 0 0 0 3px #fff, inset 0 0 0 4px rgba(0,0,0,.06); }
+.card .corner { font-family: 'Inter', sans-serif; font-weight: 800; }
+.card .pip { text-shadow: 0 1px 0 rgba(255,255,255,.8); }
+.card.face .pip { flex-direction: column; line-height: .9; }
+.card.face .pip b { font-family: 'Cinzel', serif; font-size: .95em; font-weight: 900; }
+.card.face .pip i { font-style: normal; font-size: .55em; }
+.card.face { background: linear-gradient(160deg, #fffdf6 0%, #fff4d8 55%, #f3dfaf 100%); }
+.card.face::before { content: ''; position: absolute; inset: 7px; border: 1px solid rgba(154,107,18,.35); border-radius: 4px; pointer-events: none; }
+.card.mini.face::before, .card.mini .pip { display: none; }
+.card.back { border: 3px solid #f6ebc8;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(245,196,81,.55) 0 18%, transparent 19%),
+    repeating-linear-gradient(45deg, rgba(245,196,81,.22) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(-45deg, rgba(245,196,81,.22) 0 2px, transparent 2px 9px),
+    linear-gradient(160deg, #a3192a, #5d0a14);
+  box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 0 0 2px #7a0f1a; }
+.card.back::after { content: 'G'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: 'Cinzel', serif; font-weight: 900; color: #2b0408; font-size: 14px; }
+.card.mini.back::after { display: none; }
+
+/* min hand */
+.hand { perspective: 900px; }
+.hand .card { transition: transform .18s cubic-bezier(.3,.8,.3,1.3), box-shadow .18s; }
+.hand .card:hover { transform: translateY(-10px) rotate(-1deg); box-shadow: 0 14px 24px rgba(0,0,0,.45); }
+.hand .card.selected { transform: translateY(-20px) scale(1.04);
+  box-shadow: 0 0 0 3px var(--gold), 0 0 24px rgba(245,196,81,.8), 0 16px 26px rgba(0,0,0,.5); }
+.me-area { position: relative; }
+.me-area.my-turn::before { content: 'DIN TUR'; position: absolute; left: 50%; top: -14px; transform: translateX(-50%);
+  font-family: 'Cinzel', serif; font-weight: 900; letter-spacing: .25em; font-size: 12px; color: #2a1a00;
+  background: linear-gradient(180deg, #ffe08a, var(--gold)); padding: 4px 14px; border-radius: 99px;
+  box-shadow: 0 0 20px rgba(245,196,81,.7); animation: pulse 1.4s ease-in-out infinite; }
+.me-area.my-turn .hand { filter: drop-shadow(0 0 14px rgba(245,196,81,.35)); }
+.count-badge { background: linear-gradient(180deg, #ffe08a, var(--gold)); box-shadow: 0 0 14px rgba(245,196,81,.5); }
+
+/* bordets mitt */
+.play { background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.06); box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+.play.beat { outline: none; border-color: var(--gold); box-shadow: 0 0 20px rgba(245,196,81,.55); }
+.play.out { border-color: #ff7043; box-shadow: 0 0 26px rgba(255,112,67,.7); }
+.deck-pile .card { box-shadow: 0 2px 0 #3b0710, 0 6px 14px rgba(0,0,0,.5); }
+
+/* effekter */
+.burst { position: fixed; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+.burst-flash { position: absolute; inset: 0; background: radial-gradient(circle at center, rgba(255,224,138,.45), transparent 60%); animation: flash 1s ease-out forwards; }
+.burst-ring { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 6px solid var(--gold); animation: ring 1s ease-out forwards; }
+.burst-sym { position: relative; font-size: 110px; color: var(--gold); text-shadow: 0 0 30px rgba(245,196,81,.9), 0 6px 0 #9a6b12; animation: sym 1.3s cubic-bezier(.2,1.4,.4,1) forwards; }
+.burst.out .burst-ring { border-color: #ff7043; } .burst.out .burst-flash { background: radial-gradient(circle at center, rgba(255,112,67,.45), transparent 60%); }
+@keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ring { from { transform: scale(.3); opacity: 1; } to { transform: scale(6); opacity: 0; } }
+@keyframes sym { 0% { transform: scale(.2); opacity: 0; } 30% { transform: scale(1.15); opacity: 1; } 70% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.4) translateY(-40px); opacity: 0; } }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+.toast.leader { background: linear-gradient(180deg, #ffe08a, var(--gold)); font-family: 'Cinzel', serif; box-shadow: 0 0 30px rgba(245,196,81,.6); }
+.deal-banner { font-family: 'Cinzel', serif; border: 1px solid rgba(245,196,81,.5); box-shadow: 0 0 30px rgba(245,196,81,.35); }
+
+/* svävande kort på startsidan */
+.bg-cards { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.bg-card { position: absolute !important; bottom: -140px; opacity: .16; animation: floatUp linear infinite; filter: blur(.4px); }
+@keyframes floatUp { from { transform: translateY(0) rotate(-20deg); } to { transform: translateY(-130vh) rotate(25deg); } }
+
+/* resultat och ställning */
+.results-table tr.winner { background: linear-gradient(90deg, rgba(245,196,81,.28), rgba(245,196,81,.05)); }
+.end-card { max-width: 440px; }
+.end-list { list-style: none; padding: 0; margin: 14px 0 18px; counter-reset: pos; }
+.end-list li { counter-increment: pos; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px;
+  margin-bottom: 8px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); font-size: 18px; }
+.end-list li::before { content: counter(pos) '.'; font-family: 'Cinzel', serif; opacity: .6; margin-right: 8px; }
+.end-list li.top { background: linear-gradient(90deg, rgba(245,196,81,.3), rgba(245,196,81,.06)); border-color: rgba(245,196,81,.6); }
+.end-name { flex: 1; font-weight: 600; } .end-score { font-size: 22px; font-weight: 800; }
+.tally { background: linear-gradient(180deg, rgba(0,0,0,.7), rgba(0,0,0,.5)); border-color: rgba(245,196,81,.3); box-shadow: 0 8px 20px rgba(0,0,0,.4); }
+@media (prefers-reduced-motion: reduce) { .logo, .btn.primary::after, .seat.turn, .bg-card { animation: none !important; } }
+#game, .table-wrap { overflow: hidden; }
+.screen { overflow-x: hidden; }
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -208,6 +345,7 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 </head>
 <body>
   <div id="conn" class="conn hidden">Ansluter…</div>
+  <div id="bgCards" class="bg-cards" aria-hidden="true"></div>
 
   <!-- Startsida -->
   <section id="home" class="screen">
@@ -314,8 +452,7 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
       <p id="resultsMult" class="muted center"></p>
       <div class="lobby-actions">
         <button id="againBtn" class="btn primary">Ny omgång med samma spelare</button>
-        <button id="lobbyBtn" class="btn">Tillbaka till rummet</button>
-        <button id="endBtn" class="btn">Avsluta och visa ställning</button>
+        <button id="endBtn" class="btn">Avsluta</button>
       </div>
       <p id="resultsInfo" class="muted center"></p>
     </div>
@@ -323,20 +460,14 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 
   <!-- Slutskärm med ställning -->
   <div id="endScreen" class="overlay hidden">
-    <div class="home-card wide">
-      <h2>Slutställning</h2>
+    <div class="home-card end-card">
+      <h2>Ställning</h2>
       <p id="endInfo" class="muted center"></p>
-      <table class="results-table">
-        <thead><tr><th></th><th>Spelare</th><th>Omgångar</th><th>Totalpoäng</th><th>Plus/minus</th></tr></thead>
-        <tbody id="endBody"></tbody>
-      </table>
-      <h3>Mot varandra</h3>
-      <p class="tiny muted">Raden mot kolumnen. Bara omgångens vinnare mot förlorare räknas. Plus betyder att raden ligger före.</p>
-      <div class="matrix-wrap"><table id="endMatrix" class="results-table matrix"></table></div>
-      <textarea id="endText" class="end-text" readonly rows="6"></textarea>
+      <ol id="endList" class="end-list"></ol>
+      <textarea id="endText" class="end-text hidden" readonly rows="6"></textarea>
       <div class="lobby-actions">
-        <button id="copyEndBtn" class="btn primary">Kopiera ställningen</button>
-        <button id="closeEndBtn" class="btn">Tillbaka till rummet</button>
+        <button id="copyEndBtn" class="btn">Kopiera</button>
+        <button id="closeEndBtn" class="btn primary">Till menyn</button>
       </div>
       <p id="endWait" class="muted center"></p>
     </div>
@@ -966,17 +1097,11 @@ module.exports = { Game, GameError, RULES, makeDeck };
   const sign = (n) => (n > 0 ? '+' + n : String(n));
 
   function summaryText(tally) {
-    const T = totals(tally);
-    const lines = [`GURSCH – ställning efter ${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'}`, ''];
-    lines.push('Spelare\tTotalpoäng\tPlus/minus');
-    for (const t of T) lines.push(`${t.name}\t${t.total}\t${sign(t.net)}`);
-    lines.push('', 'Mot varandra (raden mot kolumnen):');
-    lines.push(['', ...T.map((t) => t.name)].join('\t'));
-    for (const a of T) lines.push([a.name, ...T.map((b) => { const v = versus(tally, a.playerId, b.playerId); return a === b || v === 0 ? '–' : sign(v); })].join('\t'));
-    lines.push('', 'Omgångar:');
-    tally.rounds.forEach((r, k) => lines.push(`${k + 1}. ` + T.filter((t) => t.playerId in r.scores).map((t) => `${t.name} ${r.scores[t.playerId]}`).join(', ')));
-    return lines.join('\n');
+    const rows = totals(tally).sort((a, b) => b.net - a.net);
+    const n = tally.rounds.length;
+    return [`GURSCH – ställning efter ${n} omgång${n === 1 ? '' : 'ar'}`, ...rows.map((t) => `${t.name}\t${sign(t.net)}`)].join('\n');
   }
+
 
   const api = { addRound, versus, totals, summaryText, sign, create: () => ({ rounds: [], names: {} }) };
   if (typeof module !== 'undefined') module.exports = api;
@@ -1062,8 +1187,6 @@ window.GURSCH_LOCAL = function () {
         room.ended = true; return broadcast();
       case 'closeSession':
         room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
-      case 'toLobby':
-        room.game = null; return broadcast();
       case 'leave':
         clearTimeout(botTimer); room = null; return;
       default:
@@ -1103,9 +1226,10 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
   if (back || !c) return `<div class="card back ${cls}"></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
-  return `<div class="card ${red} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
+  const face = c.rank >= 11;
+  return `<div class="card ${red} ${face ? 'face' : ''} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
     <span class="corner tl">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
-    <span class="pip">${SUIT[c.suit]}</span>
+    <span class="pip">${face ? `<b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i>` : SUIT[c.suit]}</span>
     <span class="corner br">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
     ${c.public ? '<span class="eye" title="Synligt för alla">👁</span>' : ''}
   </div>`;
@@ -1113,6 +1237,7 @@ function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
 
 function show(screen) {
   for (const s of ['home', 'lobby', 'game']) $(s).classList.toggle('hidden', s !== screen);
+  $('bgCards').classList.toggle('hidden', screen === 'game');
 }
 function toast(text, cls = '') {
   const t = $('toast');
@@ -1291,12 +1416,13 @@ function renderGame() {
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
     if (ev.type === 'hidden') flyBacks(null, ev.playerId, ev.count);
-    if (ev.type === 'out') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader');
-    if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
+    if (ev.type === 'out') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader'); burst('🔥', 'out'); }
+    if (ev.type === 'leader' && ev.reason === 'beat') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader'); burst('♛'); }
   }
   renderTally();
   renderDeal(G);
   renderResults(G);
+  celebrate(G);
 }
 
 const lowestTxt = (pron, n) => n === 1 ? `${pron === 'mina' ? 'mitt' : 'ditt'} lägsta kort` : `${pron} ${n} lägsta kort`;
@@ -1392,6 +1518,7 @@ function renderActions(G) {
   }
   const myTurn = acts.length > 0;
   $('hand').classList.toggle('active', myTurn && !offerHTML);
+  document.querySelector('.me-area').classList.toggle('my-turn', myTurn);
   document.title = myTurn ? '● Din tur – GURSCH' : 'GURSCH';
 }
 
@@ -1425,18 +1552,16 @@ function renderResults(G) {
     : `${winners.length > 1 ? 'Vinner tillsammans: ' : 'Vinnare: '}${winners.join(', ')}. ${losers.length > 1 ? 'Förlorar tillsammans: ' : 'Förlorare: '}${losers.join(', ')}.`);
   const isHost = S.lobby.hostId === S.you;
   $('againBtn').classList.toggle('hidden', !isHost);
-  $('lobbyBtn').classList.toggle('hidden', !isHost);
   $('endBtn').classList.toggle('hidden', !isHost);
   $('resultsInfo').textContent = isHost ? '' : 'Väntar på att värden startar en ny omgång…';
 }
 $('againBtn').onclick = () => socket.emit('start', null, (r) => !r.ok && toast(r.error, 'bad'));
-$('lobbyBtn').onclick = () => socket.emit('toLobby');
 $('endBtn').onclick = () => socket.emit('endSession');
 $('closeEndBtn').onclick = () => socket.emit('closeSession');
 $('copyEndBtn').onclick = async () => {
   const t = $('endText');
   try { await navigator.clipboard.writeText(t.value); toast('Ställningen är kopierad'); }
-  catch { t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
+  catch { t.classList.remove('hidden'); t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
 };
 
 socket.on('state', (state) => {
@@ -1589,16 +1714,65 @@ function renderEnd() {
   $('endScreen').classList.toggle('hidden', !show);
   if (!show) return;
   $('results').classList.add('hidden'); $('toast').classList.add('hidden');
-  const tally = L.tally, tot = T.totals(tally), isHost = L.hostId === S.you;
-  $('endInfo').textContent = `${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'} spelade.`;
-  const best = tot.length ? tot[0].total : 0;
-  $('endBody').innerHTML = tot.map((t) => `<tr class="${t.total === best ? 'winner' : ''}"><td>${t.total === best ? '🏆' : ''}</td>
-    <td>${esc(t.name)}${t.playerId === S.you ? ' (du)' : ''}</td><td>${t.rounds}</td><td><strong>${t.total}</strong></td><td>${signed(t.net)}</td></tr>`).join('');
-  $('endMatrix').innerHTML = `<tr><th></th>${tot.map((t) => `<th>${esc(t.name)}</th>`).join('')}</tr>` +
-    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => { const v = T.versus(tally, a.playerId, b.playerId); return `<td>${a === b || v === 0 ? '–' : signed(v)}</td>`; }).join('')}</tr>`).join('');
+  const tally = L.tally, isHost = L.hostId === S.you;
+  const rows = T.totals(tally).sort((a, b) => b.net - a.net);
+  $('endInfo').textContent = `Efter ${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'}`;
+  const best = rows.length ? rows[0].net : 0;
+  $('endList').innerHTML = rows.map((r) => `<li class="${r.net === best && r.net > 0 ? 'top' : ''}">
+    <span class="end-name">${r.net === best && r.net > 0 ? '🏆 ' : ''}${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</span>
+    <span class="end-score">${signed(r.net)}</span></li>`).join('');
   $('endText').value = T.summaryText(tally);
   $('closeEndBtn').classList.toggle('hidden', !isHost);
-  $('endWait').textContent = isHost ? 'Tillbaka till rummet nollställer ställningen.' : 'Värden avslutar och går tillbaka till rummet.';
+  $('endWait').textContent = isHost ? '' : 'Väntar på att värden går till menyn…';
+}
+
+// ---------- effekter ----------
+function burst(symbol, kind = '') {
+  if (reduceMotion) return;
+  const el = document.createElement('div');
+  el.className = 'burst ' + kind;
+  el.innerHTML = `<div class="burst-flash"></div><div class="burst-ring"></div><div class="burst-sym">${symbol}</div>`;
+  $('fx').appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+function confetti(ms = 2600) {
+  if (reduceMotion) return;
+  const c = document.createElement('canvas');
+  c.className = 'confetti'; c.width = innerWidth; c.height = innerHeight;
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  const colors = ['#f2c14e', '#ffe08a', '#e53935', '#ffffff', '#43a047', '#29b6f6'];
+  const parts = Array.from({ length: 160 }, () => ({
+    x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
+    s: 4 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: colors[Math.floor(Math.random() * colors.length)],
+  }));
+  const t0 = performance.now();
+  (function frame(t) {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const p of parts) {
+      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+      ctx.globalAlpha = Math.max(0, 1 - (t - t0) / ms); ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore();
+    }
+    if (t - t0 < ms) requestAnimationFrame(frame); else c.remove();
+  })(t0);
+}
+// svävande kort på startsidan
+(function bgCards() {
+  const box = $('bgCards'); if (!box) return;
+  const ranks = [14, 13, 12, 11, 10, 7, 2, 14, 13, 12];
+  box.innerHTML = ranks.map((r, k) => cardHTML({ id: 'bg' + k, rank: r, suit: 'SHDC'[k % 4] }, {
+    cls: 'bg-card', style: `left:${(k * 37 + 5) % 95}%;animation-delay:${-k * 2.3}s;animation-duration:${16 + (k % 5) * 3}s`,
+  })).join('');
+})();
+let celebrated = null;
+function celebrate(G) {
+  if (G.phase !== 'finished') return;
+  const key = G.history.length + ':' + G.results.map((r) => r.score).join();
+  if (celebrated === key) return;
+  celebrated = key;
+  const mine = G.results.find((r) => r.playerId === S.you);
+  if (mine && mine.winner) confetti();
 }
 
 </script>

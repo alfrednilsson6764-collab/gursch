@@ -138,13 +138,6 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
-  socket.on('toLobby', () => {
-    const { room, player } = ctx();
-    if (!room || room.hostId !== player.id || !room.game || room.game.phase !== 'finished') return;
-    room.game = null;
-    room.players.forEach((p) => { p.ready = false; });
-    broadcast(room);
-  });
 
   socket.on('leave', () => {
     const { room, player } = ctx();
