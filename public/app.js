@@ -189,10 +189,10 @@ function renderGame() {
   $('centerTitle').innerHTML = title;
   $('pile').innerHTML = pileHTML;
   $('deckInfo').textContent = `Kortlek: ${G.deckCount} kort`;
-  $('roundInfo').innerHTML = pl && pl.count
+  $('roundInfo').innerHTML = (pl && pl.lastRound ? '<span class="count-badge last">Sista rundan</span> ' : '') + (pl && pl.count
     ? `<span class="count-badge">${pl.count} kort</span> gäller · att slå: <strong>${pl.count} × ${rn(pl.combo.rank)}</strong> eller högre`
     : pl ? `<span class="count-badge">?</span> ${esc(nameOf(pl.turnId))} bestämmer antal kort`
-      : ex ? `Styrspelare: <strong>${esc(nameOf(G.leaderId))}</strong>` : '';
+      : ex ? `Styrspelare: <strong>${esc(nameOf(G.leaderId))}</strong>` : '');
 
   // min hand
   $('meName').innerHTML = `${G.leaderId === me ? '<span class="crown">♛</span> ' : ''}${esc(nameOf(me))}`;
@@ -205,6 +205,7 @@ function renderGame() {
   // ny styrspelare – visa tydligt
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
+    if (ev.type === 'lastRound') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} har slut på kort – sista rundan!`, 'leader');
     if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
   }
   renderResults(G);
@@ -255,7 +256,7 @@ function renderActions(G) {
         const need = pl.count, r = pl.combo.rank;
         const ok = sel.n === need && sel.sameRank && sel.rank >= r;
         status = pl.canBeat
-          ? `Din tur. Slå med ${need} × ${rn(r)} eller högre – eller lägg ${lowestTxt('dina', need)}.`
+          ? `Din tur. Du kan slå och måste göra det: lägg ${need} × ${rn(r)} eller högre.`
           : `Din tur. Du kan inte slå ${need} × ${rn(r)} och måste lägga ${lowestTxt('dina', need)}.`;
         let why = 'Välj kort';
         if (sel.n) why = sel.n !== need ? `Välj exakt ${need} kort` : !sel.sameRank ? 'Samma valör krävs' : sel.rank < r ? `Minst ${rn(r)} krävs` : '';
@@ -282,12 +283,14 @@ function renderResults(G) {
   const show = G.phase === 'finished';
   $('results').classList.toggle('hidden', !show);
   if (!show) return;
-  $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : ''}">
-    <td>${r.winner ? '🏆' : ''}</td><td>${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</td>
+  $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : r.loser ? 'loser' : ''}">
+    <td>${r.winner ? '🏆' : r.loser ? '👎' : ''}</td><td>${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</td>
     <td class="res-cards"><div>${r.hand.map((c) => cardHTML(c, { cls: 'mini' })).join('') || '–'}</div></td>
     <td>${r.value}</td><td><strong>${r.score}</strong></td></tr>`).join('');
   const winners = G.results.filter((r) => r.winner).map((r) => r.name);
-  $('resultsMult').textContent = `Multiplikator ×${G.multiplier}. ${winners.length > 1 ? 'Delad vinst: ' : 'Vinnare: '}${winners.join(', ')}`;
+  const losers = G.results.filter((r) => r.loser).map((r) => r.name);
+  $('resultsMult').textContent = `Multiplikator ×${G.multiplier}. ` + (G.isDraw ? 'Oavgjort – alla fick samma poäng!'
+    : `${winners.length > 1 ? 'Vinner tillsammans: ' : 'Vinnare: '}${winners.join(', ')}. ${losers.length > 1 ? 'Förlorar tillsammans: ' : 'Förlorare: '}${losers.join(', ')}.`);
   const isHost = S.lobby.hostId === S.you;
   $('againBtn').classList.toggle('hidden', !isHost);
   $('lobbyBtn').classList.toggle('hidden', !isHost);

@@ -27,7 +27,8 @@ function playOne(nPlayers) {
         if (pl.count === null) {
           const r = pick(me.hand).rank; const same = me.hand.filter((c) => c.rank === r);
           g.act(me.id, { type: 'play', cardIds: same.slice(0, 1 + Math.floor(Math.random() * same.length)).map((c) => c.id) });
-        } else if (g.canBeat(pl.turn) && Math.random() < 0.7) {
+        } else if (g.canBeat(pl.turn)) {
+          try { g.act(me.id, { type: 'dump' }); throw new Error('fick lägga lägsta trots att man kan slå'); } catch (e) { if (!(e instanceof GameError)) throw e; }
           const groups = {}; me.hand.forEach((c) => (groups[c.rank] = groups[c.rank] || []).push(c));
           const ok = Object.values(groups).filter((gr) => gr[0].rank >= pl.combo.rank && gr.length >= pl.count);
           g.act(me.id, { type: 'play', cardIds: pick(ok).slice(0, pl.count).map((c) => c.id) });
@@ -36,6 +37,13 @@ function playOne(nPlayers) {
     } catch (e) { if (e instanceof GameError) throw new Error('Giltigt drag nekades: ' + e.message); throw e; }
   }
   if (!g.results || g.results.length !== nPlayers) throw new Error('Inget resultat');
+  if (!g.players.some((p) => p.hand.length === 0)) throw new Error('Spelet slutade utan att någon fick slut på kort');
+  const scores = g.results.map((r) => r.score), min = Math.min(...scores), max = Math.max(...scores);
+  for (const r of g.results) {
+    if (r.winner !== (min !== max && r.score === min)) throw new Error('fel vinnare');
+    if (r.loser !== (min !== max && r.score === max)) throw new Error('fel förlorare');
+  }
+  if (g.isDraw !== (min === max)) throw new Error('fel oavgjort');
   return { steps, rejected, results: g.results };
 }
 

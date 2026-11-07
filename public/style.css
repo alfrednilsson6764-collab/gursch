@@ -130,7 +130,8 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 .overlay h2 { text-align: center; color: var(--gold); margin-top: 0; font-size: 30px; }
 .results-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 14px; }
 .results-table th, .results-table td { padding: 8px 6px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.1); }
-.results-table tr.winner { background: rgba(242,193,78,.18); } .results-table tr.winner td { font-weight: 700; }
+.results-table tr.winner { background: rgba(242,193,78,.18); } .results-table tr.loser { background: rgba(198,40,40,.18); }
+.count-badge.last { background: var(--red); color: #fff; } .results-table tr.winner td { font-weight: 700; }
 .res-cards div { display: flex; gap: 2px; flex-wrap: wrap; }
 
 @media (max-width: 640px) {

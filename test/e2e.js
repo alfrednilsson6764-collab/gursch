@@ -23,7 +23,7 @@ const throwsGame = (fn, msg) => assert.throws(fn, (e) => e instanceof GameError,
   const L = g.leader, lp = g.players[L];
   const card = (rank, suit, d = 0) => ({ id: `${suit}${rank}-${d}`, rank, suit });
   // Sätt händer för kontrollerat test (ta korten ur leken så att inga dubbletter uppstår)
-  const pool = [...g.deck, ...g.discard, ...g.players.flatMap((p) => p.hand)];
+  const pool = [...g.deck, ...g.discard, ...g.setAside, ...g.players.flatMap((p) => p.hand)];
   const take = (id) => { const c = pool.find((x) => x.id === id); return c; };
   const hands = [
     ['S13-0', 'H13-0', 'S2-0', 'S3-0', 'S4-0', 'S5-0'],
@@ -31,7 +31,7 @@ const throwsGame = (fn, msg) => assert.throws(fn, (e) => e instanceof GameError,
     ['C12-0', 'H12-0', 'H3-0', 'H4-0', 'H5-0', 'H6-0'],
   ];
   const used = new Set(hands.flat());
-  g.deck = pool.filter((c) => !used.has(c.id)); g.discard = [];
+  g.deck = pool.filter((c) => !used.has(c.id)); g.discard = []; g.setAside = [];
   const seat = (k) => (L + k) % 3;
   hands.forEach((h, k) => { const p = g.players[seat(k)]; p.hand = h.map(take); p.publicIds.clear(); });
   g.checkInvariant();
@@ -50,15 +50,30 @@ const throwsGame = (fn, msg) => assert.throws(fn, (e) => e instanceof GameError,
   g.act(b, { type: 'play', cardIds: ['D12-0'] }); // ny runda med ett kort
   assert.strictEqual(g.play.count, 1);
   throwsGame(() => g.act(c, { type: 'play', cardIds: ['C12-0', 'H12-0'] }), 'antalet är låst');
-  g.act(c, { type: 'dump' }); // c lägger sin lägsta (3)
-  assert.ok(!g.players[seat(2)].hand.some((x) => x.id === 'H3-0'), 'lägsta kortet ska läggas');
-  g.act(a, { type: 'dump' }); // a lägger 2
-  // tillbaka till b utan att någon slog → b behåller styret, ny runda
-  assert.strictEqual(g.players[g.leader].id, b);
-  assert.strictEqual(g.play.count, null);
-  g.act(b, { type: 'play', cardIds: ['D12-1'] });
+  throwsGame(() => g.act(c, { type: 'dump' }), 'måste slå om man kan');
   g.act(c, { type: 'play', cardIds: ['C12-0'] }); // lika valör räcker
   assert.strictEqual(g.players[g.leader].id, c);
+  g.act(c, { type: 'play', cardIds: ['H12-0'] }); // c startar med en dam
+  g.act(a, { type: 'dump' }); // a kan inte slå, lägger sin 2
+  assert.ok(!g.players[seat(0)].hand.some((x) => x.id === 'S2-0'), 'lägsta kortet ska läggas');
+  g.act(b, { type: 'play', cardIds: ['D13-0'] }); // b har kung och måste slå
+  assert.strictEqual(g.players[g.leader].id, b);
+  g.act(b, { type: 'play', cardIds: ['D12-1'] });
+  g.act(c, { type: 'dump' }); g.act(a, { type: 'dump' }); // ingen kan slå en dam
+  assert.strictEqual(g.players[g.leader].id, b, 'b behåller styret');
+  assert.strictEqual(g.play.count, null);
+  g.act(b, { type: 'play', cardIds: ['H2-0'] }); // b lägger sitt sista kort → sista rundan
+  assert.strictEqual(g.play.lastRound, true);
+  assert.strictEqual(g.phase, 'play', 'rundan ska spelas klart');
+  g.act(c, { type: 'play', cardIds: ['H6-0'] }); // c måste slå (6 > 2), styret byts inte i sista rundan
+  assert.strictEqual(g.phase, 'play');
+  throwsGame(() => g.act(a, { type: 'play', cardIds: ['S3-0'] }), '3 slår inte 6');
+  g.act(a, { type: 'dump' });
+  assert.strictEqual(g.phase, 'finished');
+  // a: 5, b: 0, c: 4+5=9 → b vinner, c förlorar
+  const R = Object.fromEntries(g.results.map((r) => [r.playerId, r]));
+  assert.deepStrictEqual([R[a].value, R[b].value, R[c].value], [5, 0, 9]);
+  assert.ok(R[b].winner && !R[a].winner && !R[a].loser && R[c].loser && !g.isDraw);
   console.log('OK: regeltester');
 }
 { // bytesrunda: den som behöll i runda 1 får inte byta i runda 2
@@ -117,7 +132,7 @@ async function bot(s) {
     const ok = hand.filter((c) => c.rank >= pl.combo.rank);
     const groups = {}; ok.forEach((c) => (groups[c.rank] = groups[c.rank] || []).push(c));
     const g = Object.values(groups).find((x) => x.length >= pl.count);
-    if (g && Math.random() < 0.6) return act({ type: 'play', cardIds: g.slice(0, pl.count).map((c) => c.id) });
+    if (g) return act({ type: 'play', cardIds: g.slice(0, pl.count).map((c) => c.id) });
     return act({ type: 'dump' });
   }
   return null;
@@ -169,6 +184,7 @@ async function run(n) {
   const R = host.state.game.results;
   assert.strictEqual(R.length, n);
   R.forEach((r) => assert.strictEqual(r.score, r.value * 5));
+  assert.ok(host.state.game.players.some((p) => p.handCount === 0), 'någon ska ha slut på kort');
   // ny omgång med samma spelare
   const again = await emit(host, 'start'); assert.ok(again.ok, again.error);
   await wait(30);

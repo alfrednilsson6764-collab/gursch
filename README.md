@@ -22,14 +22,15 @@ npm test           # 2000 simulerade spel + regeltester + hela spel över nätve
 - `src/server.js` – rum, rumskoder, lobby, återanslutning och dragkontroll.
 - `public/` – klienten (HTML/CSS/JS utan byggsteg).
 
-## Antaganden om oklara regler (ändras lätt)
+## Regler som Alfred har bekräftat (2026-11-07)
 
-1. Spelomgången tar slut när en spelare har lagt sitt sista kort.
+1. När en spelare får slut på kort är det sista rundan. Den spelas klart (alla som är kvar i rundan lägger en gång) och sedan räknas poängen.
 2. Inga nya kort dras efter att man lagt – handen krymper.
 3. Turordning medurs.
 4. Om ingen slår och turen kommer tillbaka behåller styrspelaren styret och startar ny runda.
-5. Man får lägga sina lägsta kort även om man kan slå (`RULES.mayDumpWhenCanBeat`).
-6. Har man färre kort än rundan kräver lägger man alla sina kort.
+5. Man måste alltid slå om man kan.
+6. Man ska aldrig ha färre kort än rundan kräver (händer det ändå läggs alla kort).
 7. Tar kortleken slut blandas slänghögen till en ny lek.
-8. Avgörandekort vid lika högsta kort går till slänghögen.
-9. Synliga kort (det sjätte utdelade kortet och behållna synliga ersättningskort) syns för alla så länge de ligger kvar på handen.
+8. Avgörandekort vid lika högsta kort läggs undan.
+9. Lägst poäng vinner, flera med samma lägsta vinner tillsammans. Högst poäng förlorar, flera med samma högsta förlorar tillsammans. Har alla samma blir det oavgjort.
+10. Synliga kort (det sjätte utdelade kortet och behållna synliga ersättningskort) syns för alla så länge de ligger kvar på handen.
