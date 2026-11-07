@@ -213,13 +213,17 @@ function renderGame() {
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
     if (ev.type === 'hidden') flyBacks(null, ev.playerId, ev.count);
-    if (ev.type === 'out') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader'); burst('🔥', 'out'); }
-    if (ev.type === 'leader' && ev.reason === 'beat') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader'); burst('♛'); }
+    if (ev.type === 'out') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader'); burst('🔥', 'out'); outSeen = true; }
+    if (ev.type === 'leader' && ev.reason === 'beat') {
+      toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
+      if (!crownShown) { crownShown = true; burst('♛'); } // stora effekten bara första gången per omgång
+    }
   }
   renderTally();
   renderDeal(G);
+  if (G.phase === 'finished' && outSeen && !reduceMotion) { outSeen = false; startShowdown(G); }
   renderResults(G);
-  celebrate(G);
+  if (!showdownRunning) celebrate(G);
 }
 
 const lowestTxt = (pron, n) => n === 1 ? `${pron === 'mina' ? 'mitt' : 'ditt'} lägsta kort` : `${pron} ${n} lägsta kort`;
@@ -336,7 +340,7 @@ function renderDeal(G) {
 $('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('animDone'); };
 
 function renderResults(G) {
-  const show = G.phase === 'finished';
+  const show = G.phase === 'finished' && !showdownRunning;
   $('results').classList.toggle('hidden', !show);
   if (!show) return;
   $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : r.loser ? 'loser' : ''}">
@@ -379,8 +383,9 @@ socket.on('state', (state) => {
 // ---------- animationer ----------
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let dealing = false;
+let crownShown = false, outSeen = false, showdownRunning = false, showdownTimers = [];
 let seenPlays = new Set(), prevHand = null, prevCounts = {}, seenOffers = new Set();
-function resetAnim() { seenPlays = new Set(); prevHand = null; prevCounts = {}; seenOffers = new Set(); }
+function resetAnim() { crownShown = false; outSeen = false; showdownRunning = false; stopShowdown(); seenPlays = new Set(); prevHand = null; prevCounts = {}; seenOffers = new Set(); }
 
 const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 function seatEl(pid) { return pid === S.you ? $('hand') : document.querySelector(`.seat[data-pid="${pid}"]`); }
@@ -515,12 +520,82 @@ function renderEnd() {
   const rows = T.totals(tally).sort((a, b) => b.net - a.net);
   $('endInfo').textContent = `Efter ${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'}`;
   const best = rows.length ? rows[0].net : 0;
+  $('endList').className = 'end-list small';
   $('endList').innerHTML = rows.map((r) => `<li class="${r.net === best && r.net > 0 ? 'top' : ''}">
     <span class="end-name">${r.net === best && r.net > 0 ? '🏆 ' : ''}${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</span>
     <span class="end-score">${signed(r.net)}</span></li>`).join('');
-  $('endText').value = T.summaryText(tally);
+  // personlig lista: vilka jag har plus mot och vilka jag har minus mot
+  const me = S.you;
+  const vs = Object.keys(tally.names).filter((id) => id !== me).map((o) => ({ name: tally.names[o], v: T.versus(tally, me, o) }));
+  const pos = vs.filter((x) => x.v > 0).sort((a, b) => b.v - a.v), neg = vs.filter((x) => x.v < 0).sort((a, b) => a.v - b.v);
+  const myTotal = vs.reduce((s, x) => s + x.v, 0);
+  const col = (cls, title, list, empty) => `<div class="col ${cls}"><h3>${title}</h3>${list.length
+    ? list.map((x) => `<div class="row"><span>${esc(x.name)}</span>${signed(x.v)}</div>`).join('') : `<div class="none">${empty}</div>`}</div>`;
+  $('endMe').innerHTML = col('pos', 'Plus mot', pos, 'Ingen') + col('neg', 'Minus mot', neg, 'Ingen') + `<div class="mytotal">Du totalt: ${signed(myTotal)}</div>`;
+  $('endText').value = [`GURSCH – min ställning (${tally.names[me] || 'jag'})`, ...pos.map((x) => `${x.name}\t${T.sign(x.v)}`), ...neg.map((x) => `${x.name}\t${T.sign(x.v)}`),
+    `Totalt\t${T.sign(myTotal)}`, '', T.summaryText(tally)].join('\n');
   $('closeEndBtn').classList.toggle('hidden', !isHost);
   $('endWait').textContent = isHost ? '' : 'Väntar på att värden går till menyn…';
+}
+
+// ---------- uppgörelse när någon går ut ----------
+// Korten vänds en spelare i taget, lägst först, så att förloraren avslöjas sist.
+function stopShowdown() {
+  showdownTimers.forEach(clearTimeout); showdownTimers = [];
+  const el = $('showdown'); if (el) el.remove();
+  if (showdownRunning) { showdownRunning = false; if (S && S.game) { renderResults(S.game); celebrate(S.game); } }
+}
+function startShowdown(G) {
+  stopShowdown();
+  showdownRunning = true;
+  const later = (fn, ms) => showdownTimers.push(setTimeout(fn, ms));
+  const out = G.results.find((r) => r.wentOut);
+  const rest = G.results.filter((r) => r !== out).sort((a, b) => a.value - b.value);
+  const who = (r) => esc(r.name) + (r.playerId === S.you ? ' (du)' : '');
+  const el = document.createElement('div');
+  el.id = 'showdown'; el.className = 'overlay showdown';
+  el.innerHTML = `<div class="sd-box">
+    <div class="sd-title">Uppgörelse</div>
+    <div class="sd-out">
+      <div class="sd-out-name">🔥 ${who(out)} gick ut</div>
+      <div class="sd-cards">${out.hand.map((c, k) => cardHTML(c, { cls: 'sd-card in', style: `animation-delay:${k * 120}ms` })).join('')}</div>
+      <div class="sd-value">Kortvärde <b>${out.value}</b></div>
+    </div>
+    <div class="sd-vs">VS</div>
+    <div class="sd-rows">${rest.map((r) => `<div class="sd-row" data-pid="${r.playerId}">
+      <span class="sd-name">${who(r)}</span>
+      <span class="sd-cards">${r.hand.map(() => cardHTML(null, { back: true, cls: 'sd-card' })).join('')}</span>
+      <span class="sd-sum">?</span><span class="sd-mark"></span></div>`).join('')}</div>
+    <div class="sd-actions"><button class="btn" id="sdSkip">Hoppa över</button></div>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#sdSkip').onclick = stopShowdown;
+  let t = 1600 + out.hand.length * 120;
+  for (const r of rest) {
+    const row = el.querySelector(`.sd-row[data-pid="${r.playerId}"]`);
+    later(() => row.classList.add('next'), t);
+    t += 900;
+    later(() => {
+      row.classList.remove('next'); row.classList.add('shown');
+      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => cardHTML(c, { cls: 'sd-card flip', style: `animation-delay:${k * 110}ms` })).join('') || '–';
+      const sum = row.querySelector('.sd-sum'), steps = 12;
+      for (let k = 1; k <= steps; k++) later(() => { sum.textContent = Math.round(r.value * k / steps); }, k * 45);
+    }, t);
+    t += 700 + r.hand.length * 110;
+  }
+  later(() => {
+    for (const r of G.results) {
+      const row = r === out ? el.querySelector('.sd-out') : el.querySelector(`.sd-row[data-pid="${r.playerId}"]`);
+      const mark = r.winner ? '🏆' : r.loser ? '👎' : '';
+      if (!mark) continue;
+      row.classList.add(r.winner ? 'won' : 'lost');
+      if (r === out) row.querySelector('.sd-out-name').insertAdjacentHTML('beforeend', ` <span class="sd-stamp">${mark}</span>`);
+      else row.querySelector('.sd-mark').innerHTML = `<span class="sd-stamp">${mark}</span>`;
+    }
+    if (G.isDraw) el.querySelector('.sd-vs').textContent = 'OAVGJORT';
+    const b = el.querySelector('#sdSkip'); b.textContent = 'Visa resultat'; b.classList.add('primary');
+  }, t + 300);
+  later(stopShowdown, t + 3800);
 }
 
 // ---------- effekter ----------

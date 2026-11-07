@@ -338,6 +338,51 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 #game, .table-wrap { overflow: hidden; }
 .screen { overflow-x: hidden; }
 
+/* ---------- uppgörelse ---------- */
+.showdown { z-index: 45; }
+.sd-box { width: min(620px, 100%); max-height: 100%; overflow-y: auto; text-align: center; padding: 22px 18px; border-radius: 18px;
+  background: linear-gradient(160deg, rgba(20,45,30,.96), rgba(8,20,14,.96)); border: 1px solid rgba(245,196,81,.45); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.sd-title { font-family: 'Cinzel', serif; font-size: 34px; letter-spacing: .14em; color: var(--gold); text-transform: uppercase;
+  text-shadow: 0 0 24px rgba(245,196,81,.6); animation: sdTitle .8s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes sdTitle { from { transform: scale(2.2); opacity: 0; letter-spacing: .6em; } }
+.sd-out { margin: 12px auto 4px; padding: 10px; border-radius: 14px; }
+.sd-out-name { font-weight: 700; font-size: 18px; }
+.sd-value { opacity: .85; margin-top: 4px; } .sd-value b { color: var(--gold); font-size: 20px; }
+.sd-cards { display: inline-flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.sd-out .sd-cards { margin-top: 8px; }
+.sd-card.in { animation: sdIn .5s cubic-bezier(.2,1.3,.4,1) both; }
+@keyframes sdIn { from { transform: translateY(-60px) scale(.6) rotate(-12deg); opacity: 0; } }
+.sd-row .sd-card { width: 38px; height: 54px; font-size: 11px; }
+.sd-card.flip { animation: sdFlip .45s ease-out both; }
+@keyframes sdFlip { 0% { transform: rotateY(90deg); filter: brightness(2); } 100% { transform: rotateY(0); } }
+.sd-vs { font-family: 'Cinzel', serif; font-size: 26px; color: #ff8a65; margin: 6px 0; letter-spacing: .2em; text-shadow: 0 0 18px rgba(255,112,67,.7); }
+.sd-rows { display: flex; flex-direction: column; gap: 8px; }
+.sd-row { display: grid; grid-template-columns: minmax(80px, 1fr) auto 48px 34px; align-items: center; gap: 10px; padding: 8px 12px;
+  border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); transition: background .3s, border-color .3s, transform .3s; }
+.sd-name { text-align: left; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-sum { font-family: 'Cinzel', serif; font-size: 22px; color: var(--gold); }
+.sd-row.next { animation: sdPulse .45s ease-in-out infinite alternate; border-color: rgba(245,196,81,.7); }
+@keyframes sdPulse { to { transform: scale(1.03); box-shadow: 0 0 22px rgba(245,196,81,.45); } }
+.sd-row.won, .sd-out.won { background: rgba(129,199,132,.18); border-color: rgba(129,199,132,.7); }
+.sd-row.lost { background: rgba(255,82,82,.2); border-color: rgba(255,82,82,.8); animation: sdShake .5s; }
+@keyframes sdShake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.sd-stamp { display: inline-block; font-size: 24px; animation: sdStamp .5s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes sdStamp { from { transform: scale(3) rotate(-25deg); opacity: 0; } }
+.sd-actions { margin-top: 16px; }
+@media (max-width: 520px) { .sd-row { grid-template-columns: 1fr auto 34px 28px; gap: 6px; padding: 6px 8px; } .sd-row .sd-card { width: 28px; height: 40px; font-size: 9px; } .sd-title { font-size: 26px; } }
+
+/* ---------- personlig ställning ---------- */
+.end-me { margin: 10px 0 6px; display: grid; gap: 10px; }
+.end-me h3 { margin: 0 0 6px; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; font-family: 'Cinzel', serif; }
+.end-me .col { padding: 10px 14px; border-radius: 12px; text-align: left; }
+.end-me .col.pos { background: rgba(129,199,132,.12); border: 1px solid rgba(129,199,132,.45); } .end-me .col.pos h3 { color: #81c784; }
+.end-me .col.neg { background: rgba(255,82,82,.12); border: 1px solid rgba(255,82,82,.45); } .end-me .col.neg h3 { color: #ff8a80; }
+.end-me .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 17px; }
+.end-me .none { opacity: .6; font-style: italic; }
+.end-me .mytotal { text-align: center; font-size: 20px; font-weight: 700; }
+.end-all-head { margin: 14px 0 0; font-size: 13px; opacity: .7; text-transform: uppercase; letter-spacing: .1em; }
+.end-list.small li { padding: 7px 12px; font-size: 15px; }
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -461,8 +506,10 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
   <!-- Slutskärm med ställning -->
   <div id="endScreen" class="overlay hidden">
     <div class="home-card end-card">
-      <h2>Ställning</h2>
+      <h2>Din ställning</h2>
       <p id="endInfo" class="muted center"></p>
+      <div id="endMe" class="end-me"></div>
+      <p class="end-all-head center">Alla</p>
       <ol id="endList" class="end-list"></ol>
       <textarea id="endText" class="end-text hidden" readonly rows="6"></textarea>
       <div class="lobby-actions">
@@ -1416,13 +1463,17 @@ function renderGame() {
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
     if (ev.type === 'hidden') flyBacks(null, ev.playerId, ev.count);
-    if (ev.type === 'out') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader'); burst('🔥', 'out'); }
-    if (ev.type === 'leader' && ev.reason === 'beat') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader'); burst('♛'); }
+    if (ev.type === 'out') { toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader'); burst('🔥', 'out'); outSeen = true; }
+    if (ev.type === 'leader' && ev.reason === 'beat') {
+      toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
+      if (!crownShown) { crownShown = true; burst('♛'); } // stora effekten bara första gången per omgång
+    }
   }
   renderTally();
   renderDeal(G);
+  if (G.phase === 'finished' && outSeen && !reduceMotion) { outSeen = false; startShowdown(G); }
   renderResults(G);
-  celebrate(G);
+  if (!showdownRunning) celebrate(G);
 }
 
 const lowestTxt = (pron, n) => n === 1 ? `${pron === 'mina' ? 'mitt' : 'ditt'} lägsta kort` : `${pron} ${n} lägsta kort`;
@@ -1539,7 +1590,7 @@ function renderDeal(G) {
 $('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('animDone'); };
 
 function renderResults(G) {
-  const show = G.phase === 'finished';
+  const show = G.phase === 'finished' && !showdownRunning;
   $('results').classList.toggle('hidden', !show);
   if (!show) return;
   $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : r.loser ? 'loser' : ''}">
@@ -1582,8 +1633,9 @@ socket.on('state', (state) => {
 // ---------- animationer ----------
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let dealing = false;
+let crownShown = false, outSeen = false, showdownRunning = false, showdownTimers = [];
 let seenPlays = new Set(), prevHand = null, prevCounts = {}, seenOffers = new Set();
-function resetAnim() { seenPlays = new Set(); prevHand = null; prevCounts = {}; seenOffers = new Set(); }
+function resetAnim() { crownShown = false; outSeen = false; showdownRunning = false; stopShowdown(); seenPlays = new Set(); prevHand = null; prevCounts = {}; seenOffers = new Set(); }
 
 const center = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
 function seatEl(pid) { return pid === S.you ? $('hand') : document.querySelector(`.seat[data-pid="${pid}"]`); }
@@ -1718,12 +1770,82 @@ function renderEnd() {
   const rows = T.totals(tally).sort((a, b) => b.net - a.net);
   $('endInfo').textContent = `Efter ${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'}`;
   const best = rows.length ? rows[0].net : 0;
+  $('endList').className = 'end-list small';
   $('endList').innerHTML = rows.map((r) => `<li class="${r.net === best && r.net > 0 ? 'top' : ''}">
     <span class="end-name">${r.net === best && r.net > 0 ? '🏆 ' : ''}${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</span>
     <span class="end-score">${signed(r.net)}</span></li>`).join('');
-  $('endText').value = T.summaryText(tally);
+  // personlig lista: vilka jag har plus mot och vilka jag har minus mot
+  const me = S.you;
+  const vs = Object.keys(tally.names).filter((id) => id !== me).map((o) => ({ name: tally.names[o], v: T.versus(tally, me, o) }));
+  const pos = vs.filter((x) => x.v > 0).sort((a, b) => b.v - a.v), neg = vs.filter((x) => x.v < 0).sort((a, b) => a.v - b.v);
+  const myTotal = vs.reduce((s, x) => s + x.v, 0);
+  const col = (cls, title, list, empty) => `<div class="col ${cls}"><h3>${title}</h3>${list.length
+    ? list.map((x) => `<div class="row"><span>${esc(x.name)}</span>${signed(x.v)}</div>`).join('') : `<div class="none">${empty}</div>`}</div>`;
+  $('endMe').innerHTML = col('pos', 'Plus mot', pos, 'Ingen') + col('neg', 'Minus mot', neg, 'Ingen') + `<div class="mytotal">Du totalt: ${signed(myTotal)}</div>`;
+  $('endText').value = [`GURSCH – min ställning (${tally.names[me] || 'jag'})`, ...pos.map((x) => `${x.name}\t${T.sign(x.v)}`), ...neg.map((x) => `${x.name}\t${T.sign(x.v)}`),
+    `Totalt\t${T.sign(myTotal)}`, '', T.summaryText(tally)].join('\n');
   $('closeEndBtn').classList.toggle('hidden', !isHost);
   $('endWait').textContent = isHost ? '' : 'Väntar på att värden går till menyn…';
+}
+
+// ---------- uppgörelse när någon går ut ----------
+// Korten vänds en spelare i taget, lägst först, så att förloraren avslöjas sist.
+function stopShowdown() {
+  showdownTimers.forEach(clearTimeout); showdownTimers = [];
+  const el = $('showdown'); if (el) el.remove();
+  if (showdownRunning) { showdownRunning = false; if (S && S.game) { renderResults(S.game); celebrate(S.game); } }
+}
+function startShowdown(G) {
+  stopShowdown();
+  showdownRunning = true;
+  const later = (fn, ms) => showdownTimers.push(setTimeout(fn, ms));
+  const out = G.results.find((r) => r.wentOut);
+  const rest = G.results.filter((r) => r !== out).sort((a, b) => a.value - b.value);
+  const who = (r) => esc(r.name) + (r.playerId === S.you ? ' (du)' : '');
+  const el = document.createElement('div');
+  el.id = 'showdown'; el.className = 'overlay showdown';
+  el.innerHTML = `<div class="sd-box">
+    <div class="sd-title">Uppgörelse</div>
+    <div class="sd-out">
+      <div class="sd-out-name">🔥 ${who(out)} gick ut</div>
+      <div class="sd-cards">${out.hand.map((c, k) => cardHTML(c, { cls: 'sd-card in', style: `animation-delay:${k * 120}ms` })).join('')}</div>
+      <div class="sd-value">Kortvärde <b>${out.value}</b></div>
+    </div>
+    <div class="sd-vs">VS</div>
+    <div class="sd-rows">${rest.map((r) => `<div class="sd-row" data-pid="${r.playerId}">
+      <span class="sd-name">${who(r)}</span>
+      <span class="sd-cards">${r.hand.map(() => cardHTML(null, { back: true, cls: 'sd-card' })).join('')}</span>
+      <span class="sd-sum">?</span><span class="sd-mark"></span></div>`).join('')}</div>
+    <div class="sd-actions"><button class="btn" id="sdSkip">Hoppa över</button></div>
+  </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#sdSkip').onclick = stopShowdown;
+  let t = 1600 + out.hand.length * 120;
+  for (const r of rest) {
+    const row = el.querySelector(`.sd-row[data-pid="${r.playerId}"]`);
+    later(() => row.classList.add('next'), t);
+    t += 900;
+    later(() => {
+      row.classList.remove('next'); row.classList.add('shown');
+      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => cardHTML(c, { cls: 'sd-card flip', style: `animation-delay:${k * 110}ms` })).join('') || '–';
+      const sum = row.querySelector('.sd-sum'), steps = 12;
+      for (let k = 1; k <= steps; k++) later(() => { sum.textContent = Math.round(r.value * k / steps); }, k * 45);
+    }, t);
+    t += 700 + r.hand.length * 110;
+  }
+  later(() => {
+    for (const r of G.results) {
+      const row = r === out ? el.querySelector('.sd-out') : el.querySelector(`.sd-row[data-pid="${r.playerId}"]`);
+      const mark = r.winner ? '🏆' : r.loser ? '👎' : '';
+      if (!mark) continue;
+      row.classList.add(r.winner ? 'won' : 'lost');
+      if (r === out) row.querySelector('.sd-out-name').insertAdjacentHTML('beforeend', ` <span class="sd-stamp">${mark}</span>`);
+      else row.querySelector('.sd-mark').innerHTML = `<span class="sd-stamp">${mark}</span>`;
+    }
+    if (G.isDraw) el.querySelector('.sd-vs').textContent = 'OAVGJORT';
+    const b = el.querySelector('#sdSkip'); b.textContent = 'Visa resultat'; b.classList.add('primary');
+  }, t + 300);
+  later(stopShowdown, t + 3800);
 }
 
 // ---------- effekter ----------
