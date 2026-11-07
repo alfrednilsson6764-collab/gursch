@@ -56,14 +56,23 @@ function setHands(g, hands) {
   g.act(b, { type: 'play', cardIds: ['D12-0'] }); // b tar styret med en dam, rundan är slut
   assert.deepStrictEqual(sizes(), [3, 3, 3]);
   assert.strictEqual(g.players[g.leader].id, b, 'b tog styret senast och startar');
-  // gå ut: b lägger alla sina tre kort (olika valörer går när man går ut)
-  throwsGame(() => g.act(b, { type: 'play', cardIds: ['D12-1', 'H2-0'] }), 'olika valör utan att gå ut');
-  g.act(b, { type: 'play', cardIds: ['D12-1', 'H2-0', 'H3-0'] });
+  // man kan inte gå ut med kort av olika valör
+  throwsGame(() => g.act(b, { type: 'play', cardIds: ['D12-1', 'H2-0', 'H3-0'] }), 'gå ut kräver samma valör');
+  g.act(b, { type: 'play', cardIds: ['H2-0'] });
+  g.act(c, { type: 'play', cardIds: ['C3-0'] }); // c måste slå tvåan
+  g.act(a, { type: 'play', cardIds: ['S3-0'] }); // lika valör tar styret
+  assert.strictEqual(g.players[g.leader].id, a);
+  g.act(a, { type: 'play', cardIds: ['S4-0'] });
+  g.act(b, { type: 'play', cardIds: ['D12-1'] });
+  g.act(c, { type: 'dump' }); // c har H4, H5 – kan inte slå damen
+  assert.deepStrictEqual(sizes(), [1, 1, 1]);
+  assert.strictEqual(g.players[g.leader].id, b);
+  g.act(b, { type: 'play', cardIds: ['H3-0'] }); // sista kortet = går ut
   assert.strictEqual(g.phase, 'finished');
   const R = Object.fromEntries(g.results.map((r) => [r.playerId, r]));
-  // b: 12+2+3=17, a: 3+4+5=12, c: 3+4+5=12 → a och c vinner tillsammans, b förlorar
-  assert.deepStrictEqual([R[a].value, R[b].value, R[c].value], [12, 17, 12]);
-  assert.ok(R[a].winner && R[c].winner && R[b].loser && R[b].wentOut && !g.isDraw);
+  // b: 3, a: 5, c: 5 → b vinner, a och c förlorar tillsammans
+  assert.deepStrictEqual([R[a].value, R[b].value, R[c].value], [5, 3, 5]);
+  assert.ok(R[b].winner && R[b].wentOut && R[a].loser && R[c].loser && !g.isDraw);
   console.log('OK: lägga, lägga över, ta styret, rundan spelas klart och gå ut');
 }
 { // rundan fortsätter efter att någon tagit styret; nästa måste slå den nya kombinationen

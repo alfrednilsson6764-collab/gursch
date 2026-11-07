@@ -294,7 +294,7 @@ class Game {
 
   // Alfred 2026-11-07: rundan spelas alltid klart – alla lägger en gång, även om någon tar styret,
   // så att alla har lika många kort. Den som senast tog styret startar nästa runda.
-  // Styrspelaren kan "gå ut" genom att lägga alla sina kort på en gång; då är spelomgången slut
+  // Styrspelaren kan "gå ut" genom att lägga alla sina kort på en gång om de har samma valör; då är spelomgången slut
   // och var och en räknar ihop värdet av sina kort (den som gick ut: korten den gick ut med).
   playCards(pid, cardIds) {
     const i = this.idx(pid), pl = this.play;
@@ -308,8 +308,8 @@ class Game {
     const rank = cards[0].rank;
 
     if (pl.count === null) {
+      if (!sameRank) fail('Alla kort i en kombination måste ha samma valör.');
       if (cards.length === hand.length) return this.goOut(i, cards);
-      if (!sameRank) fail('Alla kort i en kombination måste ha samma valör (eller lägg alla dina kort för att gå ut).');
       this.removeFromHand(i, cardIds);
       this.discard.push(...cards);
       pl.count = cards.length;

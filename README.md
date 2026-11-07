@@ -29,7 +29,7 @@ npm test           # 2000 simulerade spel + regeltester + hela spel över nätve
 ## Regler som Alfred har bekräftat (2026-11-07)
 
 1. Varje runda spelas klart: alla lägger en gång, även om någon tar styret, så att alla har lika många kort. Den som senast tog styret (eller styrspelaren om ingen tog det) startar nästa runda, och den som tar styret blir den kombination nästa spelare måste slå.
-   Styrspelaren kan gå ut genom att lägga alla sina kort på en gång (även olika valörer). Då slutar spelomgången och var och en räknar ihop sina kort – den som gick ut räknar korten den gick ut med.
+   Styrspelaren kan gå ut genom att lägga alla sina kort på en gång, men bara om alla har samma valör. Då slutar spelomgången och var och en räknar ihop sina kort – den som gick ut räknar korten den gick ut med.
 2. Inga nya kort dras efter att man lagt – handen krymper.
 3. Turordning medurs.
 4. Om ingen tar styret behåller styrspelaren det.

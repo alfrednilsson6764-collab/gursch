@@ -277,11 +277,12 @@ function renderActions(G) {
     if (pl.turnId === me) {
       if (pl.count === null) {
         const all = G.me.hand.length;
-        status = `Du har styret! Lägg valfri kombination av samma valör – antalet gäller hela rundan. Eller gå ut: lägg alla dina ${all} kort så slutar spelomgången och korten räknas (värde ${G.me.value}).`;
-        const out = sel.n === all;
-        const ok = sel.n > 0 && (sel.sameRank || out);
+        const canOut = G.me.hand.every((c) => c.rank === G.me.hand[0].rank);
+        status = `Du har styret! Lägg valfri kombination av samma valör – antalet gäller hela rundan.${canOut ? ` Du kan också gå ut: lägg alla dina ${all} kort så slutar spelomgången (värde ${G.me.value}).` : ''}`;
+        const out = sel.n === all && sel.sameRank;
+        const ok = sel.n > 0 && sel.sameRank;
         acts.push(btn(out ? `Gå ut med alla ${all} kort` : ok ? `Lägg ${sel.n} kort` : sel.n ? 'Korten måste ha samma valör' : 'Välj kort', () => send('play', { cardIds: [...selected] }), 'primary', !ok));
-        if (!out) acts.push(btn(`Gå ut (värde ${G.me.value})`, () => send('play', { cardIds: G.me.hand.map((c) => c.id) })));
+        if (canOut && !out) acts.push(btn(`Gå ut (värde ${G.me.value})`, () => send('play', { cardIds: G.me.hand.map((c) => c.id) })));
       } else {
         const need = pl.count, r = pl.combo.rank;
         const allHigh = sel.n === need && sel.cards.every((c) => c.rank >= r);
