@@ -6,6 +6,10 @@ Onlinekortspel för 2–6 spelare. Servern (Node.js + Socket.IO) äger all spell
 
 `node offline/build.js` bygger `dist/gursch-test.html` – en fil som körs helt i webbläsaren mot bottar (`src/bots.js`).
 
+## Poängtavla
+
+Så länge man spelar flera omgångar i samma rum sparas allas poäng. Rutan i nedre vänstra hörnet visar plus/minus mot varje spelare (summan av deras poäng minus dina, lägre är bättre). "Avsluta och visa ställning" visar slutskärmen med totalpoäng, en tabell över alla mot alla och en text att kopiera.
+
 ## Kör lokalt
 
 ```bash

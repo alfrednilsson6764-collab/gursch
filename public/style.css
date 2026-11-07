@@ -175,3 +175,15 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
 .hand .card.arrive.selected { animation: none; }
 .dealing .hand .card, .dealing .seat-cards, .dealing .seat-public, .dealing #pile, .dealing #actions, .dealing #status { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .arrive, .play.enter, .card.enter { animation: none !important; } }
+
+/* ---------- poängtavla ---------- */
+.tally { position: absolute; left: 14px; bottom: 14px; z-index: 5; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px; padding: 8px 10px; min-width: 150px; font-size: 13px; }
+.tally-head { font-weight: 800; color: var(--gold); margin-bottom: 4px; font-size: 12px; letter-spacing: .03em; }
+.tally-row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+.tally-row.total { border-top: 1px solid rgba(255,255,255,.2); margin-top: 3px; padding-top: 3px; font-weight: 700; }
+.plus { color: #81c784; font-weight: 700; } .minus { color: #ff8a80; font-weight: 700; }
+.matrix-wrap { overflow-x: auto; } .matrix th, .matrix td { text-align: center; }
+.end-text { width: 100%; font: 12px ui-monospace, monospace; border-radius: 8px; padding: 8px; margin: 10px 0; background: rgba(255,255,255,.92); color: #222; }
+#endScreen .home-card { max-height: 92vh; overflow: auto; }
+@media (max-width: 640px) { .tally { left: 6px; bottom: 6px; min-width: 120px; font-size: 11px; padding: 5px 7px; } }

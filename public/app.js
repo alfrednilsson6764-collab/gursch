@@ -214,6 +214,7 @@ function renderGame() {
     if (ev.type === 'out') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader');
     if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
   }
+  renderTally();
   renderDeal(G);
   renderResults(G);
 }
@@ -345,15 +346,24 @@ function renderResults(G) {
   const isHost = S.lobby.hostId === S.you;
   $('againBtn').classList.toggle('hidden', !isHost);
   $('lobbyBtn').classList.toggle('hidden', !isHost);
+  $('endBtn').classList.toggle('hidden', !isHost);
   $('resultsInfo').textContent = isHost ? '' : 'Väntar på att värden startar en ny omgång…';
 }
 $('againBtn').onclick = () => socket.emit('start', null, (r) => !r.ok && toast(r.error, 'bad'));
 $('lobbyBtn').onclick = () => socket.emit('toLobby');
+$('endBtn').onclick = () => socket.emit('endSession');
+$('closeEndBtn').onclick = () => socket.emit('closeSession');
+$('copyEndBtn').onclick = async () => {
+  const t = $('endText');
+  try { await navigator.clipboard.writeText(t.value); toast('Ställningen är kopierad'); }
+  catch { t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
+};
 
 socket.on('state', (state) => {
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
   if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
+  renderEnd();
   if (S.game) {
     show('game');
     const G = S.game;
@@ -463,4 +473,34 @@ function startDealAnim() {
       if (S && S.game) renderGame();
     }, t + 500);
   });
+}
+
+// ---------- poängtavla ----------
+const T = window.GurschTally;
+const signed = (n) => `<span class="${n > 0 ? 'plus' : n < 0 ? 'minus' : ''}">${T.sign(n)}</span>`;
+function renderTally() {
+  const tally = S.lobby.tally, me = S.you, box = $('tally');
+  if (!tally || !tally.rounds.length) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  const others = Object.keys(tally.names).filter((id) => id !== me);
+  const total = others.reduce((s, o) => s + T.versus(tally, me, o), 0);
+  box.innerHTML = `<div class="tally-head">Ställning · ${tally.rounds.length} omg.</div>
+    ${others.map((o) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(T.versus(tally, me, o))}</div>`).join('')}
+    <div class="tally-row total"><span>Totalt</span>${signed(total)}</div>`;
+}
+function renderEnd() {
+  const L = S && S.lobby, show = !!(L && L.ended);
+  $('endScreen').classList.toggle('hidden', !show);
+  if (!show) return;
+  $('results').classList.add('hidden');
+  const tally = L.tally, tot = T.totals(tally), isHost = L.hostId === S.you;
+  $('endInfo').textContent = `${tally.rounds.length} omgång${tally.rounds.length === 1 ? '' : 'ar'} spelade.`;
+  const best = tot.length ? tot[0].total : 0;
+  $('endBody').innerHTML = tot.map((t) => `<tr class="${t.total === best ? 'winner' : ''}"><td>${t.total === best ? '🏆' : ''}</td>
+    <td>${esc(t.name)}${t.playerId === S.you ? ' (du)' : ''}</td><td>${t.rounds}</td><td><strong>${t.total}</strong></td><td>${signed(t.net)}</td></tr>`).join('');
+  $('endMatrix').innerHTML = `<tr><th></th>${tot.map((t) => `<th>${esc(t.name)}</th>`).join('')}</tr>` +
+    tot.map((a) => `<tr><th>${esc(a.name)}</th>${tot.map((b) => `<td>${a === b ? '–' : signed(T.versus(tally, a.playerId, b.playerId))}</td>`).join('')}</tr>`).join('');
+  $('endText').value = T.summaryText(tally);
+  $('closeEndBtn').classList.toggle('hidden', !isHost);
+  $('endWait').textContent = isHost ? 'Tillbaka till rummet nollställer ställningen.' : 'Värden avslutar och går tillbaka till rummet.';
 }

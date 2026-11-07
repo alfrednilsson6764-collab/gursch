@@ -5,12 +5,14 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Game, GameError } = require('./game');
+const Tally = require('./tally');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_, res) => res.send('ok'));
+app.get('/tally.js', (_, res) => res.sendFile(path.join(__dirname, 'tally.js')));
 
 const rooms = new Map(); // code -> room
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -30,6 +32,8 @@ function lobbyView(room) {
     hostId: room.hostId,
     settings: room.settings,
     inGame: !!room.game,
+    tally: room.tally,
+    ended: room.ended,
     players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, connected: p.sockets.size > 0 })),
   };
 }
@@ -60,7 +64,7 @@ io.on('connection', (socket) => {
 
   socket.on('create', ({ name, token } = {}, cb) => {
     const code = newCode();
-    const room = { code, hostId: null, settings: { maxPlayers: 6, multiplier: 2 }, players: [], game: null };
+    const room = { code, hostId: null, settings: { maxPlayers: 6, multiplier: 2 }, players: [], game: null, tally: Tally.create(), ended: false };
     rooms.set(code, room);
     const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: cleanName(name), ready: false, sockets: new Set() };
     room.players.push(player);
@@ -115,6 +119,25 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
+  // Avsluta: visa slutskärmen med ställningen för alla.
+  socket.on('endSession', () => {
+    const { room, player } = ctx();
+    if (!room || room.hostId !== player.id || (room.game && room.game.phase !== 'finished')) return;
+    room.ended = true;
+    broadcast(room);
+  });
+
+  // Stäng slutskärmen: nollställ poängtavlan och gå tillbaka till rummet.
+  socket.on('closeSession', () => {
+    const { room, player } = ctx();
+    if (!room || room.hostId !== player.id || !room.ended) return;
+    room.ended = false;
+    room.tally = Tally.create();
+    room.game = null;
+    room.players.forEach((p) => { p.ready = false; });
+    broadcast(room);
+  });
+
   socket.on('toLobby', () => {
     const { room, player } = ctx();
     if (!room || room.hostId !== player.id || !room.game || room.game.phase !== 'finished') return;
@@ -143,6 +166,7 @@ io.on('connection', (socket) => {
     if (!room || !room.game) return reply(cb, { ok: false, error: 'Inget spel pågår.' });
     try {
       room.game.act(player.id, a);
+      if (room.game.phase === 'finished' && !room.game.tallied) { room.game.tallied = true; Tally.addRound(room.tally, room.game.results); }
       reply(cb, { ok: true });
       broadcast(room);
     } catch (e) {

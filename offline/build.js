@@ -17,6 +17,7 @@ const extraCss = `
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }`;
 html = html
+  .replace('  <script src="tally.js"></script>\n', '')
   .replace('<title>GURSCH</title>', '<title>GURSCH – testa mot bottar</title>')
   .replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${R('public/style.css')}\n${extraCss}\n</style>`)
   .replace('<p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>',
@@ -25,6 +26,7 @@ html = html
   .replace('<script src="/socket.io/socket.io.js"></script>\n  <script src="app.js"></script>', () =>
     ['<script>', shim, '</script>',
       '<script>', R('src/bots.js'), '</script>',
+      '<script>', R('src/tally.js'), '</script>',
       '<script>', R('offline/local.js'), '</script>',
       '<script>', R('public/app.js'), '</script>'].join('\n'))
 ;

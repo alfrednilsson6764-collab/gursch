@@ -3,6 +3,7 @@
 window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
   const { botMove } = window.GurschBots;
+  const Tally = window.GurschTally;
   const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
   const BOT_DELAY = 900;
   const handlers = {};
@@ -16,7 +17,9 @@ window.GURSCH_LOCAL = function () {
     room.players = [room.players[0], ...BOT_NAMES.slice(0, n - 1).map((name, k) => ({ id: 'bot' + k, name, ready: true, bot: true }))];
   }
   function lobbyView() {
-    return { code: 'TEST', hostId: 'me', settings: room.settings, inGame: !!room.game,
+    const g = room.game;
+    if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
+    return { code: 'TEST', hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
       players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, connected: true })) };
   }
   function broadcast() {
@@ -42,7 +45,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2 }, game: null,
+        room = { settings: { maxPlayers: 4, multiplier: 2 }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -68,6 +71,10 @@ window.GURSCH_LOCAL = function () {
       case 'animDone':
         if (room) { room.hold = false; clearTimeout(holdTimer); scheduleBots(); }
         return;
+      case 'endSession':
+        room.ended = true; return broadcast();
+      case 'closeSession':
+        room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
       case 'toLobby':
         room.game = null; return broadcast();
       case 'leave':

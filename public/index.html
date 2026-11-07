@@ -74,6 +74,7 @@
           <div id="deckInfo" class="muted tiny"></div>
         </div>
       </div>
+      <div id="tally" class="tally"></div>
       <aside id="history" class="history">
         <h3>Spelhistorik <button id="historyClose" class="btn small ghost">✕</button></h3>
         <ol id="historyList"></ol>
@@ -115,11 +116,34 @@
       <div class="lobby-actions">
         <button id="againBtn" class="btn primary">Ny omgång med samma spelare</button>
         <button id="lobbyBtn" class="btn">Tillbaka till rummet</button>
+        <button id="endBtn" class="btn">Avsluta och visa ställning</button>
       </div>
       <p id="resultsInfo" class="muted center"></p>
     </div>
   </div>
 
+  <!-- Slutskärm med ställning -->
+  <div id="endScreen" class="overlay hidden">
+    <div class="home-card wide">
+      <h2>Slutställning</h2>
+      <p id="endInfo" class="muted center"></p>
+      <table class="results-table">
+        <thead><tr><th></th><th>Spelare</th><th>Omgångar</th><th>Totalpoäng</th><th>Plus/minus</th></tr></thead>
+        <tbody id="endBody"></tbody>
+      </table>
+      <h3>Mot varandra</h3>
+      <p class="tiny muted">Raden mot kolumnen. Plus betyder att raden ligger före (lägre poäng är bäst).</p>
+      <div class="matrix-wrap"><table id="endMatrix" class="results-table matrix"></table></div>
+      <textarea id="endText" class="end-text" readonly rows="6"></textarea>
+      <div class="lobby-actions">
+        <button id="copyEndBtn" class="btn primary">Kopiera ställningen</button>
+        <button id="closeEndBtn" class="btn">Tillbaka till rummet</button>
+      </div>
+      <p id="endWait" class="muted center"></p>
+    </div>
+  </div>
+
+  <script src="tally.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
 </body>

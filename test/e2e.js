@@ -138,6 +138,21 @@ function setHands(g, hands) {
   console.log('OK: bytesregler');
 }
 
+{ // poängtavla
+  const Tally = require('../src/tally');
+  const t = Tally.create();
+  Tally.addRound(t, [{ playerId: 'a', name: 'A', score: 10 }, { playerId: 'b', name: 'B', score: 30 }, { playerId: 'c', name: 'C', score: 20 }]);
+  Tally.addRound(t, [{ playerId: 'a', name: 'A', score: 40 }, { playerId: 'b', name: 'B', score: 0 }]);
+  assert.strictEqual(Tally.versus(t, 'a', 'b'), 20 - 40); // (30-10) + (0-40)
+  assert.strictEqual(Tally.versus(t, 'b', 'a'), 20);
+  assert.strictEqual(Tally.versus(t, 'a', 'c'), 10); // c var bara med i första
+  const T = Object.fromEntries(Tally.totals(t).map((x) => [x.playerId, x]));
+  assert.deepStrictEqual([T.a.total, T.b.total, T.c.total], [50, 30, 20]);
+  assert.strictEqual(T.a.net + T.b.net + T.c.net, 0, 'plus och minus går jämnt ut');
+  assert.ok(Tally.summaryText(t).includes('A\t50\t-10'));
+  console.log('OK: poängtavla');
+}
+
 // ---- multiplayer över nätverket ----
 const PORT = 3999;
 const URL = `http://localhost:${PORT}`;
@@ -237,6 +252,7 @@ async function run(n) {
   assert.strictEqual(R.length, n);
   R.forEach((r) => assert.strictEqual(r.score, r.value * 5));
   assert.ok(host.state.game.players.some((p) => p.handCount === 0), 'någon ska ha slut på kort');
+  assert.strictEqual(host.state.lobby.tally.rounds.length, 1, 'omgången sparas i poängtavlan');
   // ny omgång med samma spelare
   const again = await emit(host, 'start'); assert.ok(again.ok, again.error);
   await wait(30);
