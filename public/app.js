@@ -187,13 +187,13 @@ function renderGame() {
     const fresh = key !== lastPileKey; lastPileKey = key;
     pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type} ${fresh && k === tbl.length - 1 ? 'enter' : ''}">
       <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small' })).join('')}</div>
-      <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : ' · lägsta'}</div>
+      <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : t.type === 'out' ? ' · gick ut' : ' · lägsta'}</div>
     </div>`).join('')}</div>`;
   }
   $('centerTitle').innerHTML = title;
   $('pile').innerHTML = pileHTML;
   $('deckInfo').textContent = `Kortlek: ${G.deckCount} kort`;
-  $('roundInfo').innerHTML = (pl && pl.lastRound ? '<span class="count-badge last">Sista rundan</span> ' : '') + (pl && pl.count
+  $('roundInfo').innerHTML = G.phase === 'finished' ? '' : (pl && pl.count
     ? `<span class="count-badge">${pl.count} kort</span> gäller · att slå: <strong>${pl.count} × ${rn(pl.combo.rank)}</strong> eller högre`
     : pl ? `<span class="count-badge">?</span> ${esc(nameOf(pl.turnId))} bestämmer antal kort`
       : ex ? `Styrspelare: <strong>${esc(nameOf(G.leaderId))}</strong>` : '');
@@ -209,7 +209,7 @@ function renderGame() {
   // ny styrspelare – visa tydligt
   for (const ev of G.events) if (ev.seq > seenSeq) {
     seenSeq = ev.seq;
-    if (ev.type === 'lastRound') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} har slut på kort – sista rundan!`, 'leader');
+    if (ev.type === 'out') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} gick ut!`, 'leader');
     if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
   }
   renderDeal(G);
@@ -276,15 +276,19 @@ function renderActions(G) {
   } else if (pl && G.phase === 'play') {
     if (pl.turnId === me) {
       if (pl.count === null) {
-        status = 'Du har styret! Lägg valfri kombination (1–6 kort av samma valör). Antalet gäller hela rundan.';
-        const ok = sel.n > 0 && sel.sameRank;
-        acts.push(btn(ok ? `Lägg ${sel.n} kort` : sel.n ? 'Korten måste ha samma valör' : 'Välj kort', () => send('play', { cardIds: [...selected] }), 'primary', !ok));
+        const all = G.me.hand.length;
+        status = `Du har styret! Lägg valfri kombination av samma valör – antalet gäller hela rundan. Eller gå ut: lägg alla dina ${all} kort så slutar spelomgången och korten räknas (värde ${G.me.value}).`;
+        const out = sel.n === all;
+        const ok = sel.n > 0 && (sel.sameRank || out);
+        acts.push(btn(out ? `Gå ut med alla ${all} kort` : ok ? `Lägg ${sel.n} kort` : sel.n ? 'Korten måste ha samma valör' : 'Välj kort', () => send('play', { cardIds: [...selected] }), 'primary', !ok));
+        if (!out) acts.push(btn(`Gå ut (värde ${G.me.value})`, () => send('play', { cardIds: G.me.hand.map((c) => c.id) })));
       } else {
         const need = pl.count, r = pl.combo.rank;
         const allHigh = sel.n === need && sel.cards.every((c) => c.rank >= r);
         const take = allHigh && sel.sameRank, over = allHigh && !sel.sameRank;
         status = pl.canBeat
-          ? `Din tur. Lägg ${need} kort som alla är ${rn(r)} eller högre. ${pl.canTakeOver ? `Samma valör tar styret, olika valörer lägger bara över.` : 'Du kan bara lägga över (olika valörer), inte ta styret.'}`
+          ? need === 1 ? `Din tur. Lägg ett kort som är ${rn(r)} eller högre – då tar du styret.`
+            : `Din tur. Lägg ${need} kort som alla är ${rn(r)} eller högre. ${pl.canTakeOver ? `Samma valör tar styret, olika valörer lägger bara över.` : 'Du kan bara lägga över (olika valörer), inte ta styret.'}`
           : `Din tur. Du har inte ${need} kort som är ${rn(r)} eller högre och måste lägga ${lowestTxt('dina', need)}.`;
         let label = 'Välj kort';
         if (sel.n) label = sel.n !== need ? `Välj exakt ${need} kort` : take ? `Ta styret med ${sel.n} kort ♛` : over ? `Lägg över (${sel.n} kort)` : `Alla kort måste vara ${rn(r)} eller högre`;
@@ -328,7 +332,7 @@ function renderResults(G) {
   $('results').classList.toggle('hidden', !show);
   if (!show) return;
   $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : r.loser ? 'loser' : ''}">
-    <td>${r.winner ? '🏆' : r.loser ? '👎' : ''}</td><td>${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}</td>
+    <td>${r.winner ? '🏆' : r.loser ? '👎' : ''}</td><td>${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}${r.wentOut ? ' <span class="badge">gick ut</span>' : ''}</td>
     <td class="res-cards"><div>${r.hand.map((c) => cardHTML(c, { cls: 'mini' })).join('') || '–'}</div></td>
     <td>${r.value}</td><td><strong>${r.score}</strong></td></tr>`).join('');
   const winners = G.results.filter((r) => r.winner).map((r) => r.name);

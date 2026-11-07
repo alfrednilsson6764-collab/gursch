@@ -48,7 +48,9 @@
       const pl = game.play;
       if (pl.turn !== i) return null;
       if (pl.count === null) {
-        // starta med den grupp som gör av med mest poäng
+        // gå ut när handen är liten eller låg
+        if (hand.length <= 2 || value <= 6 * hand.length) return { type: 'play', cardIds: ids(hand) };
+        // annars starta med den grupp som gör av med mest poäng
         const best = groups(hand).sort((a, b) => b.length * b[0].rank - a.length * a[0].rank)[0];
         return { type: 'play', cardIds: ids(best) };
       }

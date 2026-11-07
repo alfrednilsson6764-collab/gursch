@@ -8,8 +8,7 @@ const RANK_NAMES = { 11: 'knekt', 12: 'dam', 13: 'kung', 14: 'ess' };
 // Regler som var oklara i regelboken samlas här så att de lätt kan ändras.
 const RULES = {
   // Bekräftat av Alfred 2026-11-07:
-  // När en spelare får slut på kort spelas den rundan klart (alla som är kvar i
-  // rundan lägger en gång), sedan är spelomgången slut.
+  // Varje runda spelas klart (alla lägger en gång). Spelet slutar när styrspelaren går ut.
   // Man måste alltid slå om man kan.
   mayDumpWhenCanBeat: false,
   // Avgörandekort vid lika läggs undan (ingår inte i slänghögen som blandas om).
@@ -270,7 +269,7 @@ class Game {
   startPlay() {
     this.exchange = null;
     this.phase = 'play';
-    this.play = { leader: this.leader, turn: this.leader, count: null, combo: null, table: [], lastTable: [], roundNo: 1 };
+    this.play = { leader: this.leader, nextLeader: this.leader, turn: this.leader, count: null, combo: null, table: [], lastTable: [], roundNo: 1 };
     this.log('Inledningsfasen är klar. Spelet börjar!');
     this.log(`Runda 1: ${this.name(this.leader)} startar.`);
   }
@@ -293,6 +292,10 @@ class Game {
     return Object.entries(counts).some(([r, n]) => Number(r) >= pl.combo.rank && n >= pl.count);
   }
 
+  // Alfred 2026-11-07: rundan spelas alltid klart – alla lägger en gång, även om någon tar styret,
+  // så att alla har lika många kort. Den som senast tog styret startar nästa runda.
+  // Styrspelaren kan "gå ut" genom att lägga alla sina kort på en gång; då är spelomgången slut
+  // och var och en räknar ihop värdet av sina kort (den som gick ut: korten den gick ut med).
   playCards(pid, cardIds) {
     const i = this.idx(pid), pl = this.play;
     if (this.phase !== 'play') fail('Spelet pågår inte.');
@@ -305,42 +308,45 @@ class Game {
     const rank = cards[0].rank;
 
     if (pl.count === null) {
-      if (!sameRank) fail('Alla kort i en kombination måste ha samma valör.');
-      if (cards.length > 6) fail('Högst sex kort.');
+      if (cards.length === hand.length) return this.goOut(i, cards);
+      if (!sameRank) fail('Alla kort i en kombination måste ha samma valör (eller lägg alla dina kort för att gå ut).');
       this.removeFromHand(i, cardIds);
       this.discard.push(...cards);
       pl.count = cards.length;
       pl.combo = { rank, count: cards.length, by: pid };
+      pl.nextLeader = i;
       pl.table = [{ by: pid, cards, type: 'lead' }];
       this.log(`${this.name(i)} lägger ${describe(cards)}. Rundan spelas med ${pl.count} kort.`, 'play');
-      this.checkOut(i);
-      this.advance(i);
-      return;
+      return this.advance(i);
     }
 
     if (cards.length !== pl.count) fail(`Rundan spelas med ${pl.count} kort – du måste lägga exakt ${pl.count}.`);
     if (cards.some((c) => c.rank < pl.combo.rank)) fail(`Alla kort måste vara ${rankName(pl.combo.rank)} eller högre.`);
     this.removeFromHand(i, cardIds);
+    this.discard.push(...cards);
     if (!sameRank) {
-      // lägger över med olika valörer: tar inte styret, rundan fortsätter
-      this.discard.push(...cards);
+      // lägger över med olika valörer: tar inte styret
       pl.table.push({ by: pid, cards, type: 'over' });
       this.log(`${this.name(i)} lägger över med ${describe(cards)}.`, 'play');
-      this.checkOut(i);
       return this.advance(i);
     }
-    this.discard.push(...cards);
+    // samma valör, lika eller högre: tar styret – nästa spelare måste slå den nya kombinationen
     pl.table.push({ by: pid, cards, type: 'beat' });
-    this.checkOut(i);
-    if (pl.lastRound) {
-      // sista rundan spelas klart: den nya kombinationen måste slås av resten
-      pl.combo = { rank, count: cards.length, by: pid };
-      this.log(`${this.name(i)} slår med ${describe(cards)}.`, 'play');
-      return this.advance(i);
-    }
+    pl.combo = { rank, count: cards.length, by: pid };
+    pl.nextLeader = i;
     this.log(`${this.name(i)} slår med ${describe(cards)} och tar över styret!`, 'leader');
     this.event('leader', { playerId: pid, reason: 'beat' });
-    this.newRound(i);
+    this.advance(i);
+  }
+
+  goOut(i, cards) {
+    const p = this.players[i];
+    this.removeFromHand(i, cards.map((c) => c.id));
+    this.play.table = [{ by: p.id, cards, type: 'out' }];
+    this.log(`${this.name(i)} går ut med ${describe(cards)}! Spelomgången är slut.`, 'end');
+    this.event('out', { playerId: p.id });
+    this.finish({ [p.id]: cards });
+    this.discard.push(...cards);
   }
 
   dumpLowest(pid) {
@@ -355,7 +361,6 @@ class Game {
     this.discard.push(...lowest);
     pl.table.push({ by: pid, cards: lowest, type: 'dump' });
     this.log(`${this.name(i)} kan inte slå och lägger sina lägsta: ${describe(lowest)}.`, 'play');
-    this.checkOut(i);
     this.advance(i);
   }
 
@@ -364,12 +369,10 @@ class Game {
     const pl = this.play;
     pl.turn = this.next(i);
     if (pl.turn !== pl.leader) return;
-    if (pl.lastRound) {
-      this.log('Sista rundan är spelad. Spelomgången är slut.', 'end');
-      return this.finish();
-    }
-    this.log(`Ingen slog. ${this.name(pl.leader)} behåller styret.`, 'leader');
-    this.newRound(pl.leader);
+    const nl = pl.nextLeader;
+    if (nl === pl.leader) this.log(`Ingen tog styret. ${this.name(nl)} behåller det.`, 'leader');
+    else this.log(`Rundan är slut. ${this.name(nl)} tog styret och startar nästa runda.`, 'leader');
+    this.newRound(nl);
   }
 
   newRound(leaderIdx) {
@@ -379,26 +382,22 @@ class Game {
     pl.count = null;
     pl.combo = null;
     pl.leader = leaderIdx;
+    pl.nextLeader = leaderIdx;
     pl.turn = leaderIdx;
     pl.roundNo++;
     this.leader = leaderIdx;
+    const sizes = new Set(this.players.map((p) => p.hand.length));
+    if (sizes.size !== 1) throw new Error('Spelarna har olika många kort efter rundan');
     this.log(`Runda ${pl.roundNo}: ${this.name(leaderIdx)} startar och väljer antal kort.`);
   }
 
-  /** Får spelaren slut på kort blir den pågående rundan den sista. */
-  checkOut(i) {
-    const pl = this.play;
-    if (this.players[i].hand.length > 0 || pl.lastRound) return;
-    pl.lastRound = true;
-    this.log(`${this.name(i)} har slut på kort. Det här är sista rundan – den spelas klart.`, 'end');
-    this.event('lastRound', { playerId: this.players[i].id });
-  }
-
-  finish() {
+  /** outCards: korten den som gick ut lade – de räknas som dennes kort. */
+  finish(outCards = {}) {
     this.phase = 'finished';
     const results = this.players.map((p) => {
-      const value = p.hand.reduce((s, c) => s + cardValue(c), 0);
-      return { playerId: p.id, name: p.name, hand: p.hand, value, score: value * this.multiplier };
+      const cards = outCards[p.id] || p.hand;
+      const value = cards.reduce((s, c) => s + cardValue(c), 0);
+      return { playerId: p.id, name: p.name, hand: cards, wentOut: !!outCards[p.id], value, score: value * this.multiplier };
     });
     // Lägst vinner (flera med samma lägsta vinner tillsammans), högst förlorar
     // (flera med samma högsta förlorar tillsammans). Alla lika = oavgjort.
@@ -474,7 +473,6 @@ class Game {
       };
     }
     if (this.results) { v.results = this.results; v.isDraw = this.isDraw; }
-    if (pl) v.play.lastRound = !!pl.lastRound;
     return v;
   }
 }
