@@ -14,7 +14,12 @@ const RULES = {
   mayDumpWhenCanBeat: false,
   // Avgörandekort vid lika läggs undan (ingår inte i slänghögen som blandas om).
   // Om ingen slår och turen kommer tillbaka: styrspelaren behåller styret.
-  // Avgörandekort vid lika läggs i slänghögen (handen har fortfarande sex kort).
+  // Ersättningskort (Alfred 2026-11-07): man får alla på en gång med framsidan upp,
+  // och väljer att behålla alla eller ta lika många dolda.
+  // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
+  // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
+  // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
+  // Kan man lägga över (på något av sätten) måste man; annars läggs de lägsta korten.
 };
 
 function rankName(r) { return RANK_NAMES[r] || String(r); }
@@ -88,7 +93,7 @@ class Game {
 
   checkInvariant() {
     const all = [...this.deck, ...this.discard, ...this.setAside, ...this.players.flatMap((p) => p.hand),
-      ...(this.exchange ? Object.values(this.exchange.offers) : [])];
+      ...(this.exchange ? Object.values(this.exchange.offers).flat() : [])];
     const ids = new Set(all.map((c) => c.id));
     if (all.length !== 104 || ids.size !== 104) throw new Error(`Kortfel: ${all.length} kort, ${ids.size} unika`);
   }
@@ -117,8 +122,10 @@ class Game {
   }
 
   // ---------- inledningsfasen ----------
+  // Bytesrunda 1 och 2 styrs av styrspelaren. Därefter kan extra bytesrundor
+  // föreslås av vem som helst, men de blir bara av om alla är med.
   startExchangeRound(round) {
-    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {} };
+    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
     this.log(`Bytesrunda ${round}: ${this.name(this.leader)} väljer hur många kort som ska slängas.`);
   }
 
@@ -166,30 +173,31 @@ class Game {
     if (Object.values(ex.decisions).every((d) => d !== null)) this.startReplacements();
   }
 
+  // Alla som slängt får sina ersättningskort samtidigt, med framsidan upp.
   startReplacements() {
     const ex = this.exchange;
     ex.step = 'replace';
-    for (const [pid, n] of Object.entries(ex.pending)) if (n > 0) ex.offers[pid] = this.draw();
+    for (const [pid, n] of Object.entries(ex.pending)) if (n > 0) ex.offers[pid] = Array.from({ length: n }, () => this.draw());
     this.maybeFinishExchange();
   }
 
+  // Behåll alla synliga kort, eller avstå från alla och få lika många dolda.
   exchangeReplace(pid, keep) {
     const i = this.idx(pid), ex = this.exchange;
-    if (this.phase !== 'exchange' || ex.step !== 'replace' || !ex.offers[pid]) fail('Du har inget ersättningskort att välja.');
+    if (this.phase !== 'exchange' || ex.step !== 'replace' || !ex.offers[pid]) fail('Du har inga ersättningskort att välja.');
     const p = this.players[i];
     const offer = ex.offers[pid];
     delete ex.offers[pid];
     if (keep) {
-      p.hand.push(offer); p.publicIds.add(offer.id);
-      this.log(`${this.name(i)} behåller det synliga kortet ${rankName(offer.rank)}.`);
+      for (const c of offer) { p.hand.push(c); p.publicIds.add(c.id); }
+      this.log(`${this.name(i)} behåller de synliga korten: ${offer.map((c) => rankName(c.rank)).join(', ')}.`);
     } else {
-      this.discard.push(offer);
-      p.hand.push(this.draw());
-      this.log(`${this.name(i)} avstår från ${rankName(offer.rank)} och tar ett dolt kort.`);
+      this.discard.push(...offer);
+      for (let k = 0; k < offer.length; k++) p.hand.push(this.draw());
+      this.log(`${this.name(i)} avstår från ${offer.map((c) => rankName(c.rank)).join(', ')} och tar ${offer.length} dolda kort.`);
     }
     this.sortHand(p);
-    ex.pending[pid]--;
-    if (ex.pending[pid] > 0) ex.offers[pid] = this.draw();
+    ex.pending[pid] = 0;
     this.maybeFinishExchange();
   }
 
@@ -198,6 +206,68 @@ class Game {
     if (Object.keys(ex.offers).length > 0) return;
     for (const p of this.players) if (p.hand.length !== 6) throw new Error('Fel antal kort efter byte');
     if (ex.round === 1) return this.startExchangeRound(2);
+    this.startExtra(ex.round + 1);
+  }
+
+  startExtra(round) {
+    this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
+    this.log(`Extra byte: vill någon slänga fler kort? Alla måste vara med. Annars börjar spelet när alla är nöjda.`);
+  }
+
+  // Föreslå att alla slänger `count` kort.
+  exchangePropose(pid, count) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att föreslå byte nu.');
+    if (ex.proposal) fail('Det finns redan ett förslag att svara på.');
+    count = Math.round(Number(count));
+    if (!(count >= 1 && count <= 6)) fail('Välj 1–6 kort.');
+    ex.proposal = { by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])) };
+    this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
+  }
+
+  exchangeVote(pid, yes) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extra' || !ex.proposal) fail('Det finns inget förslag att svara på.');
+    if (ex.proposal.votes[pid] !== null) fail('Du har redan svarat.');
+    ex.proposal.votes[pid] = !!yes;
+    if (!yes) {
+      this.log(`${this.name(i)} vill inte slänga. Inga fler byten.`);
+      return this.startPlay();
+    }
+    this.log(`${this.name(i)} är med.`);
+    if (Object.values(ex.proposal.votes).every((v) => v === true)) {
+      this.log(`Alla är med – alla slänger ${ex.proposal.count} kort.`);
+      ex.step = 'extraDiscard';
+      ex.leaderCount = ex.proposal.count;
+      this.players.forEach((p) => { ex.decisions[p.id] = null; });
+    }
+  }
+
+  exchangeSatisfied(pid) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte nu.');
+    if (ex.proposal) return this.exchangeVote(pid, false);
+    ex.satisfied[pid] = true;
+    this.log(`${this.name(i)} är nöjd.`);
+    if (this.players.every((p) => ex.satisfied[p.id])) {
+      this.log('Alla är nöjda.');
+      this.startPlay();
+    }
+  }
+
+  exchangeExtraDiscard(pid, cardIds) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extraDiscard') fail('Det är inte dags att slänga nu.');
+    if (ex.decisions[pid] !== null) fail('Du har redan slängt.');
+    if (!Array.isArray(cardIds) || cardIds.length !== ex.leaderCount) fail(`Du måste välja exakt ${ex.leaderCount} kort.`);
+    const cards = this.removeFromHand(i, cardIds);
+    this.discard.push(...cards);
+    ex.decisions[pid] = true;
+    ex.pending[pid] = cards.length;
+    if (Object.values(ex.decisions).every((d) => d !== null)) this.startReplacements();
+  }
+
+  startPlay() {
     this.exchange = null;
     this.phase = 'play';
     this.play = { leader: this.leader, turn: this.leader, count: null, combo: null, table: [], lastTable: [], roundNo: 1 };
@@ -209,6 +279,13 @@ class Game {
   next(i) { return (i + 1) % this.players.length; }
 
   canBeat(i) {
+    const pl = this.play;
+    if (pl.count === null) return false;
+    // Man kan lägga över om man har minst lika många kort som är samma eller högre valör.
+    return this.players[i].hand.filter((c) => c.rank >= pl.combo.rank).length >= pl.count;
+  }
+
+  canTakeOver(i) {
     const pl = this.play;
     if (pl.count === null) return false;
     const counts = {};
@@ -224,10 +301,11 @@ class Game {
     const hand = this.players[i].hand;
     const cards = cardIds.map((id) => hand.find((c) => c.id === id) || fail('Du har inte det kortet.'));
     if (new Set(cardIds).size !== cardIds.length) fail('Samma kort valt flera gånger.');
-    if (!cards.every((c) => c.rank === cards[0].rank)) fail('Alla kort i en kombination måste ha samma valör.');
+    const sameRank = cards.every((c) => c.rank === cards[0].rank);
     const rank = cards[0].rank;
 
     if (pl.count === null) {
+      if (!sameRank) fail('Alla kort i en kombination måste ha samma valör.');
       if (cards.length > 6) fail('Högst sex kort.');
       this.removeFromHand(i, cardIds);
       this.discard.push(...cards);
@@ -241,8 +319,16 @@ class Game {
     }
 
     if (cards.length !== pl.count) fail(`Rundan spelas med ${pl.count} kort – du måste lägga exakt ${pl.count}.`);
-    if (rank < pl.combo.rank) fail(`Du måste lägga ${rankName(pl.combo.rank)} eller högre.`);
+    if (cards.some((c) => c.rank < pl.combo.rank)) fail(`Alla kort måste vara ${rankName(pl.combo.rank)} eller högre.`);
     this.removeFromHand(i, cardIds);
+    if (!sameRank) {
+      // lägger över med olika valörer: tar inte styret, rundan fortsätter
+      this.discard.push(...cards);
+      pl.table.push({ by: pid, cards, type: 'over' });
+      this.log(`${this.name(i)} lägger över med ${describe(cards)}.`, 'play');
+      this.checkOut(i);
+      return this.advance(i);
+    }
     this.discard.push(...cards);
     pl.table.push({ by: pid, cards, type: 'beat' });
     this.checkOut(i);
@@ -262,7 +348,7 @@ class Game {
     if (this.phase !== 'play') fail('Spelet pågår inte.');
     if (pl.turn !== i) fail('Det är inte din tur.');
     if (pl.count === null) fail('Du startar rundan – välj en kombination.');
-    if (!RULES.mayDumpWhenCanBeat && this.canBeat(i)) fail('Du kan slå och måste därför göra det.');
+    if (!RULES.mayDumpWhenCanBeat && this.canBeat(i)) fail('Du kan lägga över och måste därför göra det.');
     const p = this.players[i];
     const lowest = [...p.hand].sort((a, b) => a.rank - b.rank).slice(0, pl.count);
     this.removeFromHand(i, lowest.map((c) => c.id));
@@ -330,6 +416,10 @@ class Game {
       case 'exchangeLeader': this.exchangeLeader(pid, a.cardIds); break;
       case 'exchangeOther': this.exchangeOther(pid, !!a.discard, a.cardIds); break;
       case 'exchangeReplace': this.exchangeReplace(pid, !!a.keep); break;
+      case 'exchangePropose': this.exchangePropose(pid, a.count); break;
+      case 'exchangeVote': this.exchangeVote(pid, !!a.yes); break;
+      case 'exchangeSatisfied': this.exchangeSatisfied(pid); break;
+      case 'exchangeExtraDiscard': this.exchangeExtraDiscard(pid, a.cardIds); break;
       case 'play': this.playCards(pid, a.cardIds); break;
       case 'dump': this.dumpLowest(pid); break;
       default: fail('Okänt drag.');
@@ -361,8 +451,13 @@ class Game {
     if (ex) {
       v.exchange = {
         round: ex.round, step: ex.step, leaderCount: ex.leaderCount,
-        waitingFor: ex.step === 'others' ? Object.keys(ex.decisions).filter((k) => ex.decisions[k] === null)
-          : ex.step === 'replace' ? Object.keys(ex.offers) : [this.players[this.leader].id],
+        waitingFor: ex.step === 'others' || ex.step === 'extraDiscard' ? Object.keys(ex.decisions).filter((k) => ex.decisions[k] === null)
+          : ex.step === 'replace' ? Object.keys(ex.offers)
+            : ex.step === 'extra' ? (ex.proposal ? Object.keys(ex.proposal.votes).filter((k) => ex.proposal.votes[k] === null)
+              : this.players.map((p) => p.id).filter((k) => !ex.satisfied[k]))
+              : [this.players[this.leader].id],
+        proposal: ex.proposal,
+        satisfied: ex.satisfied,
         offers: ex.offers, // synliga ersättningskort visas för alla
         pending: ex.pending,
         eligible: ex.step === 'others' ? Object.keys(ex.decisions) : this.eligibleOthers().map((k) => this.players[k].id),
@@ -374,6 +469,7 @@ class Game {
         turnId: this.phase === 'play' ? this.players[pl.turn].id : null,
         count: pl.count, combo: pl.combo, table: pl.table, lastTable: pl.lastTable, roundNo: pl.roundNo,
         canBeat: me >= 0 && pl.turn === me ? this.canBeat(me) : false,
+        canTakeOver: me >= 0 && pl.turn === me ? this.canTakeOver(me) : false,
         mayDumpWhenCanBeat: RULES.mayDumpWhenCanBeat,
       };
     }

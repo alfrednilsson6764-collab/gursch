@@ -1,42 +1,39 @@
 'use strict';
-// Simulerar många hela spel med slumpade (men giltiga) drag och kontrollerar att inga kort försvinner.
+// Simulerar många hela spel (bottar + slumpade drag) och kontrollerar att inga kort försvinner eller dupliceras.
 const { Game, GameError } = require('../src/game');
+const { botMove } = require('../src/bots');
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
-function randomSubset(hand, n) { return [...hand].sort(() => Math.random() - 0.5).slice(0, n).map((c) => c.id); }
+function randomize(g, pid, move) {
+  const ex = g.exchange;
+  // ibland föreslår någon ett extra byte, och ibland säger någon ja trots allt
+  if (ex && ex.step === 'extra' && !ex.proposal && Math.random() < 0.2) return { type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 6) };
+  if (move && move.type === 'exchangeVote' && Math.random() < 0.5) return { ...move, yes: true };
+  if (move && move.type === 'exchangeReplace') return { ...move, keep: Math.random() < 0.5 };
+  return move;
+}
 
 function playOne(nPlayers) {
   const g = new Game(Array.from({ length: nPlayers }, (_, i) => ({ id: 'p' + i, name: 'Spelare ' + i })), { multiplier: 2 });
-  let steps = 0, rejected = 0;
+  let steps = 0, extras = 0, overs = 0;
   while (g.phase !== 'finished') {
-    if (++steps > 5000) throw new Error('Spelet tar aldrig slut');
-    const P = g.players;
-    try {
-      if (g.phase === 'exchange') {
-        const ex = g.exchange;
-        if (ex.step === 'leader') { const L = P[g.leader]; g.act(L.id, { type: 'exchangeLeader', cardIds: randomSubset(L.hand, Math.floor(Math.random() * 7)) }); }
-        else if (ex.step === 'others') {
-          const pid = Object.keys(ex.decisions).find((k) => ex.decisions[k] === null);
-          const p = P[g.idx(pid)];
-          g.act(pid, { type: 'exchangeOther', discard: Math.random() < 0.6, cardIds: randomSubset(p.hand, ex.leaderCount) });
-        } else { g.act(pick(Object.keys(ex.offers)), { type: 'exchangeReplace', keep: Math.random() < 0.5 }); }
-      } else {
-        const pl = g.play, me = P[pl.turn];
-        // försök ibland ett ogiltigt drag från fel spelare
-        if (Math.random() < 0.05) { try { g.act(P[g.next(pl.turn)].id, { type: 'dump' }); throw new Error('fel spelare fick spela'); } catch (e) { if (!(e instanceof GameError)) throw e; rejected++; } }
-        if (pl.count === null) {
-          const r = pick(me.hand).rank; const same = me.hand.filter((c) => c.rank === r);
-          g.act(me.id, { type: 'play', cardIds: same.slice(0, 1 + Math.floor(Math.random() * same.length)).map((c) => c.id) });
-        } else if (g.canBeat(pl.turn)) {
-          try { g.act(me.id, { type: 'dump' }); throw new Error('fick lägga lägsta trots att man kan slå'); } catch (e) { if (!(e instanceof GameError)) throw e; }
-          const groups = {}; me.hand.forEach((c) => (groups[c.rank] = groups[c.rank] || []).push(c));
-          const ok = Object.values(groups).filter((gr) => gr[0].rank >= pl.combo.rank && gr.length >= pl.count);
-          g.act(me.id, { type: 'play', cardIds: pick(ok).slice(0, pl.count).map((c) => c.id) });
-        } else g.act(me.id, { type: 'dump' });
+    if (++steps > 20000) throw new Error('Spelet tar aldrig slut');
+    const movers = g.players.map((p) => [p.id, botMove(g, p.id)]).filter(([, m]) => m);
+    if (!movers.length) throw new Error('Ingen kan göra något drag i läget ' + g.phase + '/' + (g.exchange && g.exchange.step));
+    const [pid, m0] = pick(movers);
+    const m = randomize(g, pid, m0);
+    // fusk: fel spelares tur ska alltid nekas
+    if (g.phase === 'play') {
+      const other = g.players[g.next(g.play.turn)].id;
+      try { g.act(other, { type: 'dump' }); throw new Error('fel spelare fick spela'); } catch (e) { if (!(e instanceof GameError)) throw e; }
+      if (g.play.count !== null && g.canBeat(g.play.turn)) {
+        try { g.act(pid, { type: 'dump' }); throw new Error('fick lägga lägsta trots att man kan lägga över'); } catch (e) { if (!(e instanceof GameError)) throw e; }
       }
-    } catch (e) { if (e instanceof GameError) throw new Error('Giltigt drag nekades: ' + e.message); throw e; }
+    }
+    if (m.type === 'exchangeExtraDiscard') extras++;
+    if (g.phase === 'play' && m.type === 'play' && g.play.count !== null && new Set(m.cardIds.map((id) => id.split('-')[0].slice(1))).size > 1) overs++;
+    try { g.act(pid, m); } catch (e) { if (e instanceof GameError) throw new Error(`Giltigt drag nekades (${JSON.stringify(m)}): ${e.message}`); throw e; }
   }
-  if (!g.results || g.results.length !== nPlayers) throw new Error('Inget resultat');
   if (!g.players.some((p) => p.hand.length === 0)) throw new Error('Spelet slutade utan att någon fick slut på kort');
   const scores = g.results.map((r) => r.score), min = Math.min(...scores), max = Math.max(...scores);
   for (const r of g.results) {
@@ -44,10 +41,10 @@ function playOne(nPlayers) {
     if (r.loser !== (min !== max && r.score === max)) throw new Error('fel förlorare');
   }
   if (g.isDraw !== (min === max)) throw new Error('fel oavgjort');
-  return { steps, rejected, results: g.results };
+  return { extras, overs };
 }
 
-let total = 0;
-for (let n = 2; n <= 6; n++) for (let k = 0; k < 400; k++) { playOne(n); total++; }
-const ex = playOne(4);
-console.log(`OK: ${total} spel simulerade utan kortfel. Exempel:`, ex.results.map((r) => `${r.name}: ${r.value}→${r.score}${r.winner ? ' (vinnare)' : ''}`).join(', '));
+let total = 0, extras = 0, overs = 0;
+for (let n = 2; n <= 6; n++) for (let k = 0; k < 400; k++) { const r = playOne(n); total++; extras += r.extras; overs += r.overs; }
+if (!extras || !overs) throw new Error('Simuleringen täckte inte extra byten eller att lägga över');
+console.log(`OK: ${total} spel simulerade utan kortfel (${extras} extra-byten, ${overs} gånger lagt över).`);

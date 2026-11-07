@@ -29,7 +29,18 @@
         const worth = worst.filter((c) => c.rank >= 9).length >= Math.ceil(ex.leaderCount / 2);
         return { type: 'exchangeOther', discard: worth, cardIds: ids(worst) };
       }
-      if (ex.step === 'replace' && ex.offers[pid]) return { type: 'exchangeReplace', keep: ex.offers[pid].rank <= 7 };
+      if (ex.step === 'replace' && ex.offers[pid]) {
+        const o = ex.offers[pid];
+        return { type: 'exchangeReplace', keep: o.reduce((s, c) => s + c.rank, 0) <= 7 * o.length };
+      }
+      if (ex.step === 'extra') {
+        if (ex.proposal) {
+          if (ex.proposal.votes[pid] !== null) return null;
+          return { type: 'exchangeVote', yes: hand.filter((c) => c.rank >= 10).length >= ex.proposal.count };
+        }
+        return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
+      }
+      if (ex.step === 'extraDiscard' && ex.decisions[pid] === null) return { type: 'exchangeExtraDiscard', cardIds: ids(highest(hand, ex.leaderCount)) };
       return null;
     }
 
@@ -41,9 +52,12 @@
         const best = groups(hand).sort((a, b) => b.length * b[0].rank - a.length * a[0].rank)[0];
         return { type: 'play', cardIds: ids(best) };
       }
-      // slå med lägsta möjliga grupp (man måste slå om man kan)
+      // ta styret med lägsta möjliga grupp
       const ok = groups(hand).filter((g) => g[0].rank >= pl.combo.rank && g.length >= pl.count).sort((a, b) => a[0].rank - b[0].rank);
       if (ok.length) return { type: 'play', cardIds: ids(ok[0].slice(0, pl.count)) };
+      // annars lägg över med de lägsta korten som räcker, om det går
+      const over = hand.filter((c) => c.rank >= pl.combo.rank).sort((a, b) => a.rank - b.rank);
+      if (over.length >= pl.count) return { type: 'play', cardIds: ids(over.slice(0, pl.count)) };
       return { type: 'dump' };
     }
     return null;

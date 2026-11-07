@@ -20,10 +20,10 @@ const rl = (r) => RANK[r] || String(r);
 const rn = (r) => RANK_NAME[r] || String(r);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function cardHTML(c, { cls = '', back = false } = {}) {
+function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
   if (back || !c) return `<div class="card back ${cls}"></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
-  return `<div class="card ${red} ${cls}" data-id="${c.id}">
+  return `<div class="card ${red} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
     <span class="corner tl">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
     <span class="pip">${SUIT[c.suit]}</span>
     <span class="corner br">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
@@ -160,12 +160,15 @@ function renderGame() {
     const lp = lobbyPlayers[p.id] || {};
     const isTurn = turnId === p.id || waiting.includes(p.id);
     const offer = ex && ex.offers[p.id];
+    const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" style="left:${pos[k].x}%;top:${pos[k].y}%">
       <div class="seat-name">${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}${esc(p.name)}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${p.publicCards.length ? `<div class="seat-public">${p.publicCards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
-      ${offer ? `<div class="seat-offer">Erbjuds ${cardHTML(offer, { cls: 'mini' })}</div>` : ''}
+      ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
+      ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : ''}
+      ${ex && ex.step === 'extra' && !ex.proposal && ex.satisfied[p.id] ? '<div class="tiny muted">Nöjd</div>' : ''}
       ${isTurn ? `<div class="seat-turn">${pl ? 'Spelar…' : 'Väljer…'}</div>` : ''}
     </div>`;
   }).join('');
@@ -173,7 +176,7 @@ function renderGame() {
   // mitten av bordet
   let pileHTML = '', title = '';
   if (ex) {
-    title = `Inledningsfas · bytesrunda ${ex.round} av 2`;
+    title = ex.round <= 2 ? `Inledningsfas · bytesrunda ${ex.round} av 2` : 'Inledningsfas · extra byte';
     pileHTML = `<div class="reveal">${G.dealReveal.map((r) => `<div class="reveal-col"><div class="tiny">${esc(nameOf(r.playerId))}</div>
       <div class="reveal-cards">${r.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div></div>`).join('')}</div>
       <div class="tiny muted">Synliga kort vid utdelningen</div>`;
@@ -184,7 +187,7 @@ function renderGame() {
     const fresh = key !== lastPileKey; lastPileKey = key;
     pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type} ${fresh && k === tbl.length - 1 ? 'enter' : ''}">
       <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small' })).join('')}</div>
-      <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : ' · lägsta'}</div>
+      <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : ' · lägsta'}</div>
     </div>`).join('')}</div>`;
   }
   $('centerTitle').innerHTML = title;
@@ -209,6 +212,7 @@ function renderGame() {
     if (ev.type === 'lastRound') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} har slut på kort – sista rundan!`, 'leader');
     if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
   }
+  renderDeal(G);
   renderResults(G);
 }
 
@@ -241,11 +245,33 @@ function renderActions(G) {
     } else if (ex.step === 'replace') {
       const offer = ex.offers[me];
       if (offer) {
-        status = `Ersättningskort (${ex.pending[me]} kvar). Behåll det synliga kortet eller ta ett dolt istället.`;
-        offerHTML = `<div class="offer-inner">${cardHTML(offer, { cls: 'big enter' })}<div class="tiny">Alla ser detta kort</div></div>`;
-        acts.push(btn('Behåll kortet', () => send('exchangeReplace', { keep: true }), 'primary'));
-        acts.push(btn('Ta ett dolt kort', () => send('exchangeReplace', { keep: false })));
+        const n = offer.length;
+        status = n === 1 ? 'Ditt ersättningskort. Behåll det synliga kortet eller ta ett dolt istället.'
+          : `Dina ${n} ersättningskort. Behåll alla synliga eller ta ${n} dolda istället.`;
+        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c, { cls: 'enter' })).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
+        acts.push(btn(n === 1 ? 'Behåll kortet' : `Behåll alla ${n}`, () => send('exchangeReplace', { keep: true }), 'primary'));
+        acts.push(btn(n === 1 ? 'Ta ett dolt kort' : `Ta ${n} dolda kort`, () => send('exchangeReplace', { keep: false })));
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
+    } else if (ex.step === 'extra') {
+      const P = ex.proposal;
+      if (P) {
+        const who = P.by === me ? 'Du' : esc(nameOf(P.by));
+        if (P.votes[me] === null) {
+          status = `${who} frågar om alla vill slänga ${P.count} kort till. Alla måste vara med – säger någon nej börjar spelet.`;
+          acts.push(btn(`Ja, slänga ${P.count}`, () => send('exchangeVote', { yes: true }), 'primary'));
+          acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
+        } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+      } else if (!ex.satisfied[me]) {
+        status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med. Annars börjar spelet när alla är nöjda.';
+        for (let n = 1; n <= 6; n++) acts.push(btn(`Fråga: ${n}`, () => send('exchangePropose', { count: n }), 'small'));
+        acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
+      } else status = `Du är nöjd. Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+    } else if (ex.step === 'extraDiscard') {
+      const k = ex.leaderCount;
+      if (ex.waitingFor.includes(me)) {
+        status = `Alla var med! Välj exakt ${k} kort att slänga.`;
+        acts.push(btn(`Släng ${k} kort (${sel.n}/${k} valda)`, () => send('exchangeExtraDiscard', { cardIds: [...selected] }), 'primary', sel.n !== k));
+      } else status = `Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
     }
   } else if (pl && G.phase === 'play') {
     if (pl.turnId === me) {
@@ -255,13 +281,14 @@ function renderActions(G) {
         acts.push(btn(ok ? `Lägg ${sel.n} kort` : sel.n ? 'Korten måste ha samma valör' : 'Välj kort', () => send('play', { cardIds: [...selected] }), 'primary', !ok));
       } else {
         const need = pl.count, r = pl.combo.rank;
-        const ok = sel.n === need && sel.sameRank && sel.rank >= r;
+        const allHigh = sel.n === need && sel.cards.every((c) => c.rank >= r);
+        const take = allHigh && sel.sameRank, over = allHigh && !sel.sameRank;
         status = pl.canBeat
-          ? `Din tur. Du kan slå och måste göra det: lägg ${need} × ${rn(r)} eller högre.`
-          : `Din tur. Du kan inte slå ${need} × ${rn(r)} och måste lägga ${lowestTxt('dina', need)}.`;
-        let why = 'Välj kort';
-        if (sel.n) why = sel.n !== need ? `Välj exakt ${need} kort` : !sel.sameRank ? 'Samma valör krävs' : sel.rank < r ? `Minst ${rn(r)} krävs` : '';
-        if (pl.canBeat) acts.push(btn(ok ? `Slå med ${sel.n} kort` : why, () => send('play', { cardIds: [...selected] }), 'primary', !ok));
+          ? `Din tur. Lägg ${need} kort som alla är ${rn(r)} eller högre. ${pl.canTakeOver ? `Samma valör tar styret, olika valörer lägger bara över.` : 'Du kan bara lägga över (olika valörer), inte ta styret.'}`
+          : `Din tur. Du har inte ${need} kort som är ${rn(r)} eller högre och måste lägga ${lowestTxt('dina', need)}.`;
+        let label = 'Välj kort';
+        if (sel.n) label = sel.n !== need ? `Välj exakt ${need} kort` : take ? `Ta styret med ${sel.n} kort ♛` : over ? `Lägg över (${sel.n} kort)` : `Alla kort måste vara ${rn(r)} eller högre`;
+        if (pl.canBeat) acts.push(btn(label, () => send('play', { cardIds: [...selected] }), 'primary', !allHigh));
         if (!pl.canBeat || pl.mayDumpWhenCanBeat) acts.push(btn(`Lägg ${lowestTxt('mina', need)}`, () => send('dump'), pl.canBeat ? '' : 'primary'));
       }
     } else status = `${esc(nameOf(pl.turnId))}s tur${pl.count === null ? ' att starta rundan' : ''}…`;
@@ -279,6 +306,22 @@ function renderActions(G) {
   $('hand').classList.toggle('active', myTurn && !offerHTML);
   document.title = myTurn ? '● Din tur – GURSCH' : 'GURSCH';
 }
+
+let dealShownFor = null;
+function renderDeal(G) {
+  const key = G.dealReveal.map((r) => r.cards.map((c) => c.id).join()).join('|');
+  if (G.phase !== 'exchange' || dealShownFor === key) return;
+  dealShownFor = key;
+  const leader = G.leaderId;
+  const rounds = Math.max(...G.dealReveal.map((r) => r.cards.length));
+  $('dealBody').innerHTML = G.dealReveal.map((r) => `<div class="deal-row ${r.playerId === leader ? 'win' : ''}">
+      <span class="deal-name">${r.playerId === leader ? '♛ ' : ''}${esc(nameOf(r.playerId))}${r.playerId === S.you ? ' (du)' : ''}</span>
+      <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
+    </div>`).join('');
+  $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`;
+  $('deal').classList.remove('hidden');
+}
+$('dealOk').onclick = () => $('deal').classList.add('hidden');
 
 function renderResults(G) {
   const show = G.phase === 'finished';

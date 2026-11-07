@@ -7,88 +7,101 @@ const { server } = require('../src/server');
 const { Game, GameError } = require('../src/game');
 
 // ---- regeltester direkt mot motorn ----
-function rig(n) {
-  const g = new Game(Array.from({ length: n }, (_, i) => ({ id: 'p' + i, name: 'S' + i })));
-  // hoppa över inledningsfasen: alla behåller
+const throwsGame = (fn, msg) => assert.throws(fn, (e) => e instanceof GameError, msg);
+function skipExchange(g) {
   for (let r = 0; r < 2; r++) {
     g.act(g.players[g.leader].id, { type: 'exchangeLeader', cardIds: [] });
-    for (const pid of Object.keys(g.exchange?.decisions || {})) g.act(pid, { type: 'exchangeOther', discard: false });
+    for (const pid of Object.keys(g.exchange.decisions)) g.act(pid, { type: 'exchangeOther', discard: false });
   }
-  return g;
-}
-const throwsGame = (fn, msg) => assert.throws(fn, (e) => e instanceof GameError, msg);
-{
-  const g = rig(3);
+  assert.strictEqual(g.exchange.step, 'extra');
+  for (const p of g.players) g.act(p.id, { type: 'exchangeSatisfied' });
   assert.strictEqual(g.phase, 'play');
-  const L = g.leader, lp = g.players[L];
-  const card = (rank, suit, d = 0) => ({ id: `${suit}${rank}-${d}`, rank, suit });
-  // Sätt händer för kontrollerat test (ta korten ur leken så att inga dubbletter uppstår)
+}
+// Sätter händerna (sittordning från styrspelaren) och lägger resten i leken utan att något kort dupliceras.
+function setHands(g, hands) {
   const pool = [...g.deck, ...g.discard, ...g.setAside, ...g.players.flatMap((p) => p.hand)];
-  const take = (id) => { const c = pool.find((x) => x.id === id); return c; };
-  const hands = [
-    ['S13-0', 'H13-0', 'S2-0', 'S3-0', 'S4-0', 'S5-0'],
-    ['D13-0', 'C14-0', 'C14-1', 'D12-0', 'D12-1', 'H2-0'],
-    ['C12-0', 'H12-0', 'H3-0', 'H4-0', 'H5-0', 'H6-0'],
-  ];
   const used = new Set(hands.flat());
   g.deck = pool.filter((c) => !used.has(c.id)); g.discard = []; g.setAside = [];
-  const seat = (k) => (L + k) % 3;
-  hands.forEach((h, k) => { const p = g.players[seat(k)]; p.hand = h.map(take); p.publicIds.clear(); });
+  const n = g.players.length;
+  hands.forEach((h, k) => { const p = g.players[(g.leader + k) % n]; p.hand = h.map((id) => pool.find((c) => c.id === id)); p.publicIds.clear(); });
   g.checkInvariant();
-  const [a, b, c] = [0, 1, 2].map((k) => g.players[seat(k)].id);
-  throwsGame(() => g.act(b, { type: 'dump' }), 'fel spelares tur');
-  throwsGame(() => g.act(a, { type: 'play', cardIds: ['S13-0', 'S2-0'] }), 'olika valör');
-  g.act(a, { type: 'play', cardIds: ['S13-0', 'H13-0'] }); // två kungar
-  assert.strictEqual(g.play.count, 2);
-  throwsGame(() => g.act(b, { type: 'play', cardIds: ['D12-0', 'D12-1'] }), 'två damer slår inte två kungar');
-  throwsGame(() => g.act(b, { type: 'play', cardIds: ['C14-0'] }), 'ett ess räcker inte');
-  throwsGame(() => g.act(b, { type: 'play', cardIds: ['D13-0', 'C14-0'] }), 'olika valör');
-  g.act(b, { type: 'play', cardIds: ['C14-0', 'C14-1'] }); // två ess tar styret
-  assert.strictEqual(g.players[g.leader].id, b);
-  assert.strictEqual(g.play.count, null);
-  assert.strictEqual(g.play.turnId ?? g.players[g.play.turn].id, b);
-  g.act(b, { type: 'play', cardIds: ['D12-0'] }); // ny runda med ett kort
-  assert.strictEqual(g.play.count, 1);
-  throwsGame(() => g.act(c, { type: 'play', cardIds: ['C12-0', 'H12-0'] }), 'antalet är låst');
-  throwsGame(() => g.act(c, { type: 'dump' }), 'måste slå om man kan');
-  g.act(c, { type: 'play', cardIds: ['C12-0'] }); // lika valör räcker
-  assert.strictEqual(g.players[g.leader].id, c);
-  g.act(c, { type: 'play', cardIds: ['H12-0'] }); // c startar med en dam
-  g.act(a, { type: 'dump' }); // a kan inte slå, lägger sin 2
-  assert.ok(!g.players[seat(0)].hand.some((x) => x.id === 'S2-0'), 'lägsta kortet ska läggas');
-  g.act(b, { type: 'play', cardIds: ['D13-0'] }); // b har kung och måste slå
-  assert.strictEqual(g.players[g.leader].id, b);
-  g.act(b, { type: 'play', cardIds: ['D12-1'] });
-  g.act(c, { type: 'dump' }); g.act(a, { type: 'dump' }); // ingen kan slå en dam
-  assert.strictEqual(g.players[g.leader].id, b, 'b behåller styret');
-  assert.strictEqual(g.play.count, null);
-  g.act(b, { type: 'play', cardIds: ['H2-0'] }); // b lägger sitt sista kort → sista rundan
-  assert.strictEqual(g.play.lastRound, true);
-  assert.strictEqual(g.phase, 'play', 'rundan ska spelas klart');
-  g.act(c, { type: 'play', cardIds: ['H6-0'] }); // c måste slå (6 > 2), styret byts inte i sista rundan
-  assert.strictEqual(g.phase, 'play');
-  throwsGame(() => g.act(a, { type: 'play', cardIds: ['S3-0'] }), '3 slår inte 6');
-  g.act(a, { type: 'dump' });
-  assert.strictEqual(g.phase, 'finished');
-  // a: 5, b: 0, c: 4+5=9 → b vinner, c förlorar
-  const R = Object.fromEntries(g.results.map((r) => [r.playerId, r]));
-  assert.deepStrictEqual([R[a].value, R[b].value, R[c].value], [5, 0, 9]);
-  assert.ok(R[b].winner && !R[a].winner && !R[a].loser && R[c].loser && !g.isDraw);
-  console.log('OK: regeltester');
+  return hands.map((_, k) => g.players[(g.leader + k) % n].id);
 }
-{ // bytesrunda: den som behöll i runda 1 får inte byta i runda 2
+{
+  const g = new Game([0, 1, 2].map((i) => ({ id: 'p' + i, name: 'S' + i })));
+  skipExchange(g);
+  const [a, b, c] = setHands(g, [
+    ['S7-0', 'H7-0', 'S2-0', 'S3-0', 'S4-0', 'S5-0'],
+    ['D10-0', 'C13-0', 'D12-0', 'D12-1', 'H2-0', 'H3-0'],
+    ['C8-0', 'H8-0', 'C3-0', 'H4-0', 'H5-0', 'H6-0'],
+  ]);
+  throwsGame(() => g.act(b, { type: 'dump' }), 'fel spelares tur');
+  throwsGame(() => g.act(a, { type: 'play', cardIds: ['S7-0', 'S2-0'] }), 'start måste vara samma valör');
+  g.act(a, { type: 'play', cardIds: ['S7-0', 'H7-0'] }); // två sjuor
+  assert.strictEqual(g.play.count, 2);
+  throwsGame(() => g.act(b, { type: 'play', cardIds: ['D10-0'] }), 'antalet är låst');
+  throwsGame(() => g.act(b, { type: 'play', cardIds: ['D10-0', 'H2-0'] }), 'alla kort måste vara över');
+  throwsGame(() => g.act(b, { type: 'dump' }), 'måste lägga över om man kan');
+  g.act(b, { type: 'play', cardIds: ['D10-0', 'C13-0'] }); // tia + kung: lägger över, tar inte styret
+  assert.strictEqual(g.players[g.leader].id, a, 'blandade kort tar inte styret');
+  assert.strictEqual(g.play.combo.rank, 7, 'sjuorna gäller fortfarande');
+  g.act(c, { type: 'play', cardIds: ['C8-0', 'H8-0'] }); // par åttor tar styret
+  assert.strictEqual(g.players[g.leader].id, c);
+  assert.strictEqual(g.play.count, null);
+  g.act(c, { type: 'play', cardIds: ['H6-0'] });
+  g.act(a, { type: 'dump' }); // a har bara 2–5 och kan inte lägga över
+  assert.ok(!g.players.find((p) => p.id === a).hand.some((x) => x.id === 'S2-0'), 'lägsta kortet ska läggas');
+  g.act(b, { type: 'play', cardIds: ['D12-0'] }); // b tar styret med en dam (en ensam dam är "samma valör")
+  assert.strictEqual(g.players[g.leader].id, b);
+  console.log('OK: regler för att lägga, lägga över och ta styret');
+}
+{ // sista rundan spelas klart; delad vinst och förlust
+  const g = new Game([0, 1, 2].map((i) => ({ id: 'p' + i, name: 'S' + i })));
+  skipExchange(g);
+  const [a, b, c] = setHands(g, [['S2-0'], ['S5-0', 'S9-0'], ['H5-0', 'H9-0']]);
+  g.act(a, { type: 'play', cardIds: ['S2-0'] });
+  assert.strictEqual(g.play.lastRound, true);
+  g.act(b, { type: 'play', cardIds: ['S5-0'] }); // tar inte styret i sista rundan
+  assert.strictEqual(g.phase, 'play');
+  throwsGame(() => g.act(c, { type: 'dump' }), 'c kan slå 5 och måste');
+  g.act(c, { type: 'play', cardIds: ['H5-0'] });
+  assert.strictEqual(g.phase, 'finished');
+  const R = Object.fromEntries(g.results.map((r) => [r.playerId, r]));
+  assert.ok(R[a].winner && R[b].loser && R[c].loser && !g.isDraw, 'b och c förlorar tillsammans');
+  console.log('OK: sista rundan och delad förlust');
+}
+{ // bytesrundor: ersättningskort på en gång, låsning i runda 2, extra byten
   const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }]);
-  const L = g.players[g.leader]; const others = g.players.filter((p) => p !== L);
+  const L = g.players[g.leader]; const [o1, o2] = g.players.filter((p) => p !== L);
   g.act(L.id, { type: 'exchangeLeader', cardIds: L.hand.slice(0, 2).map((c) => c.id) });
-  throwsGame(() => g.act(others[0].id, { type: 'exchangeOther', discard: true, cardIds: [others[0].hand[0].id] }), 'exakt samma antal');
-  g.act(others[0].id, { type: 'exchangeOther', discard: true, cardIds: others[0].hand.slice(0, 2).map((c) => c.id) });
-  g.act(others[1].id, { type: 'exchangeOther', discard: false });
+  throwsGame(() => g.act(o1.id, { type: 'exchangeOther', discard: true, cardIds: [o1.hand[0].id] }), 'exakt samma antal');
+  g.act(o1.id, { type: 'exchangeOther', discard: true, cardIds: o1.hand.slice(0, 2).map((c) => c.id) });
+  g.act(o2.id, { type: 'exchangeOther', discard: false });
   assert.strictEqual(g.exchange.step, 'replace');
-  while (g.exchange.round === 1) g.act(Object.keys(g.exchange.offers)[0], { type: 'exchangeReplace', keep: Math.random() < 0.5 });
+  assert.strictEqual(g.exchange.offers[L.id].length, 2, 'alla ersättningskort på en gång');
+  const offered = g.exchange.offers[o1.id].map((c) => c.id);
+  g.act(o1.id, { type: 'exchangeReplace', keep: true });
+  assert.ok(offered.every((id) => o1.hand.some((c) => c.id === id) && o1.publicIds.has(id)), 'behållna kort syns för alla');
+  g.act(L.id, { type: 'exchangeReplace', keep: false });
+  assert.strictEqual(g.exchange.round, 2);
   g.act(L.id, { type: 'exchangeLeader', cardIds: [] });
-  throwsGame(() => g.act(others[1].id, { type: 'exchangeOther', discard: true }), 'låst ute från runda 2');
-  g.act(others[0].id, { type: 'exchangeOther', discard: true }); // ledaren slängde 0 → alla sex
-  for (let k = 0; k < 6; k++) g.act(others[0].id, { type: 'exchangeReplace', keep: false });
+  throwsGame(() => g.act(o2.id, { type: 'exchangeOther', discard: true }), 'låst ute från runda 2');
+  g.act(o1.id, { type: 'exchangeOther', discard: true }); // styrspelaren slängde 0 → alla sex
+  assert.strictEqual(g.exchange.offers[o1.id].length, 6);
+  g.act(o1.id, { type: 'exchangeReplace', keep: false });
+  // extra byte: o2 frågar om ett kort, alla säger ja
+  assert.strictEqual(g.exchange.step, 'extra');
+  g.act(o2.id, { type: 'exchangePropose', count: 1 });
+  throwsGame(() => g.act(L.id, { type: 'exchangePropose', count: 2 }), 'ett förslag i taget');
+  g.act(L.id, { type: 'exchangeVote', yes: true });
+  g.act(o1.id, { type: 'exchangeVote', yes: true });
+  assert.strictEqual(g.exchange.step, 'extraDiscard');
+  for (const p of g.players) g.act(p.id, { type: 'exchangeExtraDiscard', cardIds: [p.hand[5].id] });
+  for (const p of g.players) g.act(p.id, { type: 'exchangeReplace', keep: Math.random() < 0.5 });
+  assert.strictEqual(g.exchange.step, 'extra');
+  // nytt förslag, någon säger nej → spelet börjar
+  g.act(L.id, { type: 'exchangePropose', count: 3 });
+  g.act(o1.id, { type: 'exchangeVote', yes: false });
   assert.strictEqual(g.phase, 'play');
   g.players.forEach((p) => assert.strictEqual(p.hand.length, 6));
   console.log('OK: bytesregler');
@@ -127,12 +140,20 @@ async function bot(s) {
     if (ex.step === 'leader' && G.leaderId === me) return act({ type: 'exchangeLeader', cardIds: hand.slice(0, Math.floor(Math.random() * 4)).map((c) => c.id) });
     if (ex.step === 'others' && ex.waitingFor.includes(me)) return act({ type: 'exchangeOther', discard: Math.random() < 0.5, cardIds: hand.slice(0, ex.leaderCount).map((c) => c.id) });
     if (ex.step === 'replace' && ex.offers[me]) return act({ type: 'exchangeReplace', keep: Math.random() < 0.5 });
+    if (ex.step === 'extra' && ex.waitingFor.includes(me)) {
+      if (ex.proposal) return act({ type: 'exchangeVote', yes: Math.random() < 0.7 });
+      if (Math.random() < 0.15) return act({ type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 3) });
+      return act({ type: 'exchangeSatisfied' });
+    }
+    if (ex.step === 'extraDiscard' && ex.waitingFor.includes(me)) return act({ type: 'exchangeExtraDiscard', cardIds: hand.slice(0, ex.leaderCount).map((c) => c.id) });
   } else if (pl && pl.turnId === me) {
     if (pl.count === null) return act({ type: 'play', cardIds: [hand[hand.length - 1].id] });
     const ok = hand.filter((c) => c.rank >= pl.combo.rank);
     const groups = {}; ok.forEach((c) => (groups[c.rank] = groups[c.rank] || []).push(c));
     const g = Object.values(groups).find((x) => x.length >= pl.count);
     if (g) return act({ type: 'play', cardIds: g.slice(0, pl.count).map((c) => c.id) });
+    if (ok.length >= pl.count) { assert.ok(pl.canBeat); return act({ type: 'play', cardIds: ok.slice(0, pl.count).map((c) => c.id) }); }
+    assert.ok(!pl.canBeat);
     return act({ type: 'dump' });
   }
   return null;

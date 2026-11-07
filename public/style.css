@@ -140,7 +140,10 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
   .seat { min-width: 80px; padding: 5px 6px; } .seat-name { font-size: 12px; }
   .table { margin: 4px; border-radius: 30px; }
   .round-info { font-size: 12px; }
-  .table-center { width: 92%; top: 62%; }
+  .table-center { width: 92%; top: auto; bottom: 14px; transform: translateX(-50%); }
+  .reveal, .reveal + .tiny { display: none; }
+  .seat-offer .card.mini, .seat-public .card.mini { width: 20px; height: 29px; }
+  .seat-offer .card.mini .corner, .seat-public .card.mini .corner { font-size: 8px; top: 2px; left: 2px; }
   #seats { position: absolute; top: 14px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
   .seat { position: static; transform: none; }
   .play-cards .card.small { width: 34px; height: 50px; } .play-cards .card + .card { margin-left: -18px; }
@@ -149,3 +152,13 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
   .me-bar { justify-content: center; } .actions { justify-content: center; }
   .results-table .res-cards { display: none; } .results-table th:nth-child(3) { display: none; }
 }
+
+/* utdelning och ersättningskort */
+.deal-body { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.deal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.06); }
+.deal-row.win { background: rgba(242,193,78,.22); outline: 2px solid var(--gold); font-weight: 700; }
+.deal-cards { display: flex; gap: 4px; }
+.deal-cards .card.enter { animation-fill-mode: both; }
+.offer-cards { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.seat-turn.ok { color: #81c784; animation: none; }
+.actions .btn.small { padding: 8px 10px; }

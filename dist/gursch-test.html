@@ -148,7 +148,10 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
   .seat { min-width: 80px; padding: 5px 6px; } .seat-name { font-size: 12px; }
   .table { margin: 4px; border-radius: 30px; }
   .round-info { font-size: 12px; }
-  .table-center { width: 92%; top: 62%; }
+  .table-center { width: 92%; top: auto; bottom: 14px; transform: translateX(-50%); }
+  .reveal, .reveal + .tiny { display: none; }
+  .seat-offer .card.mini, .seat-public .card.mini { width: 20px; height: 29px; }
+  .seat-offer .card.mini .corner, .seat-public .card.mini .corner { font-size: 8px; top: 2px; left: 2px; }
   #seats { position: absolute; top: 14px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
   .seat { position: static; transform: none; }
   .play-cards .card.small { width: 34px; height: 50px; } .play-cards .card + .card { margin-left: -18px; }
@@ -157,6 +160,16 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
   .me-bar { justify-content: center; } .actions { justify-content: center; }
   .results-table .res-cards { display: none; } .results-table th:nth-child(3) { display: none; }
 }
+
+/* utdelning och ersättningskort */
+.deal-body { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.deal-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.06); }
+.deal-row.win { background: rgba(242,193,78,.22); outline: 2px solid var(--gold); font-weight: 700; }
+.deal-cards { display: flex; gap: 4px; }
+.deal-cards .card.enter { animation-fill-mode: both; }
+.offer-cards { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.seat-turn.ok { color: #81c784; animation: none; }
+.actions .btn.small { padding: 8px 10px; }
 
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
@@ -246,6 +259,17 @@ input, select { width: 100%; font: inherit; padding: 12px 14px; border-radius: 1
     <div id="toast" class="toast hidden"></div>
   </section>
 
+  <!-- Utdelning: vem styr -->
+  <div id="deal" class="overlay hidden">
+    <div class="home-card wide">
+      <h2>Utdelning</h2>
+      <p class="muted center">Det sjätte kortet delades ut med framsidan upp. Högst kort styr.</p>
+      <div id="dealBody" class="deal-body"></div>
+      <p id="dealInfo" class="center"></p>
+      <div class="lobby-actions"><button id="dealOk" class="btn primary">Okej, börja byta kort</button></div>
+    </div>
+  </div>
+
   <!-- Resultat -->
   <div id="results" class="overlay hidden">
     <div class="home-card wide">
@@ -283,7 +307,12 @@ const RULES = {
   mayDumpWhenCanBeat: false,
   // Avgörandekort vid lika läggs undan (ingår inte i slänghögen som blandas om).
   // Om ingen slår och turen kommer tillbaka: styrspelaren behåller styret.
-  // Avgörandekort vid lika läggs i slänghögen (handen har fortfarande sex kort).
+  // Ersättningskort (Alfred 2026-11-07): man får alla på en gång med framsidan upp,
+  // och väljer att behålla alla eller ta lika många dolda.
+  // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
+  // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
+  // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
+  // Kan man lägga över (på något av sätten) måste man; annars läggs de lägsta korten.
 };
 
 function rankName(r) { return RANK_NAMES[r] || String(r); }
@@ -357,7 +386,7 @@ class Game {
 
   checkInvariant() {
     const all = [...this.deck, ...this.discard, ...this.setAside, ...this.players.flatMap((p) => p.hand),
-      ...(this.exchange ? Object.values(this.exchange.offers) : [])];
+      ...(this.exchange ? Object.values(this.exchange.offers).flat() : [])];
     const ids = new Set(all.map((c) => c.id));
     if (all.length !== 104 || ids.size !== 104) throw new Error(`Kortfel: ${all.length} kort, ${ids.size} unika`);
   }
@@ -386,8 +415,10 @@ class Game {
   }
 
   // ---------- inledningsfasen ----------
+  // Bytesrunda 1 och 2 styrs av styrspelaren. Därefter kan extra bytesrundor
+  // föreslås av vem som helst, men de blir bara av om alla är med.
   startExchangeRound(round) {
-    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {} };
+    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
     this.log(`Bytesrunda ${round}: ${this.name(this.leader)} väljer hur många kort som ska slängas.`);
   }
 
@@ -435,30 +466,31 @@ class Game {
     if (Object.values(ex.decisions).every((d) => d !== null)) this.startReplacements();
   }
 
+  // Alla som slängt får sina ersättningskort samtidigt, med framsidan upp.
   startReplacements() {
     const ex = this.exchange;
     ex.step = 'replace';
-    for (const [pid, n] of Object.entries(ex.pending)) if (n > 0) ex.offers[pid] = this.draw();
+    for (const [pid, n] of Object.entries(ex.pending)) if (n > 0) ex.offers[pid] = Array.from({ length: n }, () => this.draw());
     this.maybeFinishExchange();
   }
 
+  // Behåll alla synliga kort, eller avstå från alla och få lika många dolda.
   exchangeReplace(pid, keep) {
     const i = this.idx(pid), ex = this.exchange;
-    if (this.phase !== 'exchange' || ex.step !== 'replace' || !ex.offers[pid]) fail('Du har inget ersättningskort att välja.');
+    if (this.phase !== 'exchange' || ex.step !== 'replace' || !ex.offers[pid]) fail('Du har inga ersättningskort att välja.');
     const p = this.players[i];
     const offer = ex.offers[pid];
     delete ex.offers[pid];
     if (keep) {
-      p.hand.push(offer); p.publicIds.add(offer.id);
-      this.log(`${this.name(i)} behåller det synliga kortet ${rankName(offer.rank)}.`);
+      for (const c of offer) { p.hand.push(c); p.publicIds.add(c.id); }
+      this.log(`${this.name(i)} behåller de synliga korten: ${offer.map((c) => rankName(c.rank)).join(', ')}.`);
     } else {
-      this.discard.push(offer);
-      p.hand.push(this.draw());
-      this.log(`${this.name(i)} avstår från ${rankName(offer.rank)} och tar ett dolt kort.`);
+      this.discard.push(...offer);
+      for (let k = 0; k < offer.length; k++) p.hand.push(this.draw());
+      this.log(`${this.name(i)} avstår från ${offer.map((c) => rankName(c.rank)).join(', ')} och tar ${offer.length} dolda kort.`);
     }
     this.sortHand(p);
-    ex.pending[pid]--;
-    if (ex.pending[pid] > 0) ex.offers[pid] = this.draw();
+    ex.pending[pid] = 0;
     this.maybeFinishExchange();
   }
 
@@ -467,6 +499,68 @@ class Game {
     if (Object.keys(ex.offers).length > 0) return;
     for (const p of this.players) if (p.hand.length !== 6) throw new Error('Fel antal kort efter byte');
     if (ex.round === 1) return this.startExchangeRound(2);
+    this.startExtra(ex.round + 1);
+  }
+
+  startExtra(round) {
+    this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
+    this.log(`Extra byte: vill någon slänga fler kort? Alla måste vara med. Annars börjar spelet när alla är nöjda.`);
+  }
+
+  // Föreslå att alla slänger `count` kort.
+  exchangePropose(pid, count) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att föreslå byte nu.');
+    if (ex.proposal) fail('Det finns redan ett förslag att svara på.');
+    count = Math.round(Number(count));
+    if (!(count >= 1 && count <= 6)) fail('Välj 1–6 kort.');
+    ex.proposal = { by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])) };
+    this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
+  }
+
+  exchangeVote(pid, yes) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extra' || !ex.proposal) fail('Det finns inget förslag att svara på.');
+    if (ex.proposal.votes[pid] !== null) fail('Du har redan svarat.');
+    ex.proposal.votes[pid] = !!yes;
+    if (!yes) {
+      this.log(`${this.name(i)} vill inte slänga. Inga fler byten.`);
+      return this.startPlay();
+    }
+    this.log(`${this.name(i)} är med.`);
+    if (Object.values(ex.proposal.votes).every((v) => v === true)) {
+      this.log(`Alla är med – alla slänger ${ex.proposal.count} kort.`);
+      ex.step = 'extraDiscard';
+      ex.leaderCount = ex.proposal.count;
+      this.players.forEach((p) => { ex.decisions[p.id] = null; });
+    }
+  }
+
+  exchangeSatisfied(pid) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte nu.');
+    if (ex.proposal) return this.exchangeVote(pid, false);
+    ex.satisfied[pid] = true;
+    this.log(`${this.name(i)} är nöjd.`);
+    if (this.players.every((p) => ex.satisfied[p.id])) {
+      this.log('Alla är nöjda.');
+      this.startPlay();
+    }
+  }
+
+  exchangeExtraDiscard(pid, cardIds) {
+    const i = this.idx(pid), ex = this.exchange;
+    if (this.phase !== 'exchange' || ex.step !== 'extraDiscard') fail('Det är inte dags att slänga nu.');
+    if (ex.decisions[pid] !== null) fail('Du har redan slängt.');
+    if (!Array.isArray(cardIds) || cardIds.length !== ex.leaderCount) fail(`Du måste välja exakt ${ex.leaderCount} kort.`);
+    const cards = this.removeFromHand(i, cardIds);
+    this.discard.push(...cards);
+    ex.decisions[pid] = true;
+    ex.pending[pid] = cards.length;
+    if (Object.values(ex.decisions).every((d) => d !== null)) this.startReplacements();
+  }
+
+  startPlay() {
     this.exchange = null;
     this.phase = 'play';
     this.play = { leader: this.leader, turn: this.leader, count: null, combo: null, table: [], lastTable: [], roundNo: 1 };
@@ -478,6 +572,13 @@ class Game {
   next(i) { return (i + 1) % this.players.length; }
 
   canBeat(i) {
+    const pl = this.play;
+    if (pl.count === null) return false;
+    // Man kan lägga över om man har minst lika många kort som är samma eller högre valör.
+    return this.players[i].hand.filter((c) => c.rank >= pl.combo.rank).length >= pl.count;
+  }
+
+  canTakeOver(i) {
     const pl = this.play;
     if (pl.count === null) return false;
     const counts = {};
@@ -493,10 +594,11 @@ class Game {
     const hand = this.players[i].hand;
     const cards = cardIds.map((id) => hand.find((c) => c.id === id) || fail('Du har inte det kortet.'));
     if (new Set(cardIds).size !== cardIds.length) fail('Samma kort valt flera gånger.');
-    if (!cards.every((c) => c.rank === cards[0].rank)) fail('Alla kort i en kombination måste ha samma valör.');
+    const sameRank = cards.every((c) => c.rank === cards[0].rank);
     const rank = cards[0].rank;
 
     if (pl.count === null) {
+      if (!sameRank) fail('Alla kort i en kombination måste ha samma valör.');
       if (cards.length > 6) fail('Högst sex kort.');
       this.removeFromHand(i, cardIds);
       this.discard.push(...cards);
@@ -510,8 +612,16 @@ class Game {
     }
 
     if (cards.length !== pl.count) fail(`Rundan spelas med ${pl.count} kort – du måste lägga exakt ${pl.count}.`);
-    if (rank < pl.combo.rank) fail(`Du måste lägga ${rankName(pl.combo.rank)} eller högre.`);
+    if (cards.some((c) => c.rank < pl.combo.rank)) fail(`Alla kort måste vara ${rankName(pl.combo.rank)} eller högre.`);
     this.removeFromHand(i, cardIds);
+    if (!sameRank) {
+      // lägger över med olika valörer: tar inte styret, rundan fortsätter
+      this.discard.push(...cards);
+      pl.table.push({ by: pid, cards, type: 'over' });
+      this.log(`${this.name(i)} lägger över med ${describe(cards)}.`, 'play');
+      this.checkOut(i);
+      return this.advance(i);
+    }
     this.discard.push(...cards);
     pl.table.push({ by: pid, cards, type: 'beat' });
     this.checkOut(i);
@@ -531,7 +641,7 @@ class Game {
     if (this.phase !== 'play') fail('Spelet pågår inte.');
     if (pl.turn !== i) fail('Det är inte din tur.');
     if (pl.count === null) fail('Du startar rundan – välj en kombination.');
-    if (!RULES.mayDumpWhenCanBeat && this.canBeat(i)) fail('Du kan slå och måste därför göra det.');
+    if (!RULES.mayDumpWhenCanBeat && this.canBeat(i)) fail('Du kan lägga över och måste därför göra det.');
     const p = this.players[i];
     const lowest = [...p.hand].sort((a, b) => a.rank - b.rank).slice(0, pl.count);
     this.removeFromHand(i, lowest.map((c) => c.id));
@@ -599,6 +709,10 @@ class Game {
       case 'exchangeLeader': this.exchangeLeader(pid, a.cardIds); break;
       case 'exchangeOther': this.exchangeOther(pid, !!a.discard, a.cardIds); break;
       case 'exchangeReplace': this.exchangeReplace(pid, !!a.keep); break;
+      case 'exchangePropose': this.exchangePropose(pid, a.count); break;
+      case 'exchangeVote': this.exchangeVote(pid, !!a.yes); break;
+      case 'exchangeSatisfied': this.exchangeSatisfied(pid); break;
+      case 'exchangeExtraDiscard': this.exchangeExtraDiscard(pid, a.cardIds); break;
       case 'play': this.playCards(pid, a.cardIds); break;
       case 'dump': this.dumpLowest(pid); break;
       default: fail('Okänt drag.');
@@ -630,8 +744,13 @@ class Game {
     if (ex) {
       v.exchange = {
         round: ex.round, step: ex.step, leaderCount: ex.leaderCount,
-        waitingFor: ex.step === 'others' ? Object.keys(ex.decisions).filter((k) => ex.decisions[k] === null)
-          : ex.step === 'replace' ? Object.keys(ex.offers) : [this.players[this.leader].id],
+        waitingFor: ex.step === 'others' || ex.step === 'extraDiscard' ? Object.keys(ex.decisions).filter((k) => ex.decisions[k] === null)
+          : ex.step === 'replace' ? Object.keys(ex.offers)
+            : ex.step === 'extra' ? (ex.proposal ? Object.keys(ex.proposal.votes).filter((k) => ex.proposal.votes[k] === null)
+              : this.players.map((p) => p.id).filter((k) => !ex.satisfied[k]))
+              : [this.players[this.leader].id],
+        proposal: ex.proposal,
+        satisfied: ex.satisfied,
         offers: ex.offers, // synliga ersättningskort visas för alla
         pending: ex.pending,
         eligible: ex.step === 'others' ? Object.keys(ex.decisions) : this.eligibleOthers().map((k) => this.players[k].id),
@@ -643,6 +762,7 @@ class Game {
         turnId: this.phase === 'play' ? this.players[pl.turn].id : null,
         count: pl.count, combo: pl.combo, table: pl.table, lastTable: pl.lastTable, roundNo: pl.roundNo,
         canBeat: me >= 0 && pl.turn === me ? this.canBeat(me) : false,
+        canTakeOver: me >= 0 && pl.turn === me ? this.canTakeOver(me) : false,
         mayDumpWhenCanBeat: RULES.mayDumpWhenCanBeat,
       };
     }
@@ -697,7 +817,18 @@ module.exports = { Game, GameError, RULES, makeDeck };
         const worth = worst.filter((c) => c.rank >= 9).length >= Math.ceil(ex.leaderCount / 2);
         return { type: 'exchangeOther', discard: worth, cardIds: ids(worst) };
       }
-      if (ex.step === 'replace' && ex.offers[pid]) return { type: 'exchangeReplace', keep: ex.offers[pid].rank <= 7 };
+      if (ex.step === 'replace' && ex.offers[pid]) {
+        const o = ex.offers[pid];
+        return { type: 'exchangeReplace', keep: o.reduce((s, c) => s + c.rank, 0) <= 7 * o.length };
+      }
+      if (ex.step === 'extra') {
+        if (ex.proposal) {
+          if (ex.proposal.votes[pid] !== null) return null;
+          return { type: 'exchangeVote', yes: hand.filter((c) => c.rank >= 10).length >= ex.proposal.count };
+        }
+        return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
+      }
+      if (ex.step === 'extraDiscard' && ex.decisions[pid] === null) return { type: 'exchangeExtraDiscard', cardIds: ids(highest(hand, ex.leaderCount)) };
       return null;
     }
 
@@ -709,9 +840,12 @@ module.exports = { Game, GameError, RULES, makeDeck };
         const best = groups(hand).sort((a, b) => b.length * b[0].rank - a.length * a[0].rank)[0];
         return { type: 'play', cardIds: ids(best) };
       }
-      // slå med lägsta möjliga grupp (man måste slå om man kan)
+      // ta styret med lägsta möjliga grupp
       const ok = groups(hand).filter((g) => g[0].rank >= pl.combo.rank && g.length >= pl.count).sort((a, b) => a[0].rank - b[0].rank);
       if (ok.length) return { type: 'play', cardIds: ids(ok[0].slice(0, pl.count)) };
+      // annars lägg över med de lägsta korten som räcker, om det går
+      const over = hand.filter((c) => c.rank >= pl.combo.rank).sort((a, b) => a.rank - b.rank);
+      if (over.length >= pl.count) return { type: 'play', cardIds: ids(over.slice(0, pl.count)) };
       return { type: 'dump' };
     }
     return null;
@@ -825,10 +959,10 @@ const rl = (r) => RANK[r] || String(r);
 const rn = (r) => RANK_NAME[r] || String(r);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function cardHTML(c, { cls = '', back = false } = {}) {
+function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
   if (back || !c) return `<div class="card back ${cls}"></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
-  return `<div class="card ${red} ${cls}" data-id="${c.id}">
+  return `<div class="card ${red} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
     <span class="corner tl">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
     <span class="pip">${SUIT[c.suit]}</span>
     <span class="corner br">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
@@ -965,12 +1099,15 @@ function renderGame() {
     const lp = lobbyPlayers[p.id] || {};
     const isTurn = turnId === p.id || waiting.includes(p.id);
     const offer = ex && ex.offers[p.id];
+    const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" style="left:${pos[k].x}%;top:${pos[k].y}%">
       <div class="seat-name">${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}${esc(p.name)}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${p.publicCards.length ? `<div class="seat-public">${p.publicCards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
-      ${offer ? `<div class="seat-offer">Erbjuds ${cardHTML(offer, { cls: 'mini' })}</div>` : ''}
+      ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
+      ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : ''}
+      ${ex && ex.step === 'extra' && !ex.proposal && ex.satisfied[p.id] ? '<div class="tiny muted">Nöjd</div>' : ''}
       ${isTurn ? `<div class="seat-turn">${pl ? 'Spelar…' : 'Väljer…'}</div>` : ''}
     </div>`;
   }).join('');
@@ -978,7 +1115,7 @@ function renderGame() {
   // mitten av bordet
   let pileHTML = '', title = '';
   if (ex) {
-    title = `Inledningsfas · bytesrunda ${ex.round} av 2`;
+    title = ex.round <= 2 ? `Inledningsfas · bytesrunda ${ex.round} av 2` : 'Inledningsfas · extra byte';
     pileHTML = `<div class="reveal">${G.dealReveal.map((r) => `<div class="reveal-col"><div class="tiny">${esc(nameOf(r.playerId))}</div>
       <div class="reveal-cards">${r.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div></div>`).join('')}</div>
       <div class="tiny muted">Synliga kort vid utdelningen</div>`;
@@ -989,7 +1126,7 @@ function renderGame() {
     const fresh = key !== lastPileKey; lastPileKey = key;
     pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type} ${fresh && k === tbl.length - 1 ? 'enter' : ''}">
       <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small' })).join('')}</div>
-      <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : ' · lägsta'}</div>
+      <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : ' · lägsta'}</div>
     </div>`).join('')}</div>`;
   }
   $('centerTitle').innerHTML = title;
@@ -1014,6 +1151,7 @@ function renderGame() {
     if (ev.type === 'lastRound') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} har slut på kort – sista rundan!`, 'leader');
     if (ev.type === 'leader' && ev.reason === 'beat') toast(`${ev.playerId === me ? 'Du' : nameOf(ev.playerId)} tar över styret! ♛`, 'leader');
   }
+  renderDeal(G);
   renderResults(G);
 }
 
@@ -1046,11 +1184,33 @@ function renderActions(G) {
     } else if (ex.step === 'replace') {
       const offer = ex.offers[me];
       if (offer) {
-        status = `Ersättningskort (${ex.pending[me]} kvar). Behåll det synliga kortet eller ta ett dolt istället.`;
-        offerHTML = `<div class="offer-inner">${cardHTML(offer, { cls: 'big enter' })}<div class="tiny">Alla ser detta kort</div></div>`;
-        acts.push(btn('Behåll kortet', () => send('exchangeReplace', { keep: true }), 'primary'));
-        acts.push(btn('Ta ett dolt kort', () => send('exchangeReplace', { keep: false })));
+        const n = offer.length;
+        status = n === 1 ? 'Ditt ersättningskort. Behåll det synliga kortet eller ta ett dolt istället.'
+          : `Dina ${n} ersättningskort. Behåll alla synliga eller ta ${n} dolda istället.`;
+        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c, { cls: 'enter' })).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
+        acts.push(btn(n === 1 ? 'Behåll kortet' : `Behåll alla ${n}`, () => send('exchangeReplace', { keep: true }), 'primary'));
+        acts.push(btn(n === 1 ? 'Ta ett dolt kort' : `Ta ${n} dolda kort`, () => send('exchangeReplace', { keep: false })));
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
+    } else if (ex.step === 'extra') {
+      const P = ex.proposal;
+      if (P) {
+        const who = P.by === me ? 'Du' : esc(nameOf(P.by));
+        if (P.votes[me] === null) {
+          status = `${who} frågar om alla vill slänga ${P.count} kort till. Alla måste vara med – säger någon nej börjar spelet.`;
+          acts.push(btn(`Ja, slänga ${P.count}`, () => send('exchangeVote', { yes: true }), 'primary'));
+          acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
+        } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+      } else if (!ex.satisfied[me]) {
+        status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med. Annars börjar spelet när alla är nöjda.';
+        for (let n = 1; n <= 6; n++) acts.push(btn(`Fråga: ${n}`, () => send('exchangePropose', { count: n }), 'small'));
+        acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
+      } else status = `Du är nöjd. Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+    } else if (ex.step === 'extraDiscard') {
+      const k = ex.leaderCount;
+      if (ex.waitingFor.includes(me)) {
+        status = `Alla var med! Välj exakt ${k} kort att slänga.`;
+        acts.push(btn(`Släng ${k} kort (${sel.n}/${k} valda)`, () => send('exchangeExtraDiscard', { cardIds: [...selected] }), 'primary', sel.n !== k));
+      } else status = `Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
     }
   } else if (pl && G.phase === 'play') {
     if (pl.turnId === me) {
@@ -1060,13 +1220,14 @@ function renderActions(G) {
         acts.push(btn(ok ? `Lägg ${sel.n} kort` : sel.n ? 'Korten måste ha samma valör' : 'Välj kort', () => send('play', { cardIds: [...selected] }), 'primary', !ok));
       } else {
         const need = pl.count, r = pl.combo.rank;
-        const ok = sel.n === need && sel.sameRank && sel.rank >= r;
+        const allHigh = sel.n === need && sel.cards.every((c) => c.rank >= r);
+        const take = allHigh && sel.sameRank, over = allHigh && !sel.sameRank;
         status = pl.canBeat
-          ? `Din tur. Du kan slå och måste göra det: lägg ${need} × ${rn(r)} eller högre.`
-          : `Din tur. Du kan inte slå ${need} × ${rn(r)} och måste lägga ${lowestTxt('dina', need)}.`;
-        let why = 'Välj kort';
-        if (sel.n) why = sel.n !== need ? `Välj exakt ${need} kort` : !sel.sameRank ? 'Samma valör krävs' : sel.rank < r ? `Minst ${rn(r)} krävs` : '';
-        if (pl.canBeat) acts.push(btn(ok ? `Slå med ${sel.n} kort` : why, () => send('play', { cardIds: [...selected] }), 'primary', !ok));
+          ? `Din tur. Lägg ${need} kort som alla är ${rn(r)} eller högre. ${pl.canTakeOver ? `Samma valör tar styret, olika valörer lägger bara över.` : 'Du kan bara lägga över (olika valörer), inte ta styret.'}`
+          : `Din tur. Du har inte ${need} kort som är ${rn(r)} eller högre och måste lägga ${lowestTxt('dina', need)}.`;
+        let label = 'Välj kort';
+        if (sel.n) label = sel.n !== need ? `Välj exakt ${need} kort` : take ? `Ta styret med ${sel.n} kort ♛` : over ? `Lägg över (${sel.n} kort)` : `Alla kort måste vara ${rn(r)} eller högre`;
+        if (pl.canBeat) acts.push(btn(label, () => send('play', { cardIds: [...selected] }), 'primary', !allHigh));
         if (!pl.canBeat || pl.mayDumpWhenCanBeat) acts.push(btn(`Lägg ${lowestTxt('mina', need)}`, () => send('dump'), pl.canBeat ? '' : 'primary'));
       }
     } else status = `${esc(nameOf(pl.turnId))}s tur${pl.count === null ? ' att starta rundan' : ''}…`;
@@ -1084,6 +1245,22 @@ function renderActions(G) {
   $('hand').classList.toggle('active', myTurn && !offerHTML);
   document.title = myTurn ? '● Din tur – GURSCH' : 'GURSCH';
 }
+
+let dealShownFor = null;
+function renderDeal(G) {
+  const key = G.dealReveal.map((r) => r.cards.map((c) => c.id).join()).join('|');
+  if (G.phase !== 'exchange' || dealShownFor === key) return;
+  dealShownFor = key;
+  const leader = G.leaderId;
+  const rounds = Math.max(...G.dealReveal.map((r) => r.cards.length));
+  $('dealBody').innerHTML = G.dealReveal.map((r) => `<div class="deal-row ${r.playerId === leader ? 'win' : ''}">
+      <span class="deal-name">${r.playerId === leader ? '♛ ' : ''}${esc(nameOf(r.playerId))}${r.playerId === S.you ? ' (du)' : ''}</span>
+      <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
+    </div>`).join('');
+  $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`;
+  $('deal').classList.remove('hidden');
+}
+$('dealOk').onclick = () => $('deal').classList.add('hidden');
 
 function renderResults(G) {
   const show = G.phase === 'finished';
