@@ -276,6 +276,8 @@ function renderLobby() {
 
 // ---------- spelbord ----------
 $('historyBtn').onclick = () => { historyOpen = !historyOpen; $('history').classList.toggle('open', historyOpen); };
+$('tallyBtn').onclick = (e) => { e.stopPropagation(); $('tally').classList.toggle('open'); };
+document.addEventListener('click', (e) => { if (!e.target.closest('#tally, #tallyBtn')) $('tally').classList.remove('open'); });
 $('historyClose').onclick = () => { historyOpen = false; $('history').classList.remove('open'); };
 $('hand').addEventListener('click', (e) => {
   const el = e.target.closest('.card'); if (!el || !el.dataset.id) return;
@@ -359,7 +361,14 @@ function renderGame() {
   $('meName').innerHTML = S.watching ? (S.spectator ? '👀 Åskådare' : esc((S.lobby.players.find((p) => p.id === me) || {}).name || ''))
     : `${G.leaderId === me ? '<span class="crown">♛</span> ' : ''}${esc(nameOf(me))}`;
   $('meValue').textContent = G.me.value;
-  $('hand').innerHTML = G.me.hand.map((c) => cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '' })).join('');
+  // handen som solfjäder på mobil: varje kort får en liten vinkel och båge (används bara i mobil-CSS)
+  const nh = G.me.hand.length, mid = (nh - 1) / 2;
+  $('hand').style.setProperty('--n', Math.max(nh, 1));
+  $('hand').innerHTML = G.me.hand.map((c, k) => {
+    const off = nh > 1 ? (k - mid) / mid : 0; // -1 … 1
+    return cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '', style: `--rot:${(off * Math.min(8, nh)).toFixed(1)}deg;--dy:${(off * off * Math.min(7, nh)).toFixed(1)}px;z-index:${k + 1}` });
+  }).join('');
+  renderLastMove(G);
   $('history').querySelector('ol').innerHTML = G.history.map((h) => `<li class="${h.type}">${esc(h.text)}</li>`).reverse().join('');
 
   renderActions(G);
@@ -376,6 +385,8 @@ function renderGame() {
     }
   }
   renderTally();
+  $('table').classList.toggle('phase-play', G.phase === 'play');
+  fitPile();
   renderDeal(G);
   if (G.phase === 'finished' && outSeen && !noMotion()) { outSeen = false; startShowdown(G); }
   renderResults(G);
@@ -793,13 +804,55 @@ function banner(text, delay, dur = 1100) {
 // ---------- poängtavla ----------
 const T = window.GurschTally;
 const signed = (n) => `<span class="${n > 0 ? 'plus' : n < 0 ? 'minus' : ''}">${T.sign(n)}</span>`;
+// ---------- senaste draget: en smal rad ovanför handen ----------
+const MOVE_TXT = { lead: 'startade', beat: 'tar styret', over: 'lade över', dump: 'lade sina lägsta', out: 'gick ut' };
+function describePlay(t) {
+  const cards = t.cards, same = cards.every((c) => c.rank === cards[0].rank);
+  const what = same ? `${cards.length}×${rl(cards[0].rank)}` : cards.map((c) => rl(c.rank)).join('+');
+  return `${what} ${cards.map((c) => `<span class="${c.suit === 'H' || c.suit === 'D' ? 'red' : ''}">${SUIT[c.suit]}</span>`).join('')}`;
+}
+function renderLastMove(G) {
+  const el = $('lastMove'), pl = G.play;
+  let html = '';
+  if (pl && G.phase === 'play') {
+    const tbl = pl.table.length ? pl.table : pl.lastTable, t = tbl[tbl.length - 1];
+    if (t) {
+      const who = t.by === S.you ? 'Du' : esc(nameOf(t.by).replace(' (bot)', ''));
+      html = `<span class="lm-text"><span class="lm-label">Senast:</span> <b>${who}</b> lade ${describePlay(t)}${MOVE_TXT[t.type] ? ` – ${MOVE_TXT[t.type]}` : ''}</span>
+        <span class="lm-cards">${t.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</span>`;
+    }
+  }
+  el.innerHTML = html;
+  el.classList.toggle('hidden', !html);
+}
+
+// ---------- mobil: mitten av bordet ska alltid synas helt ----------
+const compactMQ = window.matchMedia ? window.matchMedia('(max-width: 640px), (orientation: landscape) and (max-height: 540px)') : { matches: false };
+function fitPile() {
+  const pile = $('pile'), box = pile && pile.parentElement;
+  if (!pile) return;
+  pile.style.transform = '';
+  if (!compactMQ.matches || !pile.firstElementChild) return;
+  const title = $('centerTitle'), cs = getComputedStyle(box);
+  const availH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - (title.offsetHeight + parseFloat(getComputedStyle(title).marginBottom || 0));
+  const availW = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const h = pile.scrollHeight, w = pile.scrollWidth;
+  const k = Math.min(1, availH / h, availW / w);
+  if (k < 1) pile.style.transform = `scale(${Math.max(0.3, k).toFixed(3)})`;
+}
+window.addEventListener('resize', () => { if (S && S.game) fitPile(); });
+if (compactMQ.addEventListener) compactMQ.addEventListener('change', () => { if (S && S.game) fitPile(); });
+
 function renderTally() {
   const tally = S.lobby.tally, me = S.you, box = $('tally');
-  if (!tally || !tally.rounds.length) { box.classList.add('hidden'); return; }
+  if (!tally || !tally.rounds.length) { box.classList.add('hidden'); $('tallyBtn').classList.add('hidden'); return; }
   box.classList.remove('hidden');
   // bara de man har vunnit eller förlorat mot (inte de som hamnat i mitten)
   const others = Object.keys(tally.names).filter((id) => id !== me).map((o) => [o, T.versus(tally, me, o)]).filter(([, v]) => v !== 0);
   const total = others.reduce((s, [, v]) => s + v, 0);
+  // på mobil är ställningen hopfälld till en liten knapp i toppen
+  $('tallyBtn').classList.remove('hidden');
+  $('tallyBtn').innerHTML = `<span class="tb-label">Ställning</span><span class="tb-icon" aria-hidden="true">📊</span>${others.length ? ' ' + signed(total) : ''}`;
   box.innerHTML = `<div class="tally-head">Ställning · ${tally.rounds.length} omg.</div>
     ${others.length ? others.map(([o, v]) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(v)}</div>`).join('') : '<div class="tally-row muted">Inget att räkna än</div>'}
     ${others.length ? `<div class="tally-row total"><span>Totalt</span>${signed(total)}</div>` : ''}`;

@@ -1026,6 +1026,114 @@ html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .
 @keyframes joinReqIn { from { opacity: 0; transform: translateY(-12px); } }
 html.no-anim .join-req { animation: none; }
 
+/* =====================================================================
+   MOBILLAYOUT v4 (Alfred 2026-11-08): handen får aldrig täcka bordet.
+   Gäller smala skärmar (< 640 px) och mobil i liggande läge.
+   ===================================================================== */
+.tally-btn { display: none; }
+.last-move { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; justify-content: center; min-height: 22px; margin: 2px 0 0;
+  font-size: 12.5px; color: rgba(251,241,216,.85); white-space: nowrap; overflow: hidden; }
+.last-move .lm-label { color: var(--gold-2, #f3dfa2); font-weight: 600; }
+.last-move b { font-weight: 700; }
+.last-move .red { color: #ff8a8a; }
+.last-move .lm-cards { display: inline-flex; gap: 2px; margin-left: 4px; flex: none; }
+.last-move .card.mini { --card-w: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.last-move .card.mini .corner b { font-size: 8px; } .last-move .card.mini .corner i { font-size: 7px; } .last-move .card.mini .tl { top: 1px; left: 2px; }
+
+@media (max-width: 640px), (orientation: landscape) and (max-height: 540px) {
+  /* bordet: platserna högst upp i ett kompakt rutnät, mitten tar resten och skalas så att den alltid syns helt */
+  .table-wrap { min-height: 0; display: flex; flex-direction: column; position: relative; }
+  .table { flex: 1 1 auto; min-height: 0; height: auto; width: auto; aspect-ratio: auto; display: flex; flex-direction: column; overflow: hidden;
+    margin: 4px 8px 6px; border-width: 6px; border-radius: 18px; }
+  #seats { position: static; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 6px; padding: 8px 8px 2px; flex: none; }
+  .seat { position: relative !important; left: auto !important; top: auto !important; transform: none !important; display: flex; flex-flow: row wrap; align-items: center;
+    gap: 2px 6px; min-width: 0; max-width: none; width: auto; padding: 3px 8px 3px 3px; border-radius: 999px;
+    background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.07); box-shadow: none; }
+  .seat.turn { border-color: rgba(243,223,162,.6); background: rgba(243,223,162,.1); }
+  .seat-avatar { width: 26px; height: 26px; font-size: 13px; flex: none; margin: 0; }
+  .seat.turn .seat-avatar::after { inset: -4px; }
+  .seat-avatar .crown { top: -9px; font-size: 10px; }
+  .seat-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .seat-name .persona, .seat-name small { display: none; }
+  .seat-name .badge { font-size: 9px; padding: 0 4px; }
+  .seat-cards { margin: 0; flex: none; } .seat-cards i { display: none; }
+  .seat-cards span { margin: 0; font-size: 12px; font-weight: 600; opacity: .9; display: inline-flex; align-items: center; gap: 3px; }
+  .seat-cards span::after { content: none; }
+  .seat-cards span::before { content: ''; width: 8px; height: 11px; border-radius: 2px; background: #7a2531; border: 1px solid #d4af5f; }
+  .seat-turn { display: none; }
+  .seat-turn.ok, .seat-turn.no { display: block; flex-basis: 100%; margin: 0; font-size: 10px; text-align: center; padding: 0; animation: none; }
+  .seat-offer, .seat-public { flex-basis: 100%; margin: 0; justify-content: center; font-size: 0; }
+  .seat-offer .card.mini { --card-w: 16px; }
+  .seat-timer { margin: 0; font-size: 10px; flex: none; }
+  .table-center { position: static; transform: none; flex: 1 1 auto; min-height: 0; width: auto; margin: 0; padding: 4px 6px 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow: hidden; }
+  .center-title { flex: none; font-size: 11px; margin: 0 0 4px; letter-spacing: .06em; }
+  #pile { flex: none; width: 100%; min-height: 0; transform-origin: top center; }
+  .plays { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0; }
+  .play { margin: 0; padding: 4px 6px 3px; border-radius: 10px; }
+  .play-cards .card.small { --card-w: 40px; } .play-cards .card + .card { margin-left: -16px; }
+  .play .tiny { font-size: 10px; margin-top: 2px; }
+  .table.phase-play .deck-pile, .table.phase-play #deckInfo { display: none; }
+  .deck-pile { transform: scale(.75); margin: 0 auto; }
+
+  /* ställningen: en liten knapp i toppen som fäller ut en ruta */
+  .tally-btn:not(.hidden) { display: inline-flex; }
+  .tally-btn { min-height: 32px; padding: 4px 10px; font-size: 13px; white-space: nowrap; gap: 4px; align-items: center; }
+  .tally-btn .tb-icon { display: none; }
+  .tally-btn .pos, .tally-btn .neg { margin-left: 4px; }
+  .tally { display: none !important; position: absolute; top: 4px; right: 8px; left: auto; bottom: auto; z-index: 30; margin: 0;
+    min-width: 190px; max-width: 80vw; padding: 10px 12px; font-size: 13px; transform: none; }
+  .tally.open:not(.hidden) { display: block !important; }
+  .tally-head { width: auto; margin-bottom: 4px; }
+
+  /* min del längst ner: status, senaste draget, handen och knapparna */
+  .me-area { flex: none; margin: 0; padding: 6px 10px calc(8px + env(safe-area-inset-bottom)); }
+  .status { font-size: 12.5px; line-height: 1.3; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .me-bar { margin-top: 4px; gap: 6px; }
+  .me-info { font-size: 12px; }
+  .react-btn { width: 32px; height: 32px; font-size: 17px; }
+
+  /* handen: en solfjäder på en rad, högst ca 22 % av höjden */
+  .hand { --card-w: clamp(40px, min(16vw, calc((22vh - 30px) / 1.42)), 66px); display: flex; flex-wrap: nowrap; justify-content: center; gap: 0;
+    height: calc(var(--card-w) * 1.42 + 30px); max-height: 22vh; min-height: 0; padding: 18px 14px 12px; box-sizing: border-box; overflow: visible; perspective: none; filter: none; }
+  .hand .card { flex: none; margin: 0; transform-origin: 50% 140%; transform: translateY(var(--dy, 0px)) rotate(var(--rot, 0deg)); }
+  .hand .card + .card { margin-left: min(calc(var(--card-w) * -0.38), calc((100% - var(--card-w)) / max(var(--n) - 1, 1) - var(--card-w))); }
+  .hand .card:hover, .hand .card:active { transform: translateY(var(--dy, 0px)) rotate(var(--rot, 0deg)); }
+  .hand .card.selected { transform: translateY(calc(var(--dy, 0px) - 18px)) rotate(var(--rot, 0deg)) !important;
+    box-shadow: 0 0 0 3px var(--gold), 0 0 16px rgba(245,196,81,.55), 0 10px 18px rgba(0,0,0,.5); }
+  .hand .card .shine { display: none; }
+  .me-area.my-turn .hand { filter: none; }
+}
+/* stående mobil: bordet tar all plats som blir över mellan toppen och min del */
+@media (max-width: 640px) {
+  #game { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .topbar { flex: none; }
+  .table-wrap { flex: 1 1 auto; }
+  .actions > .btn { min-height: 44px; }
+}
+/* liggande mobil: bordet till vänster, handen och knapparna i en kolumn till höger */
+@media (orientation: landscape) and (max-height: 540px) {
+  #game { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 44%); grid-template-rows: auto minmax(0, 1fr); height: 100dvh; overflow: hidden; }
+  .topbar { grid-column: 1 / -1; padding: 4px 12px; }
+  .brand { display: none; }
+  .table-wrap { grid-row: 2; grid-column: 1; min-height: 0; }
+  .table { margin: 2px 6px 6px 10px; }
+  #seats { padding-top: 6px; }
+  .me-area { grid-row: 2; grid-column: 2; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; border-radius: 16px 0 0 0; }
+  .hand { --card-w: clamp(38px, calc((22vh - 20px) / 1.42), 60px); flex: none; height: calc(var(--card-w) * 1.42 + 20px); padding: 14px 14px 6px; }
+  .actions > .btn { min-height: 40px; padding: 6px 8px; }
+}
+@media (max-width: 400px) {
+  .tally-btn .tb-label { display: none; } .tally-btn .tb-icon { display: inline; }
+}
+.last-move .lm-cards { align-self: center; } .last-move .card.mini { position: relative; top: 0; margin: 0; transform: none; }
+@media (orientation: landscape) and (max-height: 540px) { .me-bar { margin-top: 8px; } }
+.last-move .lm-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 360px) {
+  .seat { padding-right: 6px; gap: 2px 4px; } .seat-name { font-size: 11px; }
+  .seat-cards span::before { display: none; }
+}
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -1139,6 +1247,7 @@ html.no-anim .join-req { animation: none; }
     <header class="topbar">
       <div class="brand">GURSCH <span id="gCode" class="muted"></span></div>
       <div id="roundInfo" class="round-info"></div>
+      <button id="tallyBtn" class="btn small tally-btn hidden" aria-label="Visa ställningen">Ställning</button>
       <button id="historyBtn" class="btn small">Historik</button>
     </header>
     <div class="table-wrap">
@@ -1161,6 +1270,7 @@ html.no-anim .join-req { animation: none; }
       <div id="myTimer" class="turn-timer hidden"><div class="turn-timer-bar"><i></i></div><span></span></div>
       <div id="status" class="status"></div>
       <div id="offer" class="offer hidden"></div>
+      <div id="lastMove" class="last-move hidden" aria-live="polite"></div>
       <div id="hand" class="hand"></div>
       <div id="reactPicker" class="react-picker hidden" role="menu" aria-label="Reaktioner"></div>
       <div class="me-bar">
@@ -2705,6 +2815,8 @@ function renderLobby() {
 
 // ---------- spelbord ----------
 $('historyBtn').onclick = () => { historyOpen = !historyOpen; $('history').classList.toggle('open', historyOpen); };
+$('tallyBtn').onclick = (e) => { e.stopPropagation(); $('tally').classList.toggle('open'); };
+document.addEventListener('click', (e) => { if (!e.target.closest('#tally, #tallyBtn')) $('tally').classList.remove('open'); });
 $('historyClose').onclick = () => { historyOpen = false; $('history').classList.remove('open'); };
 $('hand').addEventListener('click', (e) => {
   const el = e.target.closest('.card'); if (!el || !el.dataset.id) return;
@@ -2788,7 +2900,14 @@ function renderGame() {
   $('meName').innerHTML = S.watching ? (S.spectator ? '👀 Åskådare' : esc((S.lobby.players.find((p) => p.id === me) || {}).name || ''))
     : `${G.leaderId === me ? '<span class="crown">♛</span> ' : ''}${esc(nameOf(me))}`;
   $('meValue').textContent = G.me.value;
-  $('hand').innerHTML = G.me.hand.map((c) => cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '' })).join('');
+  // handen som solfjäder på mobil: varje kort får en liten vinkel och båge (används bara i mobil-CSS)
+  const nh = G.me.hand.length, mid = (nh - 1) / 2;
+  $('hand').style.setProperty('--n', Math.max(nh, 1));
+  $('hand').innerHTML = G.me.hand.map((c, k) => {
+    const off = nh > 1 ? (k - mid) / mid : 0; // -1 … 1
+    return cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '', style: `--rot:${(off * Math.min(8, nh)).toFixed(1)}deg;--dy:${(off * off * Math.min(7, nh)).toFixed(1)}px;z-index:${k + 1}` });
+  }).join('');
+  renderLastMove(G);
   $('history').querySelector('ol').innerHTML = G.history.map((h) => `<li class="${h.type}">${esc(h.text)}</li>`).reverse().join('');
 
   renderActions(G);
@@ -2805,6 +2924,8 @@ function renderGame() {
     }
   }
   renderTally();
+  $('table').classList.toggle('phase-play', G.phase === 'play');
+  fitPile();
   renderDeal(G);
   if (G.phase === 'finished' && outSeen && !noMotion()) { outSeen = false; startShowdown(G); }
   renderResults(G);
@@ -3222,13 +3343,55 @@ function banner(text, delay, dur = 1100) {
 // ---------- poängtavla ----------
 const T = window.GurschTally;
 const signed = (n) => `<span class="${n > 0 ? 'plus' : n < 0 ? 'minus' : ''}">${T.sign(n)}</span>`;
+// ---------- senaste draget: en smal rad ovanför handen ----------
+const MOVE_TXT = { lead: 'startade', beat: 'tar styret', over: 'lade över', dump: 'lade sina lägsta', out: 'gick ut' };
+function describePlay(t) {
+  const cards = t.cards, same = cards.every((c) => c.rank === cards[0].rank);
+  const what = same ? `${cards.length}×${rl(cards[0].rank)}` : cards.map((c) => rl(c.rank)).join('+');
+  return `${what} ${cards.map((c) => `<span class="${c.suit === 'H' || c.suit === 'D' ? 'red' : ''}">${SUIT[c.suit]}</span>`).join('')}`;
+}
+function renderLastMove(G) {
+  const el = $('lastMove'), pl = G.play;
+  let html = '';
+  if (pl && G.phase === 'play') {
+    const tbl = pl.table.length ? pl.table : pl.lastTable, t = tbl[tbl.length - 1];
+    if (t) {
+      const who = t.by === S.you ? 'Du' : esc(nameOf(t.by).replace(' (bot)', ''));
+      html = `<span class="lm-text"><span class="lm-label">Senast:</span> <b>${who}</b> lade ${describePlay(t)}${MOVE_TXT[t.type] ? ` – ${MOVE_TXT[t.type]}` : ''}</span>
+        <span class="lm-cards">${t.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</span>`;
+    }
+  }
+  el.innerHTML = html;
+  el.classList.toggle('hidden', !html);
+}
+
+// ---------- mobil: mitten av bordet ska alltid synas helt ----------
+const compactMQ = window.matchMedia ? window.matchMedia('(max-width: 640px), (orientation: landscape) and (max-height: 540px)') : { matches: false };
+function fitPile() {
+  const pile = $('pile'), box = pile && pile.parentElement;
+  if (!pile) return;
+  pile.style.transform = '';
+  if (!compactMQ.matches || !pile.firstElementChild) return;
+  const title = $('centerTitle'), cs = getComputedStyle(box);
+  const availH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - (title.offsetHeight + parseFloat(getComputedStyle(title).marginBottom || 0));
+  const availW = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const h = pile.scrollHeight, w = pile.scrollWidth;
+  const k = Math.min(1, availH / h, availW / w);
+  if (k < 1) pile.style.transform = `scale(${Math.max(0.3, k).toFixed(3)})`;
+}
+window.addEventListener('resize', () => { if (S && S.game) fitPile(); });
+if (compactMQ.addEventListener) compactMQ.addEventListener('change', () => { if (S && S.game) fitPile(); });
+
 function renderTally() {
   const tally = S.lobby.tally, me = S.you, box = $('tally');
-  if (!tally || !tally.rounds.length) { box.classList.add('hidden'); return; }
+  if (!tally || !tally.rounds.length) { box.classList.add('hidden'); $('tallyBtn').classList.add('hidden'); return; }
   box.classList.remove('hidden');
   // bara de man har vunnit eller förlorat mot (inte de som hamnat i mitten)
   const others = Object.keys(tally.names).filter((id) => id !== me).map((o) => [o, T.versus(tally, me, o)]).filter(([, v]) => v !== 0);
   const total = others.reduce((s, [, v]) => s + v, 0);
+  // på mobil är ställningen hopfälld till en liten knapp i toppen
+  $('tallyBtn').classList.remove('hidden');
+  $('tallyBtn').innerHTML = `<span class="tb-label">Ställning</span><span class="tb-icon" aria-hidden="true">📊</span>${others.length ? ' ' + signed(total) : ''}`;
   box.innerHTML = `<div class="tally-head">Ställning · ${tally.rounds.length} omg.</div>
     ${others.length ? others.map(([o, v]) => `<div class="tally-row"><span>${esc(tally.names[o])}</span>${signed(v)}</div>`).join('') : '<div class="tally-row muted">Inget att räkna än</div>'}
     ${others.length ? `<div class="tally-row total"><span>Totalt</span>${signed(total)}</div>` : ''}`;
