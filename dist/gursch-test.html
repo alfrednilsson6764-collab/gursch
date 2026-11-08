@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>GURSCH – testa mot bottar</title>
-  <meta name="theme-color" content="#0d3b2a">
+  <meta name="theme-color" content="#06140e">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600&family=Inter:wght@400;500;600;800&display=swap">
   <style>
 :root {
   --felt: #0f5a3c; --felt-dark: #0a3b28; --gold: #f2c14e; --ink: #1d1d1f; --red: #c62828;
@@ -540,6 +540,166 @@ body::after { background: radial-gradient(ellipse at center, transparent 60%, rg
 }
 .btn.primary:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.55); box-shadow: none; opacity: 1; }
 .count-badge { box-shadow: none; }
+
+/* =====================================================================
+   LYXIGT KASINO (Alfred 2026-11-08)
+   Mörkgrönt filtbord, guldaccenter, elegant serif i rubriker,
+   kort med djupa skuggor och en mjuk animation när de läggs.
+   ===================================================================== */
+:root {
+  --serif: 'Playfair Display', 'Didot', 'Bodoni 72', Georgia, serif;
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --gold: #d4af5f; --gold-2: #f3dfa2; --gold-dark: #8c6a2a; --gold-line: rgba(212,175,95,.45);
+  --felt: #0d5236; --felt-dark: #052a1b; --ink: #1b1b1b; --red: #b3242e;
+  --panel: linear-gradient(180deg, rgba(14,22,18,.94), rgba(6,11,9,.96));
+}
+body { font-family: var(--sans);
+  background: radial-gradient(1100px 700px at 50% 0%, rgba(26,90,60,.55), transparent 65%),
+              radial-gradient(800px 500px at 50% 110%, rgba(212,175,95,.08), transparent 70%),
+              #050c09; }
+body::after { display: block; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.6)); }
+
+/* --- rubriker i serif --- */
+.logo, .brand, .overlay h2, .center-title, .tally-head, .panel-head, .sd-title, .sd-vs, .sd-sum, .end-me h3,
+.toast.leader, .deal-banner, .end-list li::before, .room-code strong, .me-area.my-turn::before { font-family: var(--serif); }
+.logo { font-weight: 900; font-style: normal; letter-spacing: .12em; padding-left: .12em;
+  background: linear-gradient(180deg, #fff3cc 0%, var(--gold-2) 30%, var(--gold) 60%, var(--gold-dark) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,.6)) drop-shadow(0 10px 24px rgba(212,175,95,.18)); }
+.logo::after { content: ''; display: block; width: 64px; height: 1px; margin: 10px auto 0;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+.lobby-head .logo::after { margin-left: 0; }
+.tagline { font-family: var(--serif); font-style: italic; color: var(--gold-2); opacity: .75; }
+.overlay h2 { font-weight: 700; letter-spacing: .04em; color: var(--gold-2); }
+.panel-head { font-weight: 600; font-size: 15px; letter-spacing: .06em; text-transform: none; color: var(--gold-2); opacity: 1; }
+.center-title { font-weight: 600; font-style: italic; font-size: 17px; letter-spacing: .02em; text-transform: none; color: var(--gold-2); opacity: .9; }
+.brand { font-weight: 700; letter-spacing: .18em; color: var(--gold); }
+.room-code strong { font-weight: 700; color: var(--gold-2); }
+
+/* --- paneler och dialoger: svart lack med guldlist --- */
+.home-card, .sd-box { background: var(--panel); border: 1px solid var(--gold-line);
+  box-shadow: 0 30px 80px rgba(0,0,0,.7), inset 0 1px 0 rgba(243,223,162,.12), inset 0 0 0 4px rgba(0,0,0,.35), inset 0 0 0 5px rgba(212,175,95,.12); }
+.panel { background: rgba(255,255,255,.025); border: 1px solid rgba(212,175,95,.18); }
+.player-list li { background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.04); }
+.setting { border-top-color: rgba(212,175,95,.12); }
+input, select { background: rgba(255,255,255,.04); color: #f4ead2; border: 1px solid rgba(212,175,95,.3); }
+input::placeholder { color: rgba(244,234,210,.4); }
+input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,175,95,.18); }
+.setting select { background: rgba(0,0,0,.3); }
+.divider { border-top-color: rgba(212,175,95,.2); } .divider span { background: #0b1410; font-family: var(--serif); font-style: italic; }
+.topbar { background: linear-gradient(180deg, rgba(0,0,0,.7), rgba(0,0,0,.35)); border-bottom: 1px solid rgba(212,175,95,.2); }
+.history { background: linear-gradient(180deg, #0c1611, #060b09); border-left: 1px solid var(--gold-line); }
+.history h3 { font-family: var(--serif); color: var(--gold-2); }
+.tally { background: rgba(5,10,8,.88); border: 1px solid var(--gold-line); }
+
+/* --- knappar: borstad mässing --- */
+.btn { background: rgba(255,255,255,.05); border: 1px solid rgba(212,175,95,.3); color: #f4ead2; }
+.btn:hover:not(:disabled) { background: rgba(212,175,95,.12); border-color: rgba(212,175,95,.6); }
+.btn.primary { background: linear-gradient(180deg, #f6e3a6 0%, #dcb865 45%, #b88e3c 100%); color: #1d1404; border: 1px solid #f6e3a6;
+  box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 -2px 0 rgba(0,0,0,.18) inset, 0 6px 18px rgba(212,175,95,.25); font-weight: 700; letter-spacing: .02em; }
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #fbecc0 0%, #e6c475 45%, #c49a45 100%); }
+.btn.primary:disabled { background: rgba(255,255,255,.06); color: rgba(244,234,210,.45); border-color: rgba(212,175,95,.2); box-shadow: none; }
+.btn.ghost { border-color: transparent; background: transparent; color: rgba(244,234,210,.7); }
+.add-bot { border-style: dashed; }
+.seg { background: rgba(0,0,0,.4); border: 1px solid rgba(212,175,95,.18); }
+.seg button.on { background: linear-gradient(180deg, #f1dc9c, #c9a352); color: #1d1404; }
+.badge { background: linear-gradient(180deg, #f1dc9c, #c9a352); color: #1d1404; }
+.badge.ok { background: rgba(76,175,80,.18); color: #9be0a0; border: 1px solid rgba(129,199,132,.45); }
+.count-badge { background: linear-gradient(180deg, #f1dc9c, #c9a352); color: #1d1404; }
+.avatar, .seat-avatar { background: radial-gradient(circle at 35% 30%, #2d6b50, #0f3424); color: var(--gold-2);
+  font-family: var(--serif); font-weight: 700; box-shadow: 0 0 0 1px var(--gold-line), 0 4px 10px rgba(0,0,0,.5); }
+.avatar.bot, .seat-avatar.bot { background: radial-gradient(circle at 35% 30%, #2a3138, #11161a); }
+
+/* --- bordet: mörkgrön filt, läderkant och guldinlägg --- */
+.table {
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    radial-gradient(ellipse at 50% 38%, #187449 0%, var(--felt) 45%, var(--felt-dark) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(212,175,95,.55),                 /* guldinlägg */
+    inset 0 0 0 7px rgba(5,42,27,.9), inset 0 0 0 8px rgba(212,175,95,.18),
+    inset 0 24px 70px rgba(0,0,0,.45), inset 0 -24px 60px rgba(0,0,0,.5),
+    0 0 0 12px #1a0f08, 0 0 0 13px rgba(212,175,95,.5),   /* läderkant med guldlist */
+    0 30px 70px rgba(0,0,0,.75); }
+.table::before { display: block; content: 'GURSCH'; font-family: var(--serif); font-style: italic; font-weight: 700; letter-spacing: .25em;
+  color: rgba(212,175,95,.06); font-size: clamp(40px, 8vw, 104px); }
+.seat { background: linear-gradient(180deg, rgba(4,10,7,.85), rgba(4,10,7,.7)); border: 1px solid rgba(212,175,95,.25); box-shadow: 0 10px 24px rgba(0,0,0,.5); }
+.seat.leader { border-color: rgba(212,175,95,.6); }
+.seat.turn { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 24px rgba(212,175,95,.35), 0 10px 24px rgba(0,0,0,.5); }
+.seat-name { color: #f4ead2; }
+.crown { color: var(--gold-2); text-shadow: 0 0 10px rgba(212,175,95,.8); }
+.seat-cards i { background: linear-gradient(160deg, #7a1420, #3d0810); border-color: var(--gold-2); }
+.play { background: rgba(0,0,0,.22); border: 1px solid rgba(212,175,95,.14); box-shadow: 0 10px 22px rgba(0,0,0,.35); }
+.play.beat { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 22px rgba(212,175,95,.4); }
+.play .tiny { font-family: var(--serif); font-style: italic; color: var(--gold-2); opacity: .85; }
+
+/* --- korten: elfenben, guldkant på klädda kort, djupa skuggor --- */
+.card { background: linear-gradient(165deg, #fffdf8 0%, #f8f2e4 70%, #efe5cf 100%); border: 1px solid rgba(0,0,0,.12); border-radius: 8px;
+  box-shadow: 0 1px 1px rgba(0,0,0,.25), 0 4px 8px rgba(0,0,0,.28), 0 12px 24px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255,255,255,.7); }
+.card .corner { font-family: var(--serif); font-weight: 700; }
+.card.red { color: var(--red); }
+.card.face { background: linear-gradient(165deg, #fffaf0 0%, #f6ead0 60%, #ead7ab 100%); }
+.card.face::before { border: 1px solid rgba(140,106,42,.55); box-shadow: inset 0 0 0 2px rgba(255,255,255,.5); }
+.card.face .pip b { font-family: var(--serif); font-weight: 900; }
+.card.back { border: 3px solid #f3e6c4;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 20%, rgba(212,175,95,.55) 21% 22%, transparent 23%),
+    repeating-linear-gradient(45deg, rgba(212,175,95,.18) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-45deg, rgba(212,175,95,.18) 0 1px, transparent 1px 7px),
+    linear-gradient(160deg, #0f4d33, #062a1c);
+  box-shadow: 0 1px 1px rgba(0,0,0,.3), 0 6px 14px rgba(0,0,0,.45), inset 0 0 0 1px rgba(212,175,95,.6); }
+.card.back::after { font-family: var(--serif); font-style: italic; color: var(--gold-2); font-size: 15px; }
+.deck-pile .card { box-shadow: 0 2px 0 #021a10, 0 10px 18px rgba(0,0,0,.55); }
+.hand .card { box-shadow: 0 2px 2px rgba(0,0,0,.3), 0 8px 18px rgba(0,0,0,.4); }
+.hand .card:hover { transform: translateY(-8px); box-shadow: 0 4px 4px rgba(0,0,0,.25), 0 18px 30px rgba(0,0,0,.5); }
+.hand .card.selected { transform: translateY(-18px);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 18px rgba(212,175,95,.5), 0 22px 34px rgba(0,0,0,.55); }
+
+/* mjuk animation när kort läggs: glider in, landar och skuggan lägger sig */
+@keyframes drop {
+  0%   { transform: translateY(70px) scale(.92) rotate(-5deg); opacity: 0; filter: drop-shadow(0 30px 30px rgba(0,0,0,.6)); }
+  60%  { transform: translateY(-4px) scale(1.02) rotate(.5deg); opacity: 1; }
+  100% { transform: none; filter: drop-shadow(0 0 0 rgba(0,0,0,0)); }
+}
+.play.enter { animation: drop .6s cubic-bezier(.22,.8,.3,1) both; }
+.card.enter { animation: drop .55s cubic-bezier(.22,.8,.3,1) both; }
+.play.enter .card { animation: settle .6s ease-out both; }
+.play.enter .card:nth-child(2) { animation-delay: .06s; } .play.enter .card:nth-child(3) { animation-delay: .12s; } .play.enter .card:nth-child(4) { animation-delay: .18s; }
+@keyframes settle { from { box-shadow: 0 24px 40px rgba(0,0,0,.55); } }
+@keyframes arrive { from { transform: translate(var(--fx), var(--fy)) scale(.9) rotate(-6deg); opacity: .2; } 70% { opacity: 1; } }
+.arrive { animation: arrive .55s cubic-bezier(.22,.8,.3,1) both; }
+
+/* min panel */
+.me-area { background: linear-gradient(180deg, rgba(4,10,7,.6), rgba(4,10,7,.9)); border-top: 1px solid rgba(212,175,95,.2); }
+.me-area.my-turn::before { background: linear-gradient(180deg, #f6e3a6, #c9a352); color: #1d1404; font-weight: 700; letter-spacing: .14em;
+  box-shadow: 0 4px 14px rgba(0,0,0,.5); animation: none; }
+.me-info strong { color: var(--gold-2); font-family: var(--serif); }
+.status { color: #efe5cc; }
+.toast { background: #0c1611; border: 1px solid var(--gold-line); }
+.toast.leader { background: linear-gradient(180deg, #f6e3a6, #c9a352); color: #1d1404; }
+.deal-row.win { background: rgba(212,175,95,.16); outline: 1px solid var(--gold); }
+.bg-card { opacity: .06; }
+
+/* ---------- kasino på mobilen ---------- */
+@media (max-width: 640px) {
+  body { background: radial-gradient(600px 400px at 50% 0%, rgba(26,90,60,.5), transparent 70%), #050c09; }
+  .table { margin: 2px 12px 0; border-radius: 22px;
+    box-shadow: inset 0 0 0 1px rgba(212,175,95,.55), inset 0 0 0 5px rgba(5,42,27,.9), inset 0 0 0 6px rgba(212,175,95,.15),
+      inset 0 20px 50px rgba(0,0,0,.4), 0 0 0 5px #1a0f08, 0 0 0 6px rgba(212,175,95,.45), 0 16px 40px rgba(0,0,0,.7); }
+  .table::before { font-size: 44px; }
+  .seat, .seat.turn, .seat.leader { background: transparent; border: 0; box-shadow: none; }
+  .seat.turn .seat-avatar { box-shadow: 0 0 0 2px var(--gold), 0 0 16px rgba(212,175,95,.6); }
+  .seat-name { font-family: var(--sans); }
+  .center-title { font-size: 15px; letter-spacing: .02em; text-transform: none; opacity: .9; }
+  .me-area { background: linear-gradient(180deg, #0b1611, #070d0a); border-top: 1px solid var(--gold-line); margin-top: 14px; }
+  .me-area.my-turn { box-shadow: 0 -10px 30px rgba(0,0,0,.5), inset 0 1px 0 var(--gold), 0 -1px 18px rgba(212,175,95,.18); }
+  .hand .card { box-shadow: 0 2px 2px rgba(0,0,0,.3), 0 6px 14px rgba(0,0,0,.45); }
+  .hand .card.selected { transform: translateY(-12px); }
+  .topbar { background: transparent; border: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .play.enter, .play.enter .card, .card.enter, .arrive { animation: none !important; } }
+.card .corner, .me-info strong, .room-code strong, .sd-sum, .end-score { font-variant-numeric: lining-nums; font-feature-settings: 'lnum' 1; }
+#joinBtn { white-space: nowrap; }
 
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn { display: none !important; }
