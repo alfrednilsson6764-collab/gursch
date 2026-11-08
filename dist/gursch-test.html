@@ -383,6 +383,105 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .end-all-head { margin: 14px 0 0; font-size: 13px; opacity: .7; text-transform: uppercase; letter-spacing: .1em; }
 .end-list.small li { padding: 7px 12px; font-size: 15px; }
 
+/* =====================================================================
+   RENARE TEMA + MOBIL (Alfred 2026-11-08)
+   Lugnare färger, mindre glitter, tydligare knappar och en egen layout för mobilen.
+   ===================================================================== */
+body { background: radial-gradient(900px 600px at 50% -10%, #17583d 0%, transparent 70%), linear-gradient(180deg, #0a2219, #05110c); }
+body::after { background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.35)); }
+.screen { height: 100dvh; }
+
+/* logga: stilla guld, ingen skimmer, får plats på alla skärmar */
+.logo { animation: none; background: linear-gradient(180deg, var(--gold-2), var(--gold) 55%, #c98f1f); -webkit-background-clip: text; background-clip: text;
+  font-size: clamp(40px, 12vw, 68px); letter-spacing: .1em; padding-left: .1em; filter: drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+.logo.small { font-size: 34px; }
+.home-card { background: rgba(8,22,16,.88); border: 1px solid rgba(255,255,255,.08); border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+.bg-card { opacity: .07; }
+
+/* knappar: platta, tydliga och lätta att trycka på */
+.btn { border-radius: 12px; min-height: 42px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.1); }
+.btn.primary { background: var(--gold); border-color: transparent; box-shadow: 0 2px 0 #a8791a; text-shadow: none; color: #241800; }
+.btn.primary:hover:not(:disabled) { background: #ffd469; transform: none; }
+.btn.primary::after { display: none; }
+.btn.small { min-height: 34px; }
+.btn-group { display: inline-flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-radius: 12px; background: rgba(255,255,255,.05); }
+.btn-group-label { font-size: 13px; opacity: .8; white-space: nowrap; }
+.btn-group-row { display: flex; gap: 4px; }
+.btn.num { min-width: 38px; min-height: 36px; padding: 6px 0; font-weight: 700; }
+
+/* bordet: enkel filt med tunn kant */
+.table { background: radial-gradient(ellipse at 50% 40%, #17845a 0%, #0e6644 50%, #08442d 100%);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), inset 0 20px 60px rgba(0,0,0,.25), 0 0 0 8px #24150a, 0 0 0 9px rgba(245,196,81,.3), 0 20px 50px rgba(0,0,0,.5);
+  margin: 18px; }
+.table::before { display: none; }
+.center-title { font-family: 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 15px; letter-spacing: .02em; opacity: .9; text-shadow: none; }
+.topbar { background: rgba(0,0,0,.25); border-bottom: 1px solid rgba(255,255,255,.06); }
+
+/* spelarplatser */
+.seat { background: rgba(4,14,10,.72); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.3); backdrop-filter: none; }
+.seat.turn { border: 1px solid var(--gold); animation: none; box-shadow: 0 0 0 2px rgba(245,196,81,.35), 0 4px 12px rgba(0,0,0,.3); }
+.seat-cards i { width: 12px; height: 17px; border-radius: 2px; background: #a3192a; border: 1px solid #f3e2b0; }
+
+/* korten: rent vitt med tydliga hörn */
+.card { background: #fff; border: 1px solid #d8d8d8; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.card.face { background: linear-gradient(180deg, #fffdf7, #fbf1d9); }
+.card .pip { text-shadow: none; }
+.card.back { background: radial-gradient(circle at 50% 50%, rgba(245,196,81,.5) 0 16%, transparent 17%),
+  repeating-linear-gradient(45deg, rgba(255,255,255,.08) 0 2px, transparent 2px 8px), linear-gradient(160deg, #a3192a, #6b0d18);
+  border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.hand .card.selected { transform: translateY(-16px); box-shadow: 0 0 0 3px var(--gold), 0 10px 20px rgba(0,0,0,.45); }
+.me-area { background: rgba(0,0,0,.28); border-top: 1px solid rgba(255,255,255,.06); }
+.me-area.my-turn::before { animation: none; font-family: 'Inter', system-ui, sans-serif; letter-spacing: .12em; font-size: 11px; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+.me-area.my-turn .hand { filter: none; }
+.status { font-size: 14px; line-height: 1.4; max-width: 640px; margin-left: auto; margin-right: auto; }
+.tally { background: rgba(4,14,10,.8); border-color: rgba(255,255,255,.1); }
+
+/* ---------- mobil ---------- */
+@media (max-width: 640px) {
+  :root { --card-w: min(14.5vw, 58px); --card-h: calc(var(--card-w) * 1.42); }
+  .card .pip { font-size: calc(var(--card-w) * .5); } .card .corner { font-size: 12px; } .card .tl { top: 4px; left: 4px; } .card .br { bottom: 4px; right: 4px; }
+  .card.face::before { inset: 5px; }
+
+  .topbar { padding: 6px 10px; padding-top: calc(6px + env(safe-area-inset-top)); gap: 8px; }
+  .brand { font-size: 13px; }
+  .round-info { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #historyBtn { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+
+  .table { margin: 10px 10px 6px; border-radius: 22px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 0 0 4px #24150a, 0 0 0 5px rgba(245,196,81,.3), 0 10px 30px rgba(0,0,0,.5); }
+  #seats { gap: 6px; flex-wrap: nowrap; }
+  .seat { flex: 1 1 0; min-width: 0; max-width: 34%; padding: 6px 4px; }
+  .seat-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+  .seat-cards i { width: 9px; height: 13px; margin-left: -5px; }
+  .table { display: flex; flex-direction: column; overflow: hidden; }
+  #seats { position: static; padding: 10px 8px 0; }
+  .table-center { position: static; transform: none; margin: auto; width: 94%; padding: 8px 0; }
+  .center-title { font-size: 13px; }
+
+  .me-area { padding: 14px 10px calc(10px + env(safe-area-inset-bottom)); }
+  .status { font-size: 13px; margin-bottom: 4px; }
+  .hand { gap: 4px; padding-top: 16px; min-height: calc(var(--card-h) + 18px); }
+  .hand .card:hover { transform: none; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  .hand .card.selected { transform: translateY(-12px); box-shadow: 0 0 0 3px var(--gold), 0 8px 16px rgba(0,0,0,.45); }
+  .me-bar { flex-direction: column; align-items: stretch; gap: 8px; margin-top: 6px; }
+  .me-info { text-align: center; font-size: 13px; } .me-info strong { font-size: 16px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .actions > .btn { width: 100%; min-height: 46px; padding: 10px 8px; }
+  .actions > .btn:only-child, .actions > .btn-group + .btn:last-child { grid-column: 1 / -1; }
+  .btn-group { grid-column: 1 / -1; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; }
+  .btn-group-label { text-align: center; }
+  .btn-group-row { display: grid; grid-template-columns: repeat(6, 1fr); }
+  .btn.num { min-width: 0; }
+
+  .tally { left: 50%; right: auto; bottom: 8px; transform: translateX(-50%); min-width: 0; max-width: 92%; }
+  .overlay { padding: 10px; }
+  .home-card { padding: 22px 18px; }
+  .overlay h2 { font-size: 26px; }
+}
+@media (max-width: 640px) and (max-height: 700px) {
+  .deck-pile { transform: scale(.85); margin-top: 4px; }
+  .table-center .tiny { display: none; }
+}
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -1457,9 +1556,6 @@ function renderGame() {
   let pileHTML = '', title = '';
   if (ex) {
     title = ex.round <= 2 ? `Inledningsfas · bytesrunda ${ex.round} av 2` : 'Inledningsfas · extra byte';
-    pileHTML = `<div class="reveal">${G.dealReveal.map((r) => `<div class="reveal-col"><div class="tiny">${esc(nameOf(r.playerId))}</div>
-      <div class="reveal-cards">${r.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div></div>`).join('')}</div>
-      <div class="tiny muted">Synliga kort vid utdelningen</div>`;
   } else if (pl) {
     const tbl = pl.table.length ? pl.table : pl.lastTable;
     title = pl.table.length ? `Runda ${pl.roundNo}` : `Runda ${pl.roundNo} – ${esc(nameOf(pl.turnId || G.leaderId))} väljer kombination`;
@@ -1550,12 +1646,12 @@ function renderActions(G) {
           acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
           if (!G.players.find((p) => p.id === me).asked) {
             status += ' Du kan också säga nej och kontra med en egen fråga.';
-            for (let n = 1; n <= 6; n++) acts.push(btn(`Kontra: ${n}`, () => send('exchangeVote', { yes: false, counter: n }), 'small'));
+            acts.push({ group: 'Kontra – alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangeVote', { yes: false, counter: n }), 'num')) });
           }
         } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
       } else if (!ex.satisfied[me]) {
         status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';
-        for (let n = 1; n <= 6; n++) acts.push(btn(`Fråga: ${n}`, () => send('exchangePropose', { count: n }), 'small'));
+        acts.push({ group: 'Fråga om alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangePropose', { count: n }), 'num')) });
         acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
       } else status = `${G.players.find((p) => p.id === me).asked ? 'Du har redan frågat en gång.' : 'Du är nöjd.'} Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
     } else if (ex.step === 'extraDiscard') {
@@ -1594,10 +1690,19 @@ function renderActions(G) {
   $('status').innerHTML = status;
   $('offer').innerHTML = offerHTML; $('offer').classList.toggle('hidden', !offerHTML);
   const box = $('actions'); box.innerHTML = '';
-  for (const a of acts) {
+  const mk = (a) => {
     const b = document.createElement('button');
     b.className = 'btn ' + a.cls; b.textContent = a.label; b.disabled = a.disabled; b.onclick = a.onclick;
-    box.appendChild(b);
+    return b;
+  };
+  for (const a of acts) {
+    if (!a.group) { box.appendChild(mk(a)); continue; }
+    // knapprad med siffror, t.ex. "Fråga om alla slänger: 1 2 3 4 5 6"
+    const g = document.createElement('div'); g.className = 'btn-group';
+    const l = document.createElement('span'); l.className = 'btn-group-label'; l.textContent = a.group; g.appendChild(l);
+    const row = document.createElement('div'); row.className = 'btn-group-row';
+    for (const it of a.items) row.appendChild(mk(it));
+    g.appendChild(row); box.appendChild(g);
   }
   const myTurn = acts.length > 0;
   $('hand').classList.toggle('active', myTurn && !offerHTML);

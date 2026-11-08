@@ -177,9 +177,6 @@ function renderGame() {
   let pileHTML = '', title = '';
   if (ex) {
     title = ex.round <= 2 ? `Inledningsfas · bytesrunda ${ex.round} av 2` : 'Inledningsfas · extra byte';
-    pileHTML = `<div class="reveal">${G.dealReveal.map((r) => `<div class="reveal-col"><div class="tiny">${esc(nameOf(r.playerId))}</div>
-      <div class="reveal-cards">${r.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div></div>`).join('')}</div>
-      <div class="tiny muted">Synliga kort vid utdelningen</div>`;
   } else if (pl) {
     const tbl = pl.table.length ? pl.table : pl.lastTable;
     title = pl.table.length ? `Runda ${pl.roundNo}` : `Runda ${pl.roundNo} – ${esc(nameOf(pl.turnId || G.leaderId))} väljer kombination`;
@@ -270,12 +267,12 @@ function renderActions(G) {
           acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
           if (!G.players.find((p) => p.id === me).asked) {
             status += ' Du kan också säga nej och kontra med en egen fråga.';
-            for (let n = 1; n <= 6; n++) acts.push(btn(`Kontra: ${n}`, () => send('exchangeVote', { yes: false, counter: n }), 'small'));
+            acts.push({ group: 'Kontra – alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangeVote', { yes: false, counter: n }), 'num')) });
           }
         } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
       } else if (!ex.satisfied[me]) {
         status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';
-        for (let n = 1; n <= 6; n++) acts.push(btn(`Fråga: ${n}`, () => send('exchangePropose', { count: n }), 'small'));
+        acts.push({ group: 'Fråga om alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangePropose', { count: n }), 'num')) });
         acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
       } else status = `${G.players.find((p) => p.id === me).asked ? 'Du har redan frågat en gång.' : 'Du är nöjd.'} Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
     } else if (ex.step === 'extraDiscard') {
@@ -314,10 +311,19 @@ function renderActions(G) {
   $('status').innerHTML = status;
   $('offer').innerHTML = offerHTML; $('offer').classList.toggle('hidden', !offerHTML);
   const box = $('actions'); box.innerHTML = '';
-  for (const a of acts) {
+  const mk = (a) => {
     const b = document.createElement('button');
     b.className = 'btn ' + a.cls; b.textContent = a.label; b.disabled = a.disabled; b.onclick = a.onclick;
-    box.appendChild(b);
+    return b;
+  };
+  for (const a of acts) {
+    if (!a.group) { box.appendChild(mk(a)); continue; }
+    // knapprad med siffror, t.ex. "Fråga om alla slänger: 1 2 3 4 5 6"
+    const g = document.createElement('div'); g.className = 'btn-group';
+    const l = document.createElement('span'); l.className = 'btn-group-label'; l.textContent = a.group; g.appendChild(l);
+    const row = document.createElement('div'); row.className = 'btn-group-row';
+    for (const it of a.items) row.appendChild(mk(it));
+    g.appendChild(row); box.appendChild(g);
   }
   const myTurn = acts.length > 0;
   $('hand').classList.toggle('active', myTurn && !offerHTML);
