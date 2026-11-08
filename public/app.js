@@ -112,7 +112,7 @@ $('botsBtn').onclick = () => {
   const name = needName(); if (!name) return;
   socket.emit('create', { name }, (res) => {
     enter(res); if (!res.ok) return;
-    socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true });
+    socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false });
     for (let k = 0; k < 3; k++) socket.emit('addBot');
   });
 };
@@ -167,6 +167,7 @@ segClick('multCardSeg', (v) => ({ multiplier: v }));
 segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
 segClick('visSeg', (v) => ({ visibility: v }));
 segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
+segClick('persuadeSeg', (v) => ({ persuade: v === '1' }));
 segClick('speedSeg', (v) => ({ botSpeed: v }));
 // Botval: namn, emoji och en kort beskrivning per personlighet
 const BOTS = window.GurschBots || { PERSONALITIES: {}, BOT_PROFILES: [] };
@@ -237,6 +238,7 @@ function renderLobby() {
   setSeg('visSeg', L.settings.visibility || 'private', !isHost);
   $('visSetting').classList.toggle('hidden', !!L.local);
   setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
+  setSeg('persuadeSeg', L.settings.persuade ? 1 : 0, !isHost || L.settings.extraExchanges === false);
   setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
   $('settingsNote').textContent = isHost ? '' : '· värden väljer';
   const me = L.players.find((p) => p.id === S.you);

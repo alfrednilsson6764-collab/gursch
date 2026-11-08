@@ -31,7 +31,7 @@ function newCode() {
 const BOT_NAMES = BOT_PROFILES.map((b) => b.name); // Astrid, Bertil, Cissi, David, Elsa – en personlighet var
 const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
 const TURN_TIMES = [0, 20, 30, 60]; // sekunder per drag, 0 = av
-const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0, visibility: 'private' });
+const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0, visibility: 'private' });
 const cleanName = (n) => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 20) || 'Spelare';
 
 function lobbyView(room) {
@@ -216,6 +216,7 @@ io.on('connection', (socket) => {
     if (s.botSpeed in BOT_DELAY) room.settings.botSpeed = s.botSpeed;
     if (s.multiplier === 'highest' || s.multiplier === 'second') room.settings.multiplier = s.multiplier;
     if (typeof s.extraExchanges === 'boolean') room.settings.extraExchanges = s.extraExchanges;
+    if (typeof s.persuade === 'boolean') room.settings.persuade = s.persuade;
     if (TURN_TIMES.includes(Number(s.turnTime))) room.settings.turnTime = Number(s.turnTime);
     if (s.visibility === 'open' || s.visibility === 'private') room.settings.visibility = s.visibility;
     reply(cb, { ok: true });
@@ -231,7 +232,7 @@ io.on('connection', (socket) => {
       return reply(cb, { ok: false, error: 'Alla spelare är inte redo än.' });
     room.reactSeq = 0;
     room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })),
-      { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
+      { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges, persuade: !!room.settings.persuade });
     // Bottarna väntar tills utdelningen har visats (eller högst 30 sekunder).
     // Bottar och turtimer väntar tills utdelningen har visats (eller högst 30 sekunder).
     room.hold = true;

@@ -313,8 +313,8 @@ async function runWithBots() {
 }
 
 // ---- extra byten (Alfred 2026-11-08): fråga, alla svarar, övertalningsfrist, "Vi kör" ----
-function toExtra(n = 3) {
-  const g = new Game(Array.from({ length: n }, (_, k) => ({ id: 'abcdef'[k], name: 'ABCDEF'[k] })));
+function toExtra(n = 3, opts = { persuade: true }) {
+  const g = new Game(Array.from({ length: n }, (_, k) => ({ id: 'abcdef'[k], name: 'ABCDEF'[k] })), opts);
   for (let r = 0; r < 2; r++) {
     g.act(g.players[g.leader].id, { type: 'exchangeLeader', cardIds: [] });
     for (const pid of Object.keys(g.exchange.decisions)) g.act(pid, { type: 'exchangeOther', discard: false });
@@ -361,6 +361,19 @@ function extraDiscard(g) {
     g.checkInvariant();
   }
   console.log('OK: extra byte – slänghögen blandas när leken tar slut');
+}
+{ // övertalningsfristen är av från början: ett nej avslutar bytena och spelet börjar direkt
+  const g = toExtra(3, {});
+  assert.strictEqual(g.persuade, false);
+  g.act('a', { type: 'exchangePropose', count: 2 });
+  g.act('b', { type: 'exchangeVote', yes: false });
+  assert.strictEqual(g.phase, 'play', 'ingen frist');
+  const { timeoutMove } = require('../src/turntimer');
+  const t = toExtra(2, {});
+  t.act('a', { type: 'exchangePropose', count: 1 });
+  t.act('b', timeoutMove(t, 'b'));
+  assert.strictEqual(t.phase, 'play', 'tiden ute = nej → spelet börjar direkt');
+  console.log('OK: extra byte – utan övertalningsfrist startar ett nej spelet direkt');
 }
 { // ett nej utan ändring → övertalningsfrist → spelet börjar när tiden är ute
   const g = toExtra(3);
@@ -538,6 +551,9 @@ async function runKick() {
   assert.ok(kicked, 'den kickade får besked');
   assert.deepStrictEqual(host.state.lobby.players.map((p) => p.name), ['Värd', 'Tredje']);
   assert.ok(!(await emit(friend, 'action', { type: 'exchangeGo' })).ok, 'den kickade är inte kvar i rummet');
+  assert.strictEqual(host.state.lobby.settings.persuade, false, 'övertalningsfristen är av från början');
+  await emit(host, 'settings', { ...host.state.lobby.settings, persuade: true });
+  assert.strictEqual(host.state.lobby.settings.persuade, true);
   third.emit('ready', true); await wait(20);
   assert.ok((await emit(host, 'start')).ok);
   assert.ok(!(await emit(host, 'kick', third.state.you)).ok, 'ingen kick under spelet');

@@ -1086,6 +1086,10 @@ html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .
           <div class="seg" id="extraSeg"><button data-v="1">På</button><button data-v="0">Av</button></div>
         </div>
         <div class="setting">
+          <div class="setting-text"><b>Övertalningsfrist</b><span>Säger någon nej till extra byte får de andra 10 sekunder att övertala hen. Av: ett nej startar spelet direkt.</span></div>
+          <div class="seg" id="persuadeSeg"><button data-v="1">På</button><button data-v="0">Av</button></div>
+        </div>
+        <div class="setting">
           <div class="setting-text"><b>Bottarnas tempo</b><span>Hur snabbt bottarna gör sina drag</span></div>
           <div class="seg" id="speedSeg"><button data-v="slow">Lugnt</button><button data-v="normal">Normalt</button><button data-v="fast">Snabbt</button></div>
         </div>
@@ -1222,7 +1226,8 @@ const RULES = {
   //  2. Alla andra svarar ja eller nej.
   //  3. Säger alla ja slänger alla X kort och får ersättningskort som vanligt. Sedan kan vem som
   //     helst fråga igen – hur många gånger som helst. Tar leken slut blandas slänghögen som vanligt.
-  //  4. Säger någon nej börjar en övertalningsfrist (PERSUADE_SECONDS). Den som sa nej kan ändra sig
+  //  4. Säger någon nej börjar spelet direkt – om inte inställningen "övertalningsfrist" är på (av från början).
+  //     Med fristen på börjar en övertalningsfrist (PERSUADE_SECONDS). Den som sa nej kan ändra sig
   //     ("Okej, jag är med") och då fortsätter omröstningen, eller avsluta direkt ("Nej, vi kör").
   //     Har ingen ändrat sig när tiden är ute blir det inga fler byten och spelet börjar.
   //     Tiden ägs av servern (src/turntimer.js), som anropar persuadeExpired().
@@ -1260,13 +1265,14 @@ const fail = (msg) => { throw new GameError(msg); };
 
 class Game {
   /** players: [{id, name}] i sittordning (medurs). */
-  constructor(players, { multiplier = 2, extraExchanges = true } = {}) {
+  constructor(players, { multiplier = 2, extraExchanges = true, persuade = false } = {}) {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
     // Multiplikatorn är antingen ett fast tal eller bestäms av utdelningen (Alfred 2026-11-08):
     // 'highest' = värdet på det högsta synliga kortet, 'second' = det näst högsta synliga kortet.
     this.multiplierMode = multiplier === 'highest' || multiplier === 'second' ? multiplier : 'fixed';
     this.multiplier = this.multiplierMode === 'fixed' ? multiplier : null;
     this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
+    this.persuade = !!persuade; // inställning (av från början): övertalningsfrist när någon säger nej
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
     this.proposalSeq = 0; // numrerar frågorna om extra byte
     this.deck = makeDeck();
@@ -1477,6 +1483,11 @@ class Game {
     if (P.votes[pid] !== null) fail('Du har redan svarat.');
     P.votes[pid] = !!yes;
     if (!yes) {
+      if (!this.persuade) {
+        // utan övertalningsfrist avslutar ett nej bytena direkt
+        this.log(`${this.name(i)} säger nej. Inga fler byten.`);
+        return this.startPlay();
+      }
       this.log(`${this.name(i)} säger nej – övertala hen!`);
       this.event('holdout', { playerId: pid });
       P.persuading = true; // fristen startar (eller pågår redan)
@@ -2346,7 +2357,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
+        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -2359,13 +2370,14 @@ window.GURSCH_LOCAL = function () {
         if (x >= 1 && x <= 100) room.settings.multiplier = x;
         if (data.botSpeed in BOT_DELAY) room.settings.botSpeed = data.botSpeed;
         if (typeof data.extraExchanges === 'boolean') room.settings.extraExchanges = data.extraExchanges;
+        if (typeof data.persuade === 'boolean') room.settings.persuade = data.persuade;
         if (data.multiplier === 'highest' || data.multiplier === 'second') room.settings.multiplier = data.multiplier;
         if ([0, 20, 30, 60].includes(Number(data.turnTime))) room.settings.turnTime = Number(data.turnTime);
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
         room.reactSeq = 0;
-        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
+        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges, persuade: !!room.settings.persuade });
         room.hold = true;
         clearTimeout(holdTimer);
         holdTimer = setTimeout(() => { if (room) { room.hold = false; broadcast(); } }, 30000);
@@ -2512,7 +2524,7 @@ $('botsBtn').onclick = () => {
   const name = needName(); if (!name) return;
   socket.emit('create', { name }, (res) => {
     enter(res); if (!res.ok) return;
-    socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true });
+    socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false });
     for (let k = 0; k < 3; k++) socket.emit('addBot');
   });
 };
@@ -2567,6 +2579,7 @@ segClick('multCardSeg', (v) => ({ multiplier: v }));
 segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
 segClick('visSeg', (v) => ({ visibility: v }));
 segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
+segClick('persuadeSeg', (v) => ({ persuade: v === '1' }));
 segClick('speedSeg', (v) => ({ botSpeed: v }));
 // Botval: namn, emoji och en kort beskrivning per personlighet
 const BOTS = window.GurschBots || { PERSONALITIES: {}, BOT_PROFILES: [] };
@@ -2637,6 +2650,7 @@ function renderLobby() {
   setSeg('visSeg', L.settings.visibility || 'private', !isHost);
   $('visSetting').classList.toggle('hidden', !!L.local);
   setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
+  setSeg('persuadeSeg', L.settings.persuade ? 1 : 0, !isHost || L.settings.extraExchanges === false);
   setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
   $('settingsNote').textContent = isHost ? '' : '· värden väljer';
   const me = L.players.find((p) => p.id === S.you);

@@ -25,7 +25,7 @@ function randomize(g, pid, move) {
 }
 
 function playOne(nPlayers) {
-  const g = new Game(Array.from({ length: nPlayers }, (_, i) => ({ id: 'p' + i, name: 'Spelare ' + i })), { multiplier: 2 });
+  const g = new Game(Array.from({ length: nPlayers }, (_, i) => ({ id: 'p' + i, name: 'Spelare ' + i })), { multiplier: 2, persuade: Math.random() < 0.5 });
   let steps = 0, extras = 0, overs = 0;
   while (g.phase !== 'finished') {
     if (++steps > 20000) throw new Error('Spelet tar aldrig slut');

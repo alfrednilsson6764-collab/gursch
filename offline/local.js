@@ -72,7 +72,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
+        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -85,13 +85,14 @@ window.GURSCH_LOCAL = function () {
         if (x >= 1 && x <= 100) room.settings.multiplier = x;
         if (data.botSpeed in BOT_DELAY) room.settings.botSpeed = data.botSpeed;
         if (typeof data.extraExchanges === 'boolean') room.settings.extraExchanges = data.extraExchanges;
+        if (typeof data.persuade === 'boolean') room.settings.persuade = data.persuade;
         if (data.multiplier === 'highest' || data.multiplier === 'second') room.settings.multiplier = data.multiplier;
         if ([0, 20, 30, 60].includes(Number(data.turnTime))) room.settings.turnTime = Number(data.turnTime);
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
         room.reactSeq = 0;
-        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
+        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges, persuade: !!room.settings.persuade });
         room.hold = true;
         clearTimeout(holdTimer);
         holdTimer = setTimeout(() => { if (room) { room.hold = false; broadcast(); } }, 30000);

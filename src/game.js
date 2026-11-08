@@ -20,7 +20,8 @@ const RULES = {
   //  2. Alla andra svarar ja eller nej.
   //  3. Säger alla ja slänger alla X kort och får ersättningskort som vanligt. Sedan kan vem som
   //     helst fråga igen – hur många gånger som helst. Tar leken slut blandas slänghögen som vanligt.
-  //  4. Säger någon nej börjar en övertalningsfrist (PERSUADE_SECONDS). Den som sa nej kan ändra sig
+  //  4. Säger någon nej börjar spelet direkt – om inte inställningen "övertalningsfrist" är på (av från början).
+  //     Med fristen på börjar en övertalningsfrist (PERSUADE_SECONDS). Den som sa nej kan ändra sig
   //     ("Okej, jag är med") och då fortsätter omröstningen, eller avsluta direkt ("Nej, vi kör").
   //     Har ingen ändrat sig när tiden är ute blir det inga fler byten och spelet börjar.
   //     Tiden ägs av servern (src/turntimer.js), som anropar persuadeExpired().
@@ -58,13 +59,14 @@ const fail = (msg) => { throw new GameError(msg); };
 
 class Game {
   /** players: [{id, name}] i sittordning (medurs). */
-  constructor(players, { multiplier = 2, extraExchanges = true } = {}) {
+  constructor(players, { multiplier = 2, extraExchanges = true, persuade = false } = {}) {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
     // Multiplikatorn är antingen ett fast tal eller bestäms av utdelningen (Alfred 2026-11-08):
     // 'highest' = värdet på det högsta synliga kortet, 'second' = det näst högsta synliga kortet.
     this.multiplierMode = multiplier === 'highest' || multiplier === 'second' ? multiplier : 'fixed';
     this.multiplier = this.multiplierMode === 'fixed' ? multiplier : null;
     this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
+    this.persuade = !!persuade; // inställning (av från början): övertalningsfrist när någon säger nej
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
     this.proposalSeq = 0; // numrerar frågorna om extra byte
     this.deck = makeDeck();
@@ -275,6 +277,11 @@ class Game {
     if (P.votes[pid] !== null) fail('Du har redan svarat.');
     P.votes[pid] = !!yes;
     if (!yes) {
+      if (!this.persuade) {
+        // utan övertalningsfrist avslutar ett nej bytena direkt
+        this.log(`${this.name(i)} säger nej. Inga fler byten.`);
+        return this.startPlay();
+      }
       this.log(`${this.name(i)} säger nej – övertala hen!`);
       this.event('holdout', { playerId: pid });
       P.persuading = true; // fristen startar (eller pågår redan)
