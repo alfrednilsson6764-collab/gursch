@@ -36,7 +36,11 @@
       if (ex.step === 'extra') {
         if (ex.proposal) {
           if (ex.proposal.votes[pid] !== null) return null;
-          return { type: 'exchangeVote', yes: hand.filter((c) => c.rank >= 10).length >= ex.proposal.count };
+          const high = hand.filter((c) => c.rank >= 10).length;
+          if (high >= ex.proposal.count) return { type: 'exchangeVote', yes: true };
+          // har boten själv inte frågat än kan den kontra med så många kort den vill bli av med
+          if (high > 0 && !game.asked.has(pid)) return { type: 'exchangeVote', yes: false, counter: high };
+          return { type: 'exchangeVote', yes: false };
         }
         return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
       }

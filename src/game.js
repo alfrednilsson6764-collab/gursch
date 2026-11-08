@@ -18,6 +18,7 @@ const RULES = {
   // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
   // Varje spelare får bara fråga en gång under hela inledningen (Alfred 2026-11-08), så att
   // ingen kan spamma frågor; har man redan frågat återstår bara "nöjd".
+  // Säger man nej till en fråga kan man kontra med en egen fråga (om man inte redan frågat).
   // Motståndarnas synliga kort visas inte i efterhand – man får själv komma ihåg dem (Alfred 2026-11-08).
   // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
   // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
@@ -251,12 +252,25 @@ class Game {
     this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
   }
 
-  exchangeVote(pid, yes) {
+  exchangeVote(pid, yes, counter = null) {
     const i = this.idx(pid), ex = this.exchange;
     if (this.phase !== 'exchange' || ex.step !== 'extra' || !ex.proposal) fail('Det finns inget förslag att svara på.');
     if (ex.proposal.votes[pid] !== null) fail('Du har redan svarat.');
+    if (counter != null) {
+      if (yes) fail('Man kan bara kontra när man säger nej.');
+      if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
+      counter = Math.round(Number(counter));
+      if (!(counter >= 1 && counter <= 6)) fail('Välj 1–6 kort.');
+    }
     ex.proposal.votes[pid] = !!yes;
     if (!yes) {
+      // Kontra (Alfred 2026-11-08): den som säger nej får istället ställa en egen fråga,
+      // om hen inte redan har frågat. Varje spelare frågar max en gång, så det tar slut.
+      if (counter != null) {
+        this.log(`${this.name(i)} säger nej men kontrar.`);
+        ex.proposal = null;
+        return this.exchangePropose(pid, counter);
+      }
       this.log(`${this.name(i)} vill inte slänga. Inga fler byten.`);
       return this.startPlay();
     }
@@ -443,7 +457,7 @@ class Game {
       case 'exchangeOther': this.exchangeOther(pid, !!a.discard, a.cardIds); break;
       case 'exchangeReplace': this.exchangeReplace(pid, !!a.keep); break;
       case 'exchangePropose': this.exchangePropose(pid, a.count); break;
-      case 'exchangeVote': this.exchangeVote(pid, !!a.yes); break;
+      case 'exchangeVote': this.exchangeVote(pid, !!a.yes, a.counter ?? null); break;
       case 'exchangeSatisfied': this.exchangeSatisfied(pid); break;
       case 'exchangeExtraDiscard': this.exchangeExtraDiscard(pid, a.cardIds); break;
       case 'play': this.playCards(pid, a.cardIds); break;

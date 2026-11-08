@@ -268,6 +268,10 @@ function renderActions(G) {
           status = `${who} frågar om alla vill slänga ${P.count} kort till. Alla måste vara med – säger någon nej börjar spelet.`;
           acts.push(btn(`Ja, slänga ${P.count}`, () => send('exchangeVote', { yes: true }), 'primary'));
           acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
+          if (!G.players.find((p) => p.id === me).asked) {
+            status += ' Du kan också säga nej och kontra med en egen fråga.';
+            for (let n = 1; n <= 6; n++) acts.push(btn(`Kontra: ${n}`, () => send('exchangeVote', { yes: false, counter: n }), 'small'));
+          }
         } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
       } else if (!ex.satisfied[me]) {
         status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';

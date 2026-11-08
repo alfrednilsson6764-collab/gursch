@@ -134,9 +134,17 @@ function setHands(g, hands) {
   throwsGame(() => g.act(o2.id, { type: 'exchangePropose', count: 1 }), 'bara en fråga per spelare');
   assert.ok(g.exchange.satisfied[o2.id]);
   assert.ok(g.viewFor(o1.id).players.find((p) => p.id === o2.id).asked);
-  // nytt förslag, någon säger nej → spelet börjar
+  // nytt förslag, o1 säger nej men kontrar med en egen fråga
   g.act(L.id, { type: 'exchangePropose', count: 3 });
-  g.act(o1.id, { type: 'exchangeVote', yes: false });
+  throwsGame(() => g.act(o1.id, { type: 'exchangeVote', yes: false, counter: 9 }), 'ogiltig kontring');
+  assert.strictEqual(g.exchange.proposal.by, L.id, 'ogiltig kontring ändrar inget');
+  g.act(o1.id, { type: 'exchangeVote', yes: false, counter: 2 });
+  assert.strictEqual(g.phase, 'exchange');
+  assert.strictEqual(g.exchange.proposal.by, o1.id);
+  assert.strictEqual(g.exchange.proposal.count, 2);
+  // L har redan frågat och kan inte kontra, så nej → spelet börjar
+  throwsGame(() => g.act(L.id, { type: 'exchangeVote', yes: false, counter: 1 }), 'redan frågat');
+  g.act(L.id, { type: 'exchangeVote', yes: false });
   assert.strictEqual(g.phase, 'play');
   g.players.forEach((p) => assert.strictEqual(p.hand.length, 6));
   // när alla har frågat en gång börjar spelet av sig självt

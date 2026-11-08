@@ -544,6 +544,7 @@ const RULES = {
   // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
   // Varje spelare får bara fråga en gång under hela inledningen (Alfred 2026-11-08), så att
   // ingen kan spamma frågor; har man redan frågat återstår bara "nöjd".
+  // Säger man nej till en fråga kan man kontra med en egen fråga (om man inte redan frågat).
   // Motståndarnas synliga kort visas inte i efterhand – man får själv komma ihåg dem (Alfred 2026-11-08).
   // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
   // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
@@ -777,12 +778,25 @@ class Game {
     this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
   }
 
-  exchangeVote(pid, yes) {
+  exchangeVote(pid, yes, counter = null) {
     const i = this.idx(pid), ex = this.exchange;
     if (this.phase !== 'exchange' || ex.step !== 'extra' || !ex.proposal) fail('Det finns inget förslag att svara på.');
     if (ex.proposal.votes[pid] !== null) fail('Du har redan svarat.');
+    if (counter != null) {
+      if (yes) fail('Man kan bara kontra när man säger nej.');
+      if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
+      counter = Math.round(Number(counter));
+      if (!(counter >= 1 && counter <= 6)) fail('Välj 1–6 kort.');
+    }
     ex.proposal.votes[pid] = !!yes;
     if (!yes) {
+      // Kontra (Alfred 2026-11-08): den som säger nej får istället ställa en egen fråga,
+      // om hen inte redan har frågat. Varje spelare frågar max en gång, så det tar slut.
+      if (counter != null) {
+        this.log(`${this.name(i)} säger nej men kontrar.`);
+        ex.proposal = null;
+        return this.exchangePropose(pid, counter);
+      }
       this.log(`${this.name(i)} vill inte slänga. Inga fler byten.`);
       return this.startPlay();
     }
@@ -969,7 +983,7 @@ class Game {
       case 'exchangeOther': this.exchangeOther(pid, !!a.discard, a.cardIds); break;
       case 'exchangeReplace': this.exchangeReplace(pid, !!a.keep); break;
       case 'exchangePropose': this.exchangePropose(pid, a.count); break;
-      case 'exchangeVote': this.exchangeVote(pid, !!a.yes); break;
+      case 'exchangeVote': this.exchangeVote(pid, !!a.yes, a.counter ?? null); break;
       case 'exchangeSatisfied': this.exchangeSatisfied(pid); break;
       case 'exchangeExtraDiscard': this.exchangeExtraDiscard(pid, a.cardIds); break;
       case 'play': this.playCards(pid, a.cardIds); break;
@@ -1083,7 +1097,11 @@ module.exports = { Game, GameError, RULES, makeDeck };
       if (ex.step === 'extra') {
         if (ex.proposal) {
           if (ex.proposal.votes[pid] !== null) return null;
-          return { type: 'exchangeVote', yes: hand.filter((c) => c.rank >= 10).length >= ex.proposal.count };
+          const high = hand.filter((c) => c.rank >= 10).length;
+          if (high >= ex.proposal.count) return { type: 'exchangeVote', yes: true };
+          // har boten själv inte frågat än kan den kontra med så många kort den vill bli av med
+          if (high > 0 && !game.asked.has(pid)) return { type: 'exchangeVote', yes: false, counter: high };
+          return { type: 'exchangeVote', yes: false };
         }
         return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
       }
@@ -1530,6 +1548,10 @@ function renderActions(G) {
           status = `${who} frågar om alla vill slänga ${P.count} kort till. Alla måste vara med – säger någon nej börjar spelet.`;
           acts.push(btn(`Ja, slänga ${P.count}`, () => send('exchangeVote', { yes: true }), 'primary'));
           acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
+          if (!G.players.find((p) => p.id === me).asked) {
+            status += ' Du kan också säga nej och kontra med en egen fråga.';
+            for (let n = 1; n <= 6; n++) acts.push(btn(`Kontra: ${n}`, () => send('exchangeVote', { yes: false, counter: n }), 'small'));
+          }
         } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
       } else if (!ex.satisfied[me]) {
         status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';
