@@ -14,7 +14,7 @@ ${gameJs}
 
 let html = R('public/index.html');
 const extraCss = `
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn { display: none !important; }
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }`;
 html = html
   .replace('  <script src="tally.js"></script>\n', '')
@@ -26,6 +26,7 @@ html = html
   .replace('<script src="/socket.io/socket.io.js"></script>\n  <script src="app.js"></script>', () =>
     ['<script>', shim, '</script>',
       '<script>', R('src/bots.js'), '</script>',
+      '<script>', R('src/turntimer.js'), '</script>',
       '<script>', R('src/tally.js'), '</script>',
       '<script>', R('offline/local.js'), '</script>',
       '<script>', R('public/app.js'), '</script>'].join('\n'))

@@ -51,7 +51,10 @@ class Game {
   /** players: [{id, name}] i sittordning (medurs). */
   constructor(players, { multiplier = 2, extraExchanges = true } = {}) {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
-    this.multiplier = multiplier;
+    // Multiplikatorn är antingen ett fast tal eller bestäms av utdelningen (Alfred 2026-11-08):
+    // 'highest' = värdet på det högsta synliga kortet, 'second' = det näst högsta synliga kortet.
+    this.multiplierMode = multiplier === 'highest' || multiplier === 'second' ? multiplier : 'fixed';
+    this.multiplier = this.multiplierMode === 'fixed' ? multiplier : null;
     this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
     this.asked = new Set(); // vilka som har frågat om extra byte
@@ -121,6 +124,11 @@ class Game {
       values = tied.map((i) => { const c = this.draw(); reveal[i].push(c); this.setAside.push(c); return c.rank; });
     }
     this.dealReveal = reveal.map((cards, i) => ({ playerId: this.players[i].id, cards }));
+    if (this.multiplierMode !== 'fixed') {
+      const ranks = reveal.map((cards) => cards[0].rank).sort((a, b) => b - a);
+      this.multiplier = this.multiplierMode === 'highest' ? ranks[0] : ranks[1];
+      this.log(`Multiplikatorn blir ×${this.multiplier} (${this.multiplierMode === 'highest' ? 'högsta' : 'näst högsta'} synliga kortet).`);
+    }
     for (const p of this.players) this.sortHand(p);
     this.log(`${this.name(this.leader)} har högst kort och blir styrspelare.`, 'leader');
     this.event('leader', { playerId: this.players[this.leader].id, reason: 'deal' });
@@ -476,6 +484,7 @@ class Game {
     const v = {
       phase: this.phase,
       multiplier: this.multiplier,
+      multiplierMode: this.multiplierMode,
       leaderId: this.players[this.leader].id,
       deckCount: this.deck.length,
       players: this.players.map((p) => ({

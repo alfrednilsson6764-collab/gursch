@@ -3,6 +3,7 @@
 // Kontrollerar också att ingen klient får se andras dolda kort, att fusk nekas och att återanslutning fungerar.
 const assert = require('assert');
 process.env.GURSCH_BOT_DELAY = '3'; // snabba bottar i testet
+process.env.GURSCH_TIME_SCALE = '0.01'; // 20 s blir 0,2 s i testet
 const { io } = require('socket.io-client');
 const { server } = require('../src/server');
 const { Game, GameError } = require('../src/game');
@@ -318,7 +319,83 @@ async function runWithBots() {
   console.log('OK: spel över nätverket med 2 människor och 3 bottar');
 }
 
+{ // multiplikator från högsta / näst högsta synliga kortet
+  for (const mode of ['highest', 'second']) for (let k = 0; k < 30; k++) {
+    const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }, { id: 'c', name: 'C' }], { multiplier: mode });
+    const ranks = g.dealReveal.map((r) => r.cards[0].rank).sort((x, y) => y - x);
+    assert.strictEqual(g.multiplier, mode === 'highest' ? ranks[0] : ranks[1]);
+    assert.strictEqual(g.viewFor('a').multiplierMode, mode);
+  }
+  const f = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], { multiplier: 5 });
+  assert.strictEqual(f.multiplier, 5);
+  console.log('OK: multiplikator från högsta och näst högsta kortet');
+}
+
+{ // standarddrag när tiden går ut: nöjd/behåll under bytet
+  const { timeoutMove } = require('../src/turntimer');
+  const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
+  const L = g.players[g.leader].id, O = g.players[1 - g.leader].id;
+  assert.deepStrictEqual(timeoutMove(g, L), { type: 'exchangeLeader', cardIds: [] });
+  assert.strictEqual(timeoutMove(g, O), null, 'inte motståndarens tur');
+  g.act(L, timeoutMove(g, L));
+  assert.deepStrictEqual(timeoutMove(g, O), { type: 'exchangeOther', discard: false });
+  console.log('OK: standarddrag vid timeout');
+}
+
+// Två människor som aldrig gör något: turtimern spelar klart åt dem, även när en har tappat anslutningen.
+async function runTimer() {
+  const host = client('Värd'); await new Promise((r) => host.on('connect', r));
+  const res = await emit(host, 'create', { name: 'Värd' });
+  const friend = client('Vän'); await new Promise((r) => friend.on('connect', r));
+  await emit(friend, 'join', { code: res.code, name: 'Vän' });
+  await emit(host, 'settings', { ...host.state.lobby.settings, turnTime: 20 });
+  assert.strictEqual(host.state.lobby.settings.turnTime, 20);
+  assert.ok(!(await emit(friend, 'settings', { turnTime: 60 })).ok, 'bara värden ändrar');
+  friend.emit('ready', true); await wait(20);
+  assert.ok((await emit(host, 'start')).ok);
+  await wait(30);
+  assert.deepStrictEqual(host.state.lobby.timers, {}, 'ingen timer under utdelningen');
+  host.emit('animDone'); await wait(30);
+  const t = host.state.lobby.timers;
+  assert.ok(Object.keys(t).length === 1 && t[host.state.game.leaderId] > 0, 'styrspelaren har en timer');
+  friend.close(); // tappar anslutningen – timern gäller ändå
+  const start = Date.now();
+  while (host.state.game.phase !== 'finished') {
+    if (Date.now() - start > 60000) throw new Error('timern spelade inte klart');
+    await wait(50);
+  }
+  host.close();
+  console.log('OK: turtimern spelar klart när ingen gör något');
+}
+
+// Öppna rum: listan uppdateras live och visar bara kod, värdnamn och antal.
+async function runOpenRooms() {
+  const watcher = client('Tittare'); let list = null;
+  watcher.on('openRooms', (l) => { list = l; });
+  await new Promise((r) => watcher.on('connect', r));
+  const host = client('Värd'); await new Promise((r) => host.on('connect', r));
+  const res = await emit(host, 'create', { name: 'Lisa' });
+  await wait(30);
+  assert.ok(!list.some((r) => r.code === res.code), 'privata rum syns inte');
+  assert.strictEqual(host.state.lobby.settings.visibility, 'private');
+  await emit(host, 'settings', { ...host.state.lobby.settings, visibility: 'open', maxPlayers: 2 });
+  await wait(30);
+  const mine = list.find((r) => r.code === res.code);
+  assert.deepStrictEqual(mine, { code: res.code, host: 'Lisa', players: 1, max: 2 });
+  const j = await emit(watcher, 'join', { code: mine.code, name: 'Okänd' });
+  assert.ok(j.ok); await wait(30);
+  assert.strictEqual(watcher.state.lobby.players.length, 2, 'hamnar i lobbyn');
+  assert.ok(!list.some((r) => r.code === res.code), 'fulla rum syns inte');
+  await emit(host, 'settings', { ...host.state.lobby.settings, maxPlayers: 4 }); await wait(30);
+  assert.strictEqual(list.find((r) => r.code === res.code).players, 2);
+  watcher.emit('ready', true); await wait(20);
+  await emit(host, 'start'); await wait(30);
+  assert.ok(!list.some((r) => r.code === res.code), 'startade rum syns inte');
+  host.close(); watcher.close();
+  console.log('OK: öppna rum');
+}
+
 server.listen(PORT, async () => {
-  try { await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
+  try { await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
   catch (e) { console.error(e); process.exit(1); }
 });

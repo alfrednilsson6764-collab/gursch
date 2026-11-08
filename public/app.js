@@ -78,6 +78,20 @@ $('joinBtn').onclick = () => {
   if (!code) { $('homeError').textContent = 'Skriv in en rumskod.'; return; }
   socket.emit('join', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
 };
+// Öppna rum: listan skickas live från servern.
+socket.on('openRooms', (list) => {
+  const box = $('openRooms'); if (!box) return;
+  box.innerHTML = list.length ? list.map((r) => `<li>
+      <span class="avatar">${esc((r.host || '?').slice(0, 1).toUpperCase())}</span>
+      <span class="pname">${esc(r.host)}s rum</span>
+      <span class="muted">${r.players}/${r.max}</span>
+      <button class="btn small" data-join="${esc(r.code)}">Gå med</button>
+    </li>`).join('') : '<li class="empty">Inga öppna rum just nu – skapa ett!</li>';
+});
+$('openRooms').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-join]'); if (!b) return;
+  $('code').value = b.dataset.join; $('joinBtn').click();
+});
 $('code').addEventListener('keydown', (e) => e.key === 'Enter' && $('joinBtn').click());
 
 // ---------- återanslutning ----------
@@ -101,6 +115,9 @@ const pushSettings = (extra = {}) => socket.emit('settings', { ...S.lobby.settin
 $('maxPlayers').onchange = () => pushSettings();
 const segClick = (id, fn) => $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) pushSettings(fn(b.dataset.v)); });
 segClick('multSeg', (v) => ({ multiplier: Number(v) }));
+segClick('multCardSeg', (v) => ({ multiplier: v }));
+segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
+segClick('visSeg', (v) => ({ visibility: v }));
 segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
 segClick('speedSeg', (v) => ({ botSpeed: v }));
 $('addBotBtn').onclick = () => socket.emit('addBot', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
@@ -125,7 +142,11 @@ function renderLobby() {
   $('addBotBtn').disabled = L.players.length >= L.settings.maxPlayers;
   $('maxPlayers').value = L.settings.maxPlayers; $('maxPlayers').disabled = !isHost;
   const mult = L.settings.multiplier;
-  if (![1, 2, 5, 10].includes(mult)) setSeg('multSeg', 2, !isHost); else setSeg('multSeg', mult, !isHost);
+  setSeg('multSeg', mult, !isHost);
+  setSeg('multCardSeg', mult, !isHost);
+  setSeg('timeSeg', L.settings.turnTime || 0, !isHost);
+  setSeg('visSeg', L.settings.visibility || 'private', !isHost);
+  $('visSetting').classList.toggle('hidden', !!L.local);
   setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
   setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
   $('settingsNote').textContent = isHost ? '' : '· värden väljer';
@@ -368,7 +389,8 @@ function renderDeal(G) {
       <span class="deal-name">${r.playerId === leader ? '♛ ' : ''}${esc(nameOf(r.playerId))}${r.playerId === S.you ? ' (du)' : ''}</span>
       <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
     </div>`).join('');
-  $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`;
+  $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`
+    + (G.multiplierMode && G.multiplierMode !== 'fixed' ? `<br>Multiplikatorn blir <strong>×${G.multiplier}</strong> (${G.multiplierMode === 'highest' ? 'högsta' : 'näst högsta'} synliga kortet).` : '');
   $('deal').classList.remove('hidden');
 }
 $('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('animDone'); };
@@ -399,7 +421,32 @@ $('copyEndBtn').onclick = async () => {
   catch { t.classList.remove('hidden'); t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
 };
 
+// ---------- turtimer ----------
+let deadlines = {};
+function renderTimers() {
+  if (!S || !S.game || !S.lobby) return;
+  const total = (S.lobby.settings.turnTime || 0) * 1000, now = Date.now();
+  const left = (pid) => (deadlines[pid] ? Math.max(0, deadlines[pid] - now) : null);
+  document.querySelectorAll('.seat[data-pid]').forEach((seat) => {
+    let el = seat.querySelector('.seat-timer');
+    const ms = left(seat.dataset.pid);
+    if (ms === null) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.className = 'seat-timer'; seat.appendChild(el); }
+    el.textContent = Math.ceil(ms / 1000) + ' s';
+    el.classList.toggle('low', ms <= 5000);
+  });
+  const ms = left(S.you), box = $('myTimer');
+  box.classList.toggle('hidden', ms === null || !total);
+  if (ms !== null && total) {
+    box.querySelector('i').style.width = (100 * ms / total) + '%';
+    box.querySelector('span').textContent = Math.ceil(ms / 1000) + ' s';
+    box.classList.toggle('low', ms <= 5000);
+  }
+}
+setInterval(renderTimers, 200);
+
 socket.on('state', (state) => {
+  deadlines = Object.fromEntries(Object.entries((state.lobby && state.lobby.timers) || {}).map(([pid, ms]) => [pid, Date.now() + ms]));
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
   if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
@@ -410,6 +457,7 @@ socket.on('state', (state) => {
     const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
     if (fresh && !reduceMotion) startDealAnim();
     renderGame();
+    renderTimers();
   }
   else { $('results').classList.add('hidden'); show('lobby'); renderLobby(); }
 });
@@ -434,6 +482,9 @@ function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
   el.style.left = a.x + 'px'; el.style.top = a.y + 'px';
   const stay = linger ? 60000 : 0; // öppna kort ligger kvar tills utdelningen är klar
   el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 300ms ease ${delay + dur + stay}ms`;
+  // dold tills den börjar flyga, annars syns kortet uppvänt på kortleken innan det delas ut
+  el.style.visibility = 'hidden';
+  setTimeout(() => { el.style.visibility = 'visible'; }, delay);
   $('fx').appendChild(el);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)${linger ? ' scale(1.25)' : ''}`;

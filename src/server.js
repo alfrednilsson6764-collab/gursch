@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { Game, GameError } = require('./game');
 const { botMove } = require('./bots');
+const { timeoutMove, createTurnTimers } = require('./turntimer');
 const Tally = require('./tally');
 
 const app = express();
@@ -27,7 +28,8 @@ function newCode() {
 }
 const BOT_NAMES = ['Astrid', 'Bertil', 'Cissi', 'David', 'Elsa'];
 const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
-const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true });
+const TURN_TIMES = [0, 20, 30, 60]; // sekunder per drag, 0 = av
+const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0, visibility: 'private' });
 const cleanName = (n) => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 20) || 'Spelare';
 
 function lobbyView(room) {
@@ -38,17 +40,56 @@ function lobbyView(room) {
     inGame: !!room.game,
     tally: room.tally,
     ended: room.ended,
+    timers: room.timers ? room.timers.remaining() : {},
     players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: !!p.bot || p.sockets.size > 0 })),
   };
 }
 
 function broadcast(room) {
+  syncTimers(room);
   const lobby = lobbyView(room);
   for (const p of room.players) {
     const state = { lobby, you: p.id, game: room.game ? room.game.viewFor(p.id) : null };
     for (const sid of p.sockets) io.to(sid).emit('state', state);
   }
   scheduleBots(room);
+  pushOpenRooms();
+}
+
+// ---------- turtimer: servern äger timern ----------
+function syncTimers(room) {
+  if (!room.timers) {
+    room.timers = createTurnTimers((pid) => {
+      const g = room.game;
+      if (!g || !rooms.has(room.code)) return;
+      const move = timeoutMove(g, pid);
+      if (!move) return;
+      try { applyAction(room, pid, move); } catch (e) { console.error('Timerfel', move, e); }
+      broadcast(room);
+    });
+  }
+  // gäller alla människor, även de som tappat anslutningen, så att spelet inte fastnar
+  room.timers.sync(room.game, humans(room).map((p) => p.id), room.settings.turnTime * (Number(process.env.GURSCH_TIME_SCALE) || 1), room.hold);
+}
+
+// ---------- öppna rum ----------
+let lastOpen = '';
+function openRoomsList() {
+  return [...rooms.values()]
+    .filter((r) => r.settings.visibility === 'open' && !r.game && r.players.length < r.settings.maxPlayers && humans(r).some((p) => p.sockets.size > 0))
+    .map((r) => ({ code: r.code, host: (r.players.find((p) => p.id === r.hostId) || {}).name || '', players: r.players.length, max: r.settings.maxPlayers }));
+}
+function pushOpenRooms() {
+  const list = openRoomsList(), json = JSON.stringify(list);
+  if (json === lastOpen) return;
+  lastOpen = json;
+  io.emit('openRooms', list);
+}
+function closeRoom(room) {
+  clearTimeout(room.botTimer); clearTimeout(room.holdTimer);
+  if (room.timers) room.timers.clearAll();
+  rooms.delete(room.code);
+  pushOpenRooms();
 }
 
 // Kör ett drag (från en människa eller en bot) och för in resultatet i poängtavlan.
@@ -84,6 +125,7 @@ function attach(socket, room, player) {
 }
 
 io.on('connection', (socket) => {
+  socket.emit('openRooms', openRoomsList());
   const reply = (cb, data) => typeof cb === 'function' && cb(data);
   const ctx = () => {
     const room = rooms.get(socket.data.room);
@@ -133,7 +175,10 @@ io.on('connection', (socket) => {
     if (maxPlayers >= 2 && maxPlayers <= 6) room.settings.maxPlayers = Math.max(maxPlayers, room.players.length);
     if (multiplier >= 1 && multiplier <= 100) room.settings.multiplier = multiplier;
     if (s.botSpeed in BOT_DELAY) room.settings.botSpeed = s.botSpeed;
+    if (s.multiplier === 'highest' || s.multiplier === 'second') room.settings.multiplier = s.multiplier;
     if (typeof s.extraExchanges === 'boolean') room.settings.extraExchanges = s.extraExchanges;
+    if (TURN_TIMES.includes(Number(s.turnTime))) room.settings.turnTime = Number(s.turnTime);
+    if (s.visibility === 'open' || s.visibility === 'private') room.settings.visibility = s.visibility;
     reply(cb, { ok: true });
     broadcast(room);
   });
@@ -148,9 +193,10 @@ io.on('connection', (socket) => {
     room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })),
       { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
     // Bottarna väntar tills utdelningen har visats (eller högst 30 sekunder).
-    room.hold = room.players.some((p) => p.bot);
+    // Bottar och turtimer väntar tills utdelningen har visats (eller högst 30 sekunder).
+    room.hold = true;
     clearTimeout(room.holdTimer);
-    if (room.hold) room.holdTimer = setTimeout(() => { room.hold = false; scheduleBots(room); }, 30000);
+    room.holdTimer = setTimeout(() => { room.hold = false; broadcast(room); }, 30000);
     reply(cb, { ok: true });
     broadcast(room);
   });
@@ -180,7 +226,7 @@ io.on('connection', (socket) => {
     if (!room || !room.hold) return;
     room.hold = false;
     clearTimeout(room.holdTimer);
-    scheduleBots(room);
+    broadcast(room);
   });
 
   // Avsluta: visa slutskärmen med ställningen för alla.
@@ -212,7 +258,7 @@ io.on('connection', (socket) => {
     if (!room.game) {
       room.players = room.players.filter((p) => p !== player);
       if (room.hostId === player.id && humans(room)[0]) room.hostId = humans(room)[0].id;
-      if (humans(room).length === 0) { clearTimeout(room.botTimer); rooms.delete(room.code); }
+      if (humans(room).length === 0) closeRoom(room);
     }
     broadcast(room);
   });
@@ -237,7 +283,7 @@ io.on('connection', (socket) => {
     player.sockets.delete(socket.id);
     broadcast(room);
     if (room.players.every((p) => p.sockets.size === 0)) {
-      room.cleanup = setTimeout(() => { clearTimeout(room.botTimer); rooms.delete(room.code); }, 1000 * 60 * 60 * 6);
+      room.cleanup = setTimeout(() => closeRoom(room), 1000 * 60 * 60 * 6);
     }
   });
 });

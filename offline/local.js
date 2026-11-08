@@ -4,6 +4,13 @@ window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
   const { botMove } = window.GurschBots;
   const Tally = window.GurschTally;
+  const { timeoutMove, createTurnTimers } = window.GurschTimer;
+  const timers = createTurnTimers((pid) => {
+    const g = room && room.game; if (!g) return;
+    const move = timeoutMove(g, pid); if (!move) return;
+    try { g.act(pid, move); } catch (e) { console.error('Timerfel', e); }
+    broadcast();
+  });
   const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
   const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
@@ -19,11 +26,12 @@ window.GURSCH_LOCAL = function () {
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
-    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
+    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
+    timers.sync(room.game, ['me'], room.settings.turnTime, room.hold);
     fire('state', { lobby: lobbyView(), you: 'me', game: room.game ? room.game.viewFor('me') : null });
     scheduleBots();
   }
@@ -45,7 +53,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true }, game: null, tally: Tally.create(), ended: false,
+        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -58,27 +66,29 @@ window.GURSCH_LOCAL = function () {
         if (x >= 1 && x <= 100) room.settings.multiplier = x;
         if (data.botSpeed in BOT_DELAY) room.settings.botSpeed = data.botSpeed;
         if (typeof data.extraExchanges === 'boolean') room.settings.extraExchanges = data.extraExchanges;
+        if (data.multiplier === 'highest' || data.multiplier === 'second') room.settings.multiplier = data.multiplier;
+        if ([0, 20, 30, 60].includes(Number(data.turnTime))) room.settings.turnTime = Number(data.turnTime);
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
         room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
         room.hold = true;
         clearTimeout(holdTimer);
-        holdTimer = setTimeout(() => { if (room) { room.hold = false; scheduleBots(); } }, 30000);
+        holdTimer = setTimeout(() => { if (room) { room.hold = false; broadcast(); } }, 30000);
         reply(cb, { ok: true }); return broadcast();
       case 'action':
         try { room.game.act('me', data); reply(cb, { ok: true }); }
         catch (e) { reply(cb, { ok: false, error: e instanceof GameError ? e.message : 'Något gick fel.' }); if (!(e instanceof GameError)) console.error(e); }
         return broadcast();
       case 'animDone':
-        if (room) { room.hold = false; clearTimeout(holdTimer); scheduleBots(); }
+        if (room) { room.hold = false; clearTimeout(holdTimer); broadcast(); }
         return;
       case 'endSession':
         room.ended = true; return broadcast();
       case 'closeSession':
         room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
       case 'leave':
-        clearTimeout(botTimer); room = null; return;
+        clearTimeout(botTimer); timers.clearAll(); room = null; return;
       default:
     }
   }

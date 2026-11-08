@@ -701,8 +701,29 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
 .card .corner, .me-info strong, .room-code strong, .sd-sum, .end-score { font-variant-numeric: lining-nums; font-feature-settings: 'lnum' 1; }
 #joinBtn { white-space: nowrap; }
 
+/* ---------- öppna rum ---------- */
+.open-rooms { margin-top: 18px; }
+.open-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+.open-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.25); border: 1px solid rgba(212,175,95,.15); }
+.open-list li .muted { font-variant-numeric: lining-nums tabular-nums; }
+.open-list li .btn.small { min-height: 32px; padding: 4px 12px; }
+.open-list li.empty { justify-content: center; font-family: var(--serif); font-style: italic; color: rgba(244,234,210,.6); background: transparent; border-style: dashed; }
 
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn { display: none !important; }
+/* ---------- turtimer ---------- */
+.seat-timer { margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--gold-2); font-variant-numeric: tabular-nums lining-nums; }
+.seat-timer.low { color: #ff6b6b; animation: pulse .6s ease-in-out infinite; }
+.turn-timer { display: flex; align-items: center; gap: 10px; max-width: 520px; margin: 0 auto 6px; }
+.turn-timer-bar { flex: 1; height: 6px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(212,175,95,.2); }
+.turn-timer-bar i { display: block; height: 100%; width: 100%; border-radius: inherit; background: linear-gradient(90deg, #c9a352, #f3dfa2); transition: width .2s linear, background .3s; }
+.turn-timer span { font-size: 13px; font-weight: 700; color: var(--gold-2); min-width: 34px; text-align: right; font-variant-numeric: tabular-nums lining-nums; }
+.turn-timer.low .turn-timer-bar i { background: linear-gradient(90deg, #b3242e, #ff6b6b); }
+.turn-timer.low span { color: #ff6b6b; }
+@media (max-width: 640px) { .seat-timer { font-size: 11px; margin-top: 2px; } .turn-timer { margin-bottom: 4px; } }
+.arrive { animation-name: arrive; }
+@keyframes arrive { from { transform: translate(var(--fx), var(--fy)) scale(.9) rotate(-6deg); opacity: 0; } 40% { opacity: 1; } }
+
+
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
 </style>
 </head>
@@ -726,6 +747,10 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
         <button id="joinBtn" class="btn">Gå med</button>
       </div>
       <p id="homeError" class="error"></p>
+      <div class="open-rooms" id="openRoomsBox">
+        <div class="panel-head">Öppna rum</div>
+        <ul id="openRooms" class="open-list"></ul>
+      </div>
     </div>
   </section>
 
@@ -760,12 +785,24 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
           </div>
         </div>
         <div class="setting">
+          <div class="setting-text"><b>Multiplikator från kort</b><span>Värdet på det högsta eller näst högsta synliga kortet vid utdelningen</span></div>
+          <div class="seg" id="multCardSeg"><button data-v="highest">Högsta</button><button data-v="second">Näst högsta</button></div>
+        </div>
+        <div class="setting">
           <div class="setting-text"><b>Extra byten</b><span>Efter bytesrunda 2 får man fråga om alla vill slänga fler</span></div>
           <div class="seg" id="extraSeg"><button data-v="1">På</button><button data-v="0">Av</button></div>
         </div>
         <div class="setting">
           <div class="setting-text"><b>Bottarnas tempo</b><span>Hur snabbt bottarna gör sina drag</span></div>
           <div class="seg" id="speedSeg"><button data-v="slow">Lugnt</button><button data-v="normal">Normalt</button><button data-v="fast">Snabbt</button></div>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Tid per drag</b><span>När tiden tar slut görs ett drag åt spelaren</span></div>
+          <div class="seg" id="timeSeg"><button data-v="0">Av</button><button data-v="20">20 s</button><button data-v="30">30 s</button><button data-v="60">60 s</button></div>
+        </div>
+        <div class="setting" id="visSetting">
+          <div class="setting-text"><b>Synlighet</b><span>Öppna rum syns på startsidan så att vem som helst kan gå med</span></div>
+          <div class="seg" id="visSeg"><button data-v="private">Privat</button><button data-v="open">Öppet</button></div>
         </div>
       </div>
 
@@ -803,6 +840,7 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
       </aside>
     </div>
     <div class="me-area">
+      <div id="myTimer" class="turn-timer hidden"><div class="turn-timer-bar"><i></i></div><span></span></div>
       <div id="status" class="status"></div>
       <div id="offer" class="offer hidden"></div>
       <div id="hand" class="hand"></div>
@@ -917,7 +955,10 @@ class Game {
   /** players: [{id, name}] i sittordning (medurs). */
   constructor(players, { multiplier = 2, extraExchanges = true } = {}) {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
-    this.multiplier = multiplier;
+    // Multiplikatorn är antingen ett fast tal eller bestäms av utdelningen (Alfred 2026-11-08):
+    // 'highest' = värdet på det högsta synliga kortet, 'second' = det näst högsta synliga kortet.
+    this.multiplierMode = multiplier === 'highest' || multiplier === 'second' ? multiplier : 'fixed';
+    this.multiplier = this.multiplierMode === 'fixed' ? multiplier : null;
     this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
     this.asked = new Set(); // vilka som har frågat om extra byte
@@ -987,6 +1028,11 @@ class Game {
       values = tied.map((i) => { const c = this.draw(); reveal[i].push(c); this.setAside.push(c); return c.rank; });
     }
     this.dealReveal = reveal.map((cards, i) => ({ playerId: this.players[i].id, cards }));
+    if (this.multiplierMode !== 'fixed') {
+      const ranks = reveal.map((cards) => cards[0].rank).sort((a, b) => b - a);
+      this.multiplier = this.multiplierMode === 'highest' ? ranks[0] : ranks[1];
+      this.log(`Multiplikatorn blir ×${this.multiplier} (${this.multiplierMode === 'highest' ? 'högsta' : 'näst högsta'} synliga kortet).`);
+    }
     for (const p of this.players) this.sortHand(p);
     this.log(`${this.name(this.leader)} har högst kort och blir styrspelare.`, 'leader');
     this.event('leader', { playerId: this.players[this.leader].id, reason: 'deal' });
@@ -1342,6 +1388,7 @@ class Game {
     const v = {
       phase: this.phase,
       multiplier: this.multiplier,
+      multiplierMode: this.multiplierMode,
       leaderId: this.players[this.leader].id,
       deckCount: this.deck.length,
       players: this.players.map((p) => ({
@@ -1479,6 +1526,75 @@ module.exports = { Game, GameError, RULES, makeDeck };
 </script>
 <script>
 'use strict';
+// Turtimer för Gursch (Alfred 2026-11-08). Används av servern (och av testversionen i webbläsaren).
+// Ändrar inga spelregler: när tiden går ut görs ett vanligt drag åt spelaren.
+(function (root) {
+  const { botMove } = typeof module !== 'undefined' ? require('./bots') : root.GurschBots;
+
+  /** Draget som görs när tiden har gått ut. Under bytet är standardvalet "nöjd/behåll". null = spelaren behöver inte göra något. */
+  function timeoutMove(game, pid) {
+    const move = botMove(game, pid);
+    if (!move) return null;
+    const ex = game.exchange;
+    if (game.phase === 'exchange' && ex) {
+      if (ex.step === 'leader') return { type: 'exchangeLeader', cardIds: [] };
+      if (ex.step === 'others') return { type: 'exchangeOther', discard: false };
+      if (ex.step === 'replace') return { type: 'exchangeReplace', keep: true };
+      if (ex.step === 'extra') return ex.proposal ? { type: 'exchangeVote', yes: false } : { type: 'exchangeSatisfied' };
+    }
+    return move; // spelet och extra slängning (som alla redan sagt ja till): samma logik som bottarna
+  }
+
+  /** En nyckel som ändras när ett nytt beslut ska fattas, så att timern startar om bara då. */
+  function turnKey(game) {
+    const ex = game.exchange, pl = game.play;
+    if (ex) return `x${ex.round}:${ex.step}:${ex.proposal ? ex.proposal.by + ex.proposal.count : ''}:${Object.keys(ex.offers).join(',')}`;
+    if (pl) return `p${pl.roundNo}:${pl.table.length}:${pl.turn}`;
+    return game.phase;
+  }
+
+  /**
+   * Håller en timer per människa vars tur det är.
+   * sync(game, humanIds, seconds, paused) anropas efter varje ändring; onExpire(pid) anropas när tiden är slut.
+   */
+  function createTurnTimers(onExpire) {
+    const timers = new Map(); // pid -> { key, deadline, handle }
+    const clear = (pid) => { const t = timers.get(pid); if (t) clearTimeout(t.handle); timers.delete(pid); };
+    return {
+      sync(game, humanIds, seconds, paused) {
+        const active = new Set();
+        if (game && seconds > 0 && !paused && game.phase !== 'finished') {
+          const key = turnKey(game);
+          for (const pid of humanIds) {
+            if (!timeoutMove(game, pid)) continue;
+            active.add(pid);
+            const t = timers.get(pid);
+            if (t && t.key === key) continue;
+            clear(pid);
+            const deadline = Date.now() + seconds * 1000;
+            timers.set(pid, { key, deadline, handle: setTimeout(() => { timers.delete(pid); onExpire(pid); }, seconds * 1000) });
+          }
+        }
+        for (const pid of [...timers.keys()]) if (!active.has(pid)) clear(pid);
+      },
+      /** Kvarvarande millisekunder per spelare. */
+      remaining() {
+        const now = Date.now(), out = {};
+        for (const [pid, t] of timers) out[pid] = Math.max(0, t.deadline - now);
+        return out;
+      },
+      clearAll() { for (const pid of [...timers.keys()]) clear(pid); },
+    };
+  }
+
+  const api = { timeoutMove, turnKey, createTurnTimers };
+  if (typeof module !== 'undefined') module.exports = api;
+  else root.GurschTimer = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
 // Poängtavla över flera omgångar med samma sällskap. Delas av servern, testversionen och klienten.
 // Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten):
 // vinnaren får (förlorarens poäng − vinnarens poäng) mot förloraren, och förloraren lika mycket i minus.
@@ -1535,6 +1651,13 @@ window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
   const { botMove } = window.GurschBots;
   const Tally = window.GurschTally;
+  const { timeoutMove, createTurnTimers } = window.GurschTimer;
+  const timers = createTurnTimers((pid) => {
+    const g = room && room.game; if (!g) return;
+    const move = timeoutMove(g, pid); if (!move) return;
+    try { g.act(pid, move); } catch (e) { console.error('Timerfel', e); }
+    broadcast();
+  });
   const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
   const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
@@ -1550,11 +1673,12 @@ window.GURSCH_LOCAL = function () {
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
-    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
+    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
+    timers.sync(room.game, ['me'], room.settings.turnTime, room.hold);
     fire('state', { lobby: lobbyView(), you: 'me', game: room.game ? room.game.viewFor('me') : null });
     scheduleBots();
   }
@@ -1576,7 +1700,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true }, game: null, tally: Tally.create(), ended: false,
+        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -1589,27 +1713,29 @@ window.GURSCH_LOCAL = function () {
         if (x >= 1 && x <= 100) room.settings.multiplier = x;
         if (data.botSpeed in BOT_DELAY) room.settings.botSpeed = data.botSpeed;
         if (typeof data.extraExchanges === 'boolean') room.settings.extraExchanges = data.extraExchanges;
+        if (data.multiplier === 'highest' || data.multiplier === 'second') room.settings.multiplier = data.multiplier;
+        if ([0, 20, 30, 60].includes(Number(data.turnTime))) room.settings.turnTime = Number(data.turnTime);
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
         room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
         room.hold = true;
         clearTimeout(holdTimer);
-        holdTimer = setTimeout(() => { if (room) { room.hold = false; scheduleBots(); } }, 30000);
+        holdTimer = setTimeout(() => { if (room) { room.hold = false; broadcast(); } }, 30000);
         reply(cb, { ok: true }); return broadcast();
       case 'action':
         try { room.game.act('me', data); reply(cb, { ok: true }); }
         catch (e) { reply(cb, { ok: false, error: e instanceof GameError ? e.message : 'Något gick fel.' }); if (!(e instanceof GameError)) console.error(e); }
         return broadcast();
       case 'animDone':
-        if (room) { room.hold = false; clearTimeout(holdTimer); scheduleBots(); }
+        if (room) { room.hold = false; clearTimeout(holdTimer); broadcast(); }
         return;
       case 'endSession':
         room.ended = true; return broadcast();
       case 'closeSession':
         room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
       case 'leave':
-        clearTimeout(botTimer); room = null; return;
+        clearTimeout(botTimer); timers.clearAll(); room = null; return;
       default:
     }
   }
@@ -1702,6 +1828,20 @@ $('joinBtn').onclick = () => {
   if (!code) { $('homeError').textContent = 'Skriv in en rumskod.'; return; }
   socket.emit('join', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
 };
+// Öppna rum: listan skickas live från servern.
+socket.on('openRooms', (list) => {
+  const box = $('openRooms'); if (!box) return;
+  box.innerHTML = list.length ? list.map((r) => `<li>
+      <span class="avatar">${esc((r.host || '?').slice(0, 1).toUpperCase())}</span>
+      <span class="pname">${esc(r.host)}s rum</span>
+      <span class="muted">${r.players}/${r.max}</span>
+      <button class="btn small" data-join="${esc(r.code)}">Gå med</button>
+    </li>`).join('') : '<li class="empty">Inga öppna rum just nu – skapa ett!</li>';
+});
+$('openRooms').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-join]'); if (!b) return;
+  $('code').value = b.dataset.join; $('joinBtn').click();
+});
 $('code').addEventListener('keydown', (e) => e.key === 'Enter' && $('joinBtn').click());
 
 // ---------- återanslutning ----------
@@ -1725,6 +1865,9 @@ const pushSettings = (extra = {}) => socket.emit('settings', { ...S.lobby.settin
 $('maxPlayers').onchange = () => pushSettings();
 const segClick = (id, fn) => $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) pushSettings(fn(b.dataset.v)); });
 segClick('multSeg', (v) => ({ multiplier: Number(v) }));
+segClick('multCardSeg', (v) => ({ multiplier: v }));
+segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
+segClick('visSeg', (v) => ({ visibility: v }));
 segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
 segClick('speedSeg', (v) => ({ botSpeed: v }));
 $('addBotBtn').onclick = () => socket.emit('addBot', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
@@ -1749,7 +1892,11 @@ function renderLobby() {
   $('addBotBtn').disabled = L.players.length >= L.settings.maxPlayers;
   $('maxPlayers').value = L.settings.maxPlayers; $('maxPlayers').disabled = !isHost;
   const mult = L.settings.multiplier;
-  if (![1, 2, 5, 10].includes(mult)) setSeg('multSeg', 2, !isHost); else setSeg('multSeg', mult, !isHost);
+  setSeg('multSeg', mult, !isHost);
+  setSeg('multCardSeg', mult, !isHost);
+  setSeg('timeSeg', L.settings.turnTime || 0, !isHost);
+  setSeg('visSeg', L.settings.visibility || 'private', !isHost);
+  $('visSetting').classList.toggle('hidden', !!L.local);
   setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
   setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
   $('settingsNote').textContent = isHost ? '' : '· värden väljer';
@@ -1992,7 +2139,8 @@ function renderDeal(G) {
       <span class="deal-name">${r.playerId === leader ? '♛ ' : ''}${esc(nameOf(r.playerId))}${r.playerId === S.you ? ' (du)' : ''}</span>
       <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
     </div>`).join('');
-  $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`;
+  $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`
+    + (G.multiplierMode && G.multiplierMode !== 'fixed' ? `<br>Multiplikatorn blir <strong>×${G.multiplier}</strong> (${G.multiplierMode === 'highest' ? 'högsta' : 'näst högsta'} synliga kortet).` : '');
   $('deal').classList.remove('hidden');
 }
 $('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('animDone'); };
@@ -2023,7 +2171,32 @@ $('copyEndBtn').onclick = async () => {
   catch { t.classList.remove('hidden'); t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
 };
 
+// ---------- turtimer ----------
+let deadlines = {};
+function renderTimers() {
+  if (!S || !S.game || !S.lobby) return;
+  const total = (S.lobby.settings.turnTime || 0) * 1000, now = Date.now();
+  const left = (pid) => (deadlines[pid] ? Math.max(0, deadlines[pid] - now) : null);
+  document.querySelectorAll('.seat[data-pid]').forEach((seat) => {
+    let el = seat.querySelector('.seat-timer');
+    const ms = left(seat.dataset.pid);
+    if (ms === null) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.className = 'seat-timer'; seat.appendChild(el); }
+    el.textContent = Math.ceil(ms / 1000) + ' s';
+    el.classList.toggle('low', ms <= 5000);
+  });
+  const ms = left(S.you), box = $('myTimer');
+  box.classList.toggle('hidden', ms === null || !total);
+  if (ms !== null && total) {
+    box.querySelector('i').style.width = (100 * ms / total) + '%';
+    box.querySelector('span').textContent = Math.ceil(ms / 1000) + ' s';
+    box.classList.toggle('low', ms <= 5000);
+  }
+}
+setInterval(renderTimers, 200);
+
 socket.on('state', (state) => {
+  deadlines = Object.fromEntries(Object.entries((state.lobby && state.lobby.timers) || {}).map(([pid, ms]) => [pid, Date.now() + ms]));
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
   if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
@@ -2034,6 +2207,7 @@ socket.on('state', (state) => {
     const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
     if (fresh && !reduceMotion) startDealAnim();
     renderGame();
+    renderTimers();
   }
   else { $('results').classList.add('hidden'); show('lobby'); renderLobby(); }
 });
@@ -2058,6 +2232,9 @@ function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
   el.style.left = a.x + 'px'; el.style.top = a.y + 'px';
   const stay = linger ? 60000 : 0; // öppna kort ligger kvar tills utdelningen är klar
   el.style.transition = `transform ${dur}ms cubic-bezier(.3,.8,.3,1) ${delay}ms, opacity 300ms ease ${delay + dur + stay}ms`;
+  // dold tills den börjar flyga, annars syns kortet uppvänt på kortleken innan det delas ut
+  el.style.visibility = 'hidden';
+  setTimeout(() => { el.style.visibility = 'visible'; }, delay);
   $('fx').appendChild(el);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     el.style.transform = `translate(${b.x - a.x}px, ${b.y - a.y}px) rotate(${(Math.random() - .5) * 16}deg)${linger ? ' scale(1.25)' : ''}`;
