@@ -5,7 +5,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Game, GameError } = require('./game');
-const { botMove } = require('./bots');
+const { botMove, BOT_PROFILES, CHATTINESS } = require('./bots');
 const { timeoutMove, createTurnTimers } = require('./turntimer');
 const Reactions = require('./reactions');
 const Tally = require('./tally');
@@ -16,6 +16,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_, res) => res.send('ok'));
 app.get('/tally.js', (_, res) => res.sendFile(path.join(__dirname, 'tally.js')));
+app.get('/bots.js', (_, res) => res.sendFile(path.join(__dirname, 'bots.js')));
 
 const rooms = new Map(); // code -> room
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -27,7 +28,7 @@ function newCode() {
     if (!rooms.has(c)) return c;
   }
 }
-const BOT_NAMES = ['Astrid', 'Bertil', 'Cissi', 'David', 'Elsa'];
+const BOT_NAMES = BOT_PROFILES.map((b) => b.name); // Astrid, Bertil, Cissi, David, Elsa – en personlighet var
 const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
 const TURN_TIMES = [0, 20, 30, 60]; // sekunder per drag, 0 = av
 const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true, turnTime: 0, visibility: 'private' });
@@ -42,7 +43,7 @@ function lobbyView(room) {
     tally: room.tally,
     ended: room.ended,
     timers: room.timers ? room.timers.remaining() : {},
-    players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: !!p.bot || p.sockets.size > 0 })),
+    players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: !!p.bot || p.sockets.size > 0 })),
   };
 }
 
@@ -109,7 +110,8 @@ function sendReaction(room, player, emoji) {
 function botsReact(room) {
   const g = room.game, bots = room.players.filter((p) => p.bot);
   if (!g || !bots.length) return;
-  const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id));
+  const chat = Object.fromEntries(bots.map((b) => [b.id, CHATTINESS[b.personality] ?? 1]));
+  const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id), Math.random, chat);
   room.reactSeq = seq;
   reactions.forEach((r, k) => setTimeout(() => {
     const bot = room.players.find((p) => p.id === r.playerId);
@@ -123,7 +125,7 @@ function scheduleBots(room) {
   const g = room.game;
   if (!g || g.phase === 'finished' || room.hold || !rooms.has(room.code)) return;
   for (const p of room.players.filter((x) => x.bot)) {
-    const move = botMove(g, p.id);
+    const move = botMove(g, p.id, p.personality);
     if (!move) continue;
     room.botTimer = setTimeout(() => {
       if (room.game !== g) return;
@@ -222,13 +224,17 @@ io.on('connection', (socket) => {
   });
 
   // Värden lägger till eller tar bort en bot i rummet.
-  socket.on('addBot', (_, cb) => {
+  // Värden väljer vilken bot (personlighet) som ska läggas till; utan val tas första lediga.
+  socket.on('addBot', (choice, cb) => {
     const { room, player } = ctx();
     if (!room || room.game || room.hostId !== player.id) return reply(cb, { ok: false, error: 'Endast värden kan lägga till bottar.' });
     if (room.players.length >= room.settings.maxPlayers) return reply(cb, { ok: false, error: 'Rummet är fullt. Höj antalet spelare först.' });
-    const taken = new Set(room.players.map((p) => p.name));
-    const name = (BOT_NAMES.find((n) => !taken.has(n + ' (bot)')) || 'Bot ' + room.players.length) + ' (bot)';
-    room.players.push({ id: 'bot-' + crypto.randomUUID(), token: crypto.randomUUID(), name, ready: true, bot: true, sockets: new Set() });
+    const taken = new Set(room.players.filter((p) => p.bot).map((p) => p.name));
+    const wanted = choice && typeof choice === 'object' ? String(choice.name || '') : '';
+    const profile = BOT_PROFILES.find((b) => b.name === wanted && !taken.has(b.name + ' (bot)')) || (!wanted && BOT_PROFILES.find((b) => !taken.has(b.name + ' (bot)')));
+    if (!profile) return reply(cb, { ok: false, error: wanted ? 'Den boten är redan med.' : 'Alla bottar är redan med.' });
+    room.players.push({ id: 'bot-' + crypto.randomUUID(), token: crypto.randomUUID(), name: profile.name + ' (bot)', personality: profile.personality,
+      ready: true, bot: true, sockets: new Set() });
     reply(cb, { ok: true });
     broadcast(room);
   });

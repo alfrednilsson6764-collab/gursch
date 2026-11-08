@@ -755,8 +755,22 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
 }
 @media (prefers-reduced-motion: reduce) { .react-bubble { animation: none; opacity: 1; } }
 
+/* ---------- bottar med personligheter ---------- */
+.persona { display: block; font-size: 11px; font-weight: 500; color: rgba(243,223,162,.7); line-height: 1.3; margin-top: 1px; }
+.seat-name .persona { font-size: 10px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.pname .persona { white-space: normal; }
+.bot-picker { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; animation: pickerIn .18s ease-out; }
+.bot-opt { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 8px 10px; text-align: left; cursor: pointer;
+  font: inherit; color: #f4ead2; background: rgba(0,0,0,.3); border: 1px solid rgba(212,175,95,.25); border-radius: 12px; }
+.bot-opt:hover:not(:disabled) { border-color: var(--gold); background: rgba(212,175,95,.1); }
+.bot-opt:disabled { opacity: .45; cursor: default; }
+.bot-opt .avatar { width: 36px; height: 36px; font-size: 18px; }
+.bot-opt-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bot-opt-text b { font-size: 14px; } .bot-opt-text em { font-style: italic; font-family: var(--serif); color: var(--gold-2); font-weight: 600; margin-left: 4px; }
+.bot-opt-text span { font-size: 12px; opacity: .7; }
 
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #openRoomsBox, #visSetting { display: none !important; }
+
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
 </style>
 </head>
@@ -803,6 +817,7 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
         <div class="panel-head">Spelare <span id="playerCount" class="muted"></span></div>
         <ul id="lobbyPlayers" class="player-list"></ul>
         <button id="addBotBtn" class="btn add-bot">+ Lägg till bot</button>
+        <div id="botPicker" class="bot-picker hidden"></div>
         <div id="lobbyReacts" class="react-row" aria-label="Reaktioner"></div>
       </div>
 
@@ -1484,78 +1499,267 @@ module.exports = { Game, GameError, RULES, makeDeck };
 </script>
 <script>
 'use strict';
-// Enkla datorspelare för Gursch. botMove(game, playerId) returnerar ett drag (eller null om boten inte ska agera nu).
-// Boten ser bara sin egen hand och det som är offentligt.
+// Datorspelare för Gursch med olika personligheter (Alfred 2026-11-08).
+// botMove(game, playerId, personality) returnerar ett drag (eller null om boten inte ska agera nu).
+// Boten ser bara sin egen hand och det som är offentligt (lagda kort och de synliga korten vid utdelningen).
+// Alla drag är vanliga tillåtna drag enligt reglerna i src/game.js.
 (function (root) {
+  // ---------- personligheter ----------
+  const PERSONALITIES = {
+    cautious: { label: 'Försiktig', emoji: '🛡️', desc: 'behåller låga kort och tar sällan styret med höga' },
+    gambler: { label: 'Chansare', emoji: '🎲', desc: 'chansar alltid och tar styret när han kan' },
+    novice: { label: 'Nybörjare', emoji: '🐣', desc: 'lär sig fortfarande och gör ibland misstag' },
+    normal: { label: 'Normal', emoji: '🙂', desc: 'spelar stabilt och vanligt' },
+    expert: { label: 'Expert', emoji: '🧠', desc: 'räknar kort och planerar för att gå ut lågt' },
+  };
+  // En bot per namn
+  const BOT_PROFILES = [
+    { name: 'Astrid', personality: 'cautious' },
+    { name: 'Bertil', personality: 'gambler' },
+    { name: 'Cissi', personality: 'novice' },
+    { name: 'David', personality: 'normal' },
+    { name: 'Elsa', personality: 'expert' },
+  ];
+  // Hur gärna boten reagerar (1 = som vanligt). Bertil är mer högljudd, Astrid reagerar sällan.
+  const CHATTINESS = { cautious: 0.3, gambler: 2.5, novice: 1.2, normal: 1, expert: 0.8 };
+
+  // ---------- hjälpfunktioner ----------
   function groups(hand) {
     const g = {};
     for (const c of hand) (g[c.rank] = g[c.rank] || []).push(c);
     return Object.values(g);
   }
   const ids = (cards) => cards.map((c) => c.id);
+  const sum = (cards) => cards.reduce((s, c) => s + c.rank, 0);
   const highest = (hand, n) => [...hand].sort((a, b) => b.rank - a.rank).slice(0, n);
+  const distinct = (cards) => new Set(cards.map((c) => c.rank)).size;
+  const without = (hand, cards) => hand.filter((c) => !cards.includes(c));
 
-  function botMove(game, pid) {
-    const i = game.players.findIndex((p) => p.id === pid);
-    if (i < 0) return null;
-    const hand = game.players[i].hand;
-    const value = hand.reduce((s, c) => s + c.rank, 0);
+  /** Alla k-kombinationer av en lista (handen har högst 6 kort, så det blir få). */
+  function combos(list, k, start = 0, acc = [], out = []) {
+    if (acc.length === k) { out.push(acc.slice()); return out; }
+    for (let i = start; i <= list.length - (k - acc.length); i++) { acc.push(list[i]); combos(list, k, i + 1, acc, out); acc.pop(); }
+    return out;
+  }
 
-    if (game.phase === 'exchange') {
-      const ex = game.exchange;
-      if (ex.step === 'leader' && game.leader === i) {
-        // släng höga kort (knekt och uppåt)
-        const high = hand.filter((c) => c.rank >= 11);
-        return { type: 'exchangeLeader', cardIds: ids(high) };
-      }
-      if (ex.step === 'others' && ex.decisions[pid] === null) {
-        if (ex.leaderCount === 0) return { type: 'exchangeOther', discard: value > 54 };
-        const worst = highest(hand, ex.leaderCount);
-        const worth = worst.filter((c) => c.rank >= 9).length >= Math.ceil(ex.leaderCount / 2);
-        return { type: 'exchangeOther', discard: worth, cardIds: ids(worst) };
-      }
-      if (ex.step === 'replace' && ex.offers[pid]) {
-        const o = ex.offers[pid];
-        return { type: 'exchangeReplace', keep: o.reduce((s, c) => s + c.rank, 0) <= 7 * o.length };
-      }
-      if (ex.step === 'extra') {
-        if (ex.proposal) {
-          if (ex.proposal.votes[pid] !== null) return null;
-          const high = hand.filter((c) => c.rank >= 10).length;
-          if (high >= ex.proposal.count) return { type: 'exchangeVote', yes: true };
-          // har boten själv inte frågat än kan den kontra med så många kort den vill bli av med
-          if (high > 0 && !game.asked.has(pid)) return { type: 'exchangeVote', yes: false, counter: high };
-          return { type: 'exchangeVote', yes: false };
-        }
-        return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
-      }
-      if (ex.step === 'extraDiscard' && ex.decisions[pid] === null) return { type: 'exchangeExtraDiscard', cardIds: ids(highest(hand, ex.leaderCount)) };
-      return null;
+  /** Alla tillåtna drag i spelfasen för spelare i (lika valörer räknas bara en gång). */
+  function legalPlays(game, i) {
+    const pl = game.play, hand = game.players[i].hand;
+    const seen = new Set(), out = [];
+    const add = (cards, kind) => {
+      const key = cards.map((c) => c.rank).sort((a, b) => a - b).join(',');
+      if (seen.has(key)) return;
+      seen.add(key); out.push({ cards, kind });
+    };
+    if (pl.count === null) {
+      for (const g of groups(hand)) for (let k = 1; k <= g.length; k++) add(g.slice(0, k), k === hand.length ? 'out' : 'lead');
+      return out;
     }
+    const ok = hand.filter((c) => c.rank >= pl.combo.rank);
+    if (ok.length < pl.count) return [{ cards: [...hand].sort((a, b) => a.rank - b.rank).slice(0, pl.count), kind: 'dump' }];
+    for (const c of combos(ok, pl.count)) add(c, c.every((x) => x.rank === c[0].rank) ? 'take' : 'over');
+    return out;
+  }
+  const asMove = (p) => (p.kind === 'dump' ? { type: 'dump' } : { type: 'play', cardIds: ids(p.cards) });
 
-    if (game.phase === 'play') {
-      const pl = game.play;
-      if (pl.turn !== i) return null;
-      if (pl.count === null) {
-        // gå ut om alla kort har samma valör
-        if (hand.every((c) => c.rank === hand[0].rank)) return { type: 'play', cardIds: ids(hand) };
-        // annars starta med den grupp som gör av med mest poäng
-        const best = groups(hand).sort((a, b) => b.length * b[0].rank - a.length * a[0].rank)[0];
-        return { type: 'play', cardIds: ids(best) };
+  // ---------- kortminne för experten: vilka kort har synts? ----------
+  const memory = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  /** Kort som har lagts på bordet (alla har sett dem, och de är ute ur spelet). */
+  function seenCards(game) {
+    if (!memory) return new Map();
+    let m = memory.get(game);
+    if (!m) { m = new Map(); memory.set(game, m); }
+    const note = (c) => m.set(c.id, c.rank);
+    const pl = game.play;
+    if (pl) [...pl.table, ...pl.lastTable].forEach((t) => t.cards.forEach(note));
+    return m;
+  }
+  // ---------- inledningen (byten) ----------
+  function exchangeMove(game, i, pid, P, rnd) {
+    const ex = game.exchange, hand = game.players[i].hand, value = sum(hand);
+    // nivåer per personlighet: vilka kort räknas som "höga", när är ett erbjudande bra nog att behålla
+    const T = {
+      normal: { lead: 11, worth: 9, keepAvg: 7, otherAll: 54 },
+      cautious: { lead: 10, worth: 8, keepAvg: 6, otherAll: 48 },
+      gambler: { lead: 12, worth: 10, keepAvg: 5, otherAll: 60 },
+      novice: { lead: 11, worth: 9, keepAvg: 7, otherAll: 54 },
+      expert: { lead: 5, worth: 5, keepAvg: 6, otherAll: 30, keepMin: 3 },
+    }[P] || {};
+    if (ex.step === 'leader' && game.leader === i) {
+      let high = hand.filter((c) => c.rank >= T.lead);
+      if (P === 'expert') {
+        // byt bort allt utom de lägsta korten (sista kortet avgör), men behåll par som gör det lättare att gå ut
+        const keep = new Set(groups(hand).filter((g) => g.length >= 2 && g[0].rank <= 10).flat());
+        high = hand.filter((c) => c.rank >= T.lead && !keep.has(c));
       }
-      // ta styret med lägsta möjliga grupp
-      const ok = groups(hand).filter((g) => g[0].rank >= pl.combo.rank && g.length >= pl.count).sort((a, b) => a[0].rank - b[0].rank);
-      if (ok.length) return { type: 'play', cardIds: ids(ok[0].slice(0, pl.count)) };
-      // annars lägg över med de lägsta korten som räcker, om det går
-      const over = hand.filter((c) => c.rank >= pl.combo.rank).sort((a, b) => a.rank - b.rank);
-      if (over.length >= pl.count) return { type: 'play', cardIds: ids(over.slice(0, pl.count)) };
-      return { type: 'dump' };
+      return { type: 'exchangeLeader', cardIds: ids(high) };
     }
+    if (ex.step === 'others' && ex.decisions[pid] === null) {
+      if (ex.leaderCount === 0) return { type: 'exchangeOther', discard: value > T.otherAll };
+      const worst = highest(hand, ex.leaderCount);
+      const worth = worst.filter((c) => c.rank >= T.worth).length >= Math.ceil(ex.leaderCount / 2);
+      return { type: 'exchangeOther', discard: worth, cardIds: ids(worst) };
+    }
+    if (ex.step === 'replace' && ex.offers[pid]) {
+      const o = ex.offers[pid];
+      // experten behåller erbjudandet om det innehåller ett riktigt lågt kort – det kan bli sista kortet
+      if (P === 'expert') return { type: 'exchangeReplace', keep: Math.min(...o.map((c) => c.rank)) <= T.keepMin || sum(o) <= T.keepAvg * o.length };
+      return { type: 'exchangeReplace', keep: sum(o) <= T.keepAvg * o.length };
+    }
+    if (ex.step === 'extra') {
+      if (ex.proposal) {
+        if (ex.proposal.votes[pid] !== null) return null;
+        const high = hand.filter((c) => c.rank >= 10).length;
+        if (high >= ex.proposal.count) return { type: 'exchangeVote', yes: true };
+        // har boten själv inte frågat än kan den kontra med så många kort den vill bli av med
+        if (high > 0 && !game.asked.has(pid)) return { type: 'exchangeVote', yes: false, counter: high };
+        return { type: 'exchangeVote', yes: false };
+      }
+      return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
+    }
+    if (ex.step === 'extraDiscard' && ex.decisions[pid] === null) return { type: 'exchangeExtraDiscard', cardIds: ids(highest(hand, ex.leaderCount)) };
     return null;
   }
 
-  if (typeof module !== 'undefined') module.exports = { botMove };
-  else root.GurschBots = { botMove };
+  // ---------- spelet ----------
+  // Dagens logik ("Normal")
+  function normalPlay(game, i) {
+    const pl = game.play, hand = game.players[i].hand;
+    if (pl.count === null) {
+      // gå ut om alla kort har samma valör
+      if (hand.every((c) => c.rank === hand[0].rank)) return { type: 'play', cardIds: ids(hand) };
+      // annars starta med den grupp som gör av med mest poäng
+      const best = groups(hand).sort((a, b) => b.length * b[0].rank - a.length * a[0].rank)[0];
+      return { type: 'play', cardIds: ids(best) };
+    }
+    // ta styret med lägsta möjliga grupp
+    const ok = groups(hand).filter((g) => g[0].rank >= pl.combo.rank && g.length >= pl.count).sort((a, b) => a[0].rank - b[0].rank);
+    if (ok.length) return { type: 'play', cardIds: ids(ok[0].slice(0, pl.count)) };
+    // annars lägg över med de lägsta korten som räcker, om det går
+    const over = hand.filter((c) => c.rank >= pl.combo.rank).sort((a, b) => a.rank - b.rank);
+    if (over.length >= pl.count) return { type: 'play', cardIds: ids(over.slice(0, pl.count)) };
+    return { type: 'dump' };
+  }
+
+  // Försiktig: tar bara styret med låga kort, lägger annars över med sina högsta och behåller de låga.
+  function cautiousPlay(game, i) {
+    const pl = game.play, hand = game.players[i].hand, plays = legalPlays(game, i);
+    if (pl.count === null) {
+      const out = plays.find((p) => p.kind === 'out');
+      if (out && sum(out.cards) <= 6 * out.cards.length) return asMove(out);
+      // lägg de högsta korten först, så att de låga blir kvar
+      const lead = plays.filter((p) => p.kind === 'lead').sort((a, b) => b.cards[0].rank - a.cards[0].rank || b.cards.length - a.cards.length)[0];
+      return asMove(lead || out);
+    }
+    const takes = plays.filter((p) => p.kind === 'take' && p.cards[0].rank <= 8).sort((a, b) => a.cards[0].rank - b.cards[0].rank);
+    if (takes.length) return asMove(takes[0]);
+    const overs = plays.filter((p) => p.kind === 'over').sort((a, b) => sum(b.cards) - sum(a.cards));
+    if (overs.length) return asMove(overs[0]);
+    return asMove(plays.sort((a, b) => sum(a.cards) - sum(b.cards))[0]);
+  }
+
+  // Chansare: tar alltid styret när han kan (med högsta gruppen) och går ut så fort det går.
+  function gamblerPlay(game, i) {
+    const pl = game.play, plays = legalPlays(game, i);
+    if (pl.count === null) {
+      const out = plays.find((p) => p.kind === 'out');
+      if (out) return asMove(out);
+      // lägg största gruppen för att snabbt få en hand som går att gå ut med
+      return asMove(plays.sort((a, b) => b.cards.length - a.cards.length || b.cards[0].rank - a.cards[0].rank)[0]);
+    }
+    const takes = plays.filter((p) => p.kind === 'take').sort((a, b) => b.cards[0].rank - a.cards[0].rank);
+    if (takes.length) return asMove(takes[0]);
+    return normalPlay(game, i);
+  }
+
+  // Expert: räknar sedda kort och planerar för att gå ut med lägst poäng.
+  // För varje tillåtet drag spelar experten igenom resten av omgången många gånger i huvudet
+  // (motståndarnas okända kort slumpas bland de kort som inte har synts) och väljer draget som oftast leder till vinst.
+  function cloneForRollout(game) {
+    const c = Object.create(Object.getPrototypeOf(game));
+    Object.assign(c, game);
+    c.players = game.players.map((p) => ({ ...p, hand: p.hand.slice(), publicIds: new Set(p.publicIds) }));
+    const pl = game.play;
+    c.play = { ...pl, table: pl.table.slice(), lastTable: pl.lastTable.slice(), combo: pl.combo && { ...pl.combo } };
+    c.discard = game.discard.slice(); c.deck = game.deck.slice(); c.setAside = game.setAside.slice();
+    c.history = []; c.events = [];
+    c.log = () => {}; c.event = () => {}; c.checkInvariant = () => {};
+    return c;
+  }
+  function expertPlay(game, i, rnd) {
+    const plays = legalPlays(game, i);
+    if (plays.length === 1) return asMove(plays[0]);
+    const me = game.players[i], seen = seenCards(game);
+    // okända kort: alla 104 utom mina och de som har synts (lagda på bordet eller öppna vid utdelningen)
+    const mineIds = new Set(me.hand.map((c) => c.id));
+    const pool = [];
+    for (const s of ['S', 'H', 'D', 'C']) for (let r = 2; r <= 14; r++) for (let d = 0; d < 2; d++) {
+      const id = `${s}${r}-${d}`;
+      if (!mineIds.has(id) && !seen.has(id)) pool.push({ id, rank: r, suit: s });
+    }
+    const ROLLOUTS = 28;
+    let best = null, bestScore = -Infinity;
+    for (const p of plays) {
+      let total = 0;
+      for (let k = 0; k < ROLLOUTS; k++) {
+        const g = cloneForRollout(game);
+        // ge motståndarna slumpade händer ur de okända korten
+        const deck = pool.slice();
+        for (let j = deck.length - 1; j > 0; j--) { const x = Math.floor(rnd() * (j + 1)); [deck[j], deck[x]] = [deck[x], deck[j]]; }
+        let pos = 0;
+        for (const q of g.players) if (q.id !== me.id) { q.hand = deck.slice(pos, pos + q.hand.length); pos += q.hand.length; }
+        try {
+          g.act(me.id, asMove(p));
+          let guard = 0;
+          while (g.phase !== 'finished' && guard++ < 400) {
+            const t = g.players[g.play.turn];
+            g.act(t.id, normalPlay(g, g.play.turn));
+          }
+        } catch (e) { continue; }
+        if (g.phase !== 'finished') continue;
+        const mine = g.results.find((r) => r.playerId === me.id);
+        const winners = g.results.filter((r) => r.winner).length;
+        total += (mine.winner ? 1 / winners : 0) - (mine.loser ? 0.3 : 0) - mine.value * 0.002;
+      }
+      if (total > bestScore) { bestScore = total; best = p; }
+    }
+    return asMove(best);
+  }
+
+  function botMove(game, pid, personality = 'normal', rnd = Math.random) {
+    const i = game.players.findIndex((p) => p.id === pid);
+    if (i < 0) return null;
+    const P = PERSONALITIES[personality] ? personality : 'normal';
+    if (game.phase === 'exchange') {
+      const move = exchangeMove(game, i, pid, P, rnd);
+      return move;
+    }
+    if (game.phase !== 'play' || game.play.turn !== i) return null;
+    if (P === 'expert') seenCards(game); // uppdatera kortminnet
+    if (P === 'novice') {
+      // nybörjaren gör ungefär vart fjärde drag ett slumpat tillåtet drag istället för det bästa
+      if (rnd() < 0.25) {
+        const plays = legalPlays(game, i).filter((p) => p.kind !== 'out' || game.players[i].hand.length === 1);
+        return asMove(plays[Math.floor(rnd() * plays.length)] || legalPlays(game, i)[0]);
+      }
+      return normalPlay(game, i);
+    }
+    if (P === 'cautious') return cautiousPlay(game, i);
+    if (P === 'gambler') return gamblerPlay(game, i);
+    if (P === 'expert') return expertPlay(game, i, rnd);
+    return normalPlay(game, i);
+  }
+
+  /** Personlighet för en botnamn, t.ex. "Bertil (bot)" → "gambler". */
+  function personalityOf(name) {
+    const base = String(name || '').replace(' (bot)', '');
+    const p = BOT_PROFILES.find((b) => b.name === base);
+    return p ? p.personality : 'normal';
+  }
+
+  const api = { botMove, legalPlays, PERSONALITIES, BOT_PROFILES, CHATTINESS, personalityOf };
+  if (typeof module !== 'undefined') module.exports = api;
+  else root.GurschBots = api;
 })(this);
 
 </script>
@@ -1646,23 +1850,27 @@ module.exports = { Game, GameError, RULES, makeDeck };
   /**
    * Bottar reagerar ibland på det som hänt sedan förra gången:
    * 👏 eller 😤 när någon tar styret, 😂 när de vinner en omgång. Bara ibland, så att det inte blir tjatigt.
+   * chattiness per bot ändrar hur ofta (Bertil är högljudd, Astrid reagerar sällan).
    * Returnerar { reactions: [{ playerId, emoji }], seq }.
    */
-  function botReactions(game, sinceSeq, botIds, rnd = Math.random) {
+  function botReactions(game, sinceSeq, botIds, rnd = Math.random, chattiness = {}) {
+    const c = (id) => (chattiness[id] == null ? 1 : chattiness[id]); // personlighet: högljudd > 1, tystlåten < 1
     const out = [];
     if (!game || !botIds.length) return { reactions: out, seq: sinceSeq };
     let seq = sinceSeq;
     for (const ev of game.events) {
       if (ev.seq <= sinceSeq) continue;
       seq = Math.max(seq, ev.seq);
-      if (ev.type === 'leader' && ev.reason === 'beat' && rnd() < 0.2) {
+      if (ev.type === 'leader' && ev.reason === 'beat') {
         const others = botIds.filter((id) => id !== ev.playerId);
-        if (others.length) out.push({ playerId: others[Math.floor(rnd() * others.length)], emoji: rnd() < 0.5 ? '👏' : '😤' });
+        if (!others.length) continue;
+        const who = others[Math.floor(rnd() * others.length)];
+        if (rnd() < Math.min(0.9, 0.2 * c(who))) out.push({ playerId: who, emoji: rnd() < 0.5 ? '👏' : '😤' });
       }
     }
     if (game.phase === 'finished' && !game.botsCheered) {
       game.botsCheered = true;
-      for (const r of game.results || []) if (r.winner && botIds.includes(r.playerId) && rnd() < 0.6) out.push({ playerId: r.playerId, emoji: '😂' });
+      for (const r of game.results || []) if (r.winner && botIds.includes(r.playerId) && rnd() < Math.min(1, 0.6 * c(r.playerId))) out.push({ playerId: r.playerId, emoji: '😂' });
     }
     return { reactions: out, seq };
   }
@@ -1731,7 +1939,7 @@ module.exports = { Game, GameError, RULES, makeDeck };
 // Ersätter servern i testversionen: spelmotorn och bottarna körs direkt i webbläsaren.
 window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
-  const { botMove } = window.GurschBots;
+  const { botMove, BOT_PROFILES, CHATTINESS } = window.GurschBots;
   const Tally = window.GurschTally;
   const { timeoutMove, createTurnTimers } = window.GurschTimer;
   const Reactions = window.GurschReactions;
@@ -1739,7 +1947,8 @@ window.GURSCH_LOCAL = function () {
   function botsReact() {
     const g = room && room.game; if (!g) return;
     const bots = room.players.filter((p) => p.bot);
-    const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id));
+    const chat = Object.fromEntries(bots.map((b) => [b.id, CHATTINESS[b.personality] ?? 1]));
+    const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id), Math.random, chat);
     room.reactSeq = seq;
     reactions.forEach((r, k) => setTimeout(() => {
       const bot = room && room.players.find((p) => p.id === r.playerId);
@@ -1752,7 +1961,7 @@ window.GURSCH_LOCAL = function () {
     try { g.act(pid, move); } catch (e) { console.error('Timerfel', e); }
     broadcast();
   });
-  const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
+  const BOT_NAMES = BOT_PROFILES.map((b) => b.name + ' (bot)');
   const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
   let room = null, botTimer = null, holdTimer = null;
@@ -1762,13 +1971,13 @@ window.GURSCH_LOCAL = function () {
 
   function syncBots() {
     const n = room.settings.maxPlayers;
-    room.players = [room.players[0], ...BOT_NAMES.slice(0, n - 1).map((name, k) => ({ id: 'bot' + k, name, ready: true, bot: true }))];
+    room.players = [room.players[0], ...BOT_PROFILES.slice(0, n - 1).map((b, k) => ({ id: 'bot' + k, name: b.name + ' (bot)', personality: b.personality, ready: true, bot: true }))];
   }
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
     return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(),
-      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: true })) };
+      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
@@ -1782,7 +1991,7 @@ window.GURSCH_LOCAL = function () {
     const g = room && room.game;
     if (!g || g.phase === 'finished' || room.hold) return; // vänta tills utdelningen har visats
     for (const p of room.players.filter((x) => x.bot)) {
-      const move = botMove(g, p.id);
+      const move = botMove(g, p.id, p.personality);
       if (!move) continue;
       botTimer = setTimeout(() => {
         try { g.act(p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
@@ -1969,7 +2178,24 @@ segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
 segClick('visSeg', (v) => ({ visibility: v }));
 segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
 segClick('speedSeg', (v) => ({ botSpeed: v }));
-$('addBotBtn').onclick = () => socket.emit('addBot', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
+// Botval: namn, emoji och en kort beskrivning per personlighet
+const BOTS = window.GurschBots || { PERSONALITIES: {}, BOT_PROFILES: [] };
+const persona = (p) => BOTS.PERSONALITIES[p] || BOTS.PERSONALITIES.normal || { label: '', emoji: '🤖', desc: '' };
+$('addBotBtn').onclick = () => {
+  const taken = new Set(S.lobby.players.filter((p) => p.bot).map((p) => p.name.replace(' (bot)', '')));
+  $('botPicker').innerHTML = BOTS.BOT_PROFILES.map((b) => {
+    const P = persona(b.personality);
+    return `<button class="bot-opt" data-bot="${b.name}" ${taken.has(b.name) ? 'disabled' : ''}>
+      <span class="avatar bot">${P.emoji}</span><span class="bot-opt-text"><b>${b.name} ${P.emoji} <em>${P.label}</em></b><span>${P.desc}</span></span>
+      ${taken.has(b.name) ? '<span class="badge muted">Med</span>' : ''}</button>`;
+  }).join('');
+  $('botPicker').classList.toggle('hidden');
+};
+$('botPicker').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bot]'); if (!b || b.disabled) return;
+  socket.emit('addBot', { name: b.dataset.bot }, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
+  $('botPicker').classList.add('hidden');
+});
 $('lobbyPlayers').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) socket.emit('removeBot', b.dataset.remove); });
 function setSeg(id, value, disabled) {
   for (const b of $(id).querySelectorAll('button')) { b.classList.toggle('on', b.dataset.v === String(value)); b.disabled = disabled; }
@@ -1981,8 +2207,8 @@ function renderLobby() {
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
   $('lobbyPlayers').innerHTML = L.players.map((p) => `<li data-pid="${p.id}">
-      <span class="avatar ${p.bot ? 'bot' : ''}">${p.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}</span>
-      <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}</span>
+      <span class="avatar ${p.bot ? 'bot' : ''}" ${p.bot ? `title="${persona(p.personality).label}"` : ''}>${p.bot ? persona(p.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}</span>
+      <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}${p.bot ? `<small class="persona">${persona(p.personality).label} · ${persona(p.personality).desc}</small>` : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
       ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten">✕</button>` : ''}
       ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
@@ -2058,8 +2284,8 @@ function renderGame() {
     const offer = ex && ex.offers[p.id];
     const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" data-pid="${p.id}" style="left:${pos[k].x}%;top:${pos[k].y}%">
-      <div class="seat-avatar ${lp.bot ? 'bot' : ''}">${lp.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
-      <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}
+      <div class="seat-avatar ${lp.bot ? 'bot' : ''}" ${lp.bot ? `title="${persona(lp.personality).label}: ${persona(lp.personality).desc}"` : ''}>${lp.bot ? persona(lp.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
+      <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}${lp.bot ? `<small class="persona">${persona(lp.personality).label}</small>` : ''}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}

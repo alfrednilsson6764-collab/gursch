@@ -120,7 +120,24 @@ segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
 segClick('visSeg', (v) => ({ visibility: v }));
 segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
 segClick('speedSeg', (v) => ({ botSpeed: v }));
-$('addBotBtn').onclick = () => socket.emit('addBot', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
+// Botval: namn, emoji och en kort beskrivning per personlighet
+const BOTS = window.GurschBots || { PERSONALITIES: {}, BOT_PROFILES: [] };
+const persona = (p) => BOTS.PERSONALITIES[p] || BOTS.PERSONALITIES.normal || { label: '', emoji: '🤖', desc: '' };
+$('addBotBtn').onclick = () => {
+  const taken = new Set(S.lobby.players.filter((p) => p.bot).map((p) => p.name.replace(' (bot)', '')));
+  $('botPicker').innerHTML = BOTS.BOT_PROFILES.map((b) => {
+    const P = persona(b.personality);
+    return `<button class="bot-opt" data-bot="${b.name}" ${taken.has(b.name) ? 'disabled' : ''}>
+      <span class="avatar bot">${P.emoji}</span><span class="bot-opt-text"><b>${b.name} ${P.emoji} <em>${P.label}</em></b><span>${P.desc}</span></span>
+      ${taken.has(b.name) ? '<span class="badge muted">Med</span>' : ''}</button>`;
+  }).join('');
+  $('botPicker').classList.toggle('hidden');
+};
+$('botPicker').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-bot]'); if (!b || b.disabled) return;
+  socket.emit('addBot', { name: b.dataset.bot }, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
+  $('botPicker').classList.add('hidden');
+});
 $('lobbyPlayers').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) socket.emit('removeBot', b.dataset.remove); });
 function setSeg(id, value, disabled) {
   for (const b of $(id).querySelectorAll('button')) { b.classList.toggle('on', b.dataset.v === String(value)); b.disabled = disabled; }
@@ -132,8 +149,8 @@ function renderLobby() {
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
   $('lobbyPlayers').innerHTML = L.players.map((p) => `<li data-pid="${p.id}">
-      <span class="avatar ${p.bot ? 'bot' : ''}">${p.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}</span>
-      <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}</span>
+      <span class="avatar ${p.bot ? 'bot' : ''}" ${p.bot ? `title="${persona(p.personality).label}"` : ''}>${p.bot ? persona(p.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}</span>
+      <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}${p.bot ? `<small class="persona">${persona(p.personality).label} · ${persona(p.personality).desc}</small>` : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
       ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten">✕</button>` : ''}
       ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
@@ -209,8 +226,8 @@ function renderGame() {
     const offer = ex && ex.offers[p.id];
     const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" data-pid="${p.id}" style="left:${pos[k].x}%;top:${pos[k].y}%">
-      <div class="seat-avatar ${lp.bot ? 'bot' : ''}">${lp.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
-      <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}
+      <div class="seat-avatar ${lp.bot ? 'bot' : ''}" ${lp.bot ? `title="${persona(lp.personality).label}: ${persona(lp.personality).desc}"` : ''}>${lp.bot ? persona(lp.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
+      <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}${lp.bot ? `<small class="persona">${persona(lp.personality).label}</small>` : ''}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}

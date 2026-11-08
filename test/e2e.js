@@ -293,7 +293,13 @@ async function runWithBots() {
   assert.ok((await emit(friend, 'join', { code: res.code, name: 'Vän' })).ok);
   const notHost = await emit(friend, 'addBot'); assert.ok(!notHost.ok, 'bara värden får lägga till bottar');
   await emit(host, 'settings', { maxPlayers: 5, multiplier: 10, botSpeed: 'fast', extraExchanges: false });
-  for (let k = 0; k < 3; k++) assert.ok((await emit(host, 'addBot')).ok);
+  assert.ok((await emit(host, 'addBot', { name: 'Elsa' })).ok);
+  assert.ok(!(await emit(host, 'addBot', { name: 'Elsa' })).ok, 'samma bot två gånger');
+  const elsa = host.state.lobby.players.find((p) => p.name === 'Elsa (bot)');
+  assert.strictEqual(elsa.personality, 'expert');
+  assert.ok((await emit(host, 'addBot', { name: 'Bertil' })).ok);
+  assert.ok((await emit(host, 'addBot')).ok);
+  assert.strictEqual(host.state.lobby.players.find((p) => p.name === 'Astrid (bot)').personality, 'cautious');
   assert.ok(!(await emit(host, 'addBot')).ok, 'rummet är fullt');
   const L = host.state.lobby;
   assert.strictEqual(L.players.filter((p) => p.bot).length, 3);

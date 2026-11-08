@@ -14,10 +14,11 @@ ${gameJs}
 
 let html = R('public/index.html');
 const extraCss = `
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #openRoomsBox, #visSetting { display: none !important; }
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }`;
 html = html
   .replace('  <script src="tally.js"></script>\n', '')
+  .replace('  <script src="bots.js"></script>\n', '')
   .replace('<title>GURSCH</title>', '<title>GURSCH – testa mot bottar</title>')
   .replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${R('public/style.css')}\n${extraCss}\n</style>`)
   .replace('<p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>',

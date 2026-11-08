@@ -2,7 +2,7 @@
 // Ersätter servern i testversionen: spelmotorn och bottarna körs direkt i webbläsaren.
 window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
-  const { botMove } = window.GurschBots;
+  const { botMove, BOT_PROFILES, CHATTINESS } = window.GurschBots;
   const Tally = window.GurschTally;
   const { timeoutMove, createTurnTimers } = window.GurschTimer;
   const Reactions = window.GurschReactions;
@@ -10,7 +10,8 @@ window.GURSCH_LOCAL = function () {
   function botsReact() {
     const g = room && room.game; if (!g) return;
     const bots = room.players.filter((p) => p.bot);
-    const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id));
+    const chat = Object.fromEntries(bots.map((b) => [b.id, CHATTINESS[b.personality] ?? 1]));
+    const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id), Math.random, chat);
     room.reactSeq = seq;
     reactions.forEach((r, k) => setTimeout(() => {
       const bot = room && room.players.find((p) => p.id === r.playerId);
@@ -23,7 +24,7 @@ window.GURSCH_LOCAL = function () {
     try { g.act(pid, move); } catch (e) { console.error('Timerfel', e); }
     broadcast();
   });
-  const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
+  const BOT_NAMES = BOT_PROFILES.map((b) => b.name + ' (bot)');
   const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
   let room = null, botTimer = null, holdTimer = null;
@@ -33,13 +34,13 @@ window.GURSCH_LOCAL = function () {
 
   function syncBots() {
     const n = room.settings.maxPlayers;
-    room.players = [room.players[0], ...BOT_NAMES.slice(0, n - 1).map((name, k) => ({ id: 'bot' + k, name, ready: true, bot: true }))];
+    room.players = [room.players[0], ...BOT_PROFILES.slice(0, n - 1).map((b, k) => ({ id: 'bot' + k, name: b.name + ' (bot)', personality: b.personality, ready: true, bot: true }))];
   }
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
     return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(),
-      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: true })) };
+      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
@@ -53,7 +54,7 @@ window.GURSCH_LOCAL = function () {
     const g = room && room.game;
     if (!g || g.phase === 'finished' || room.hold) return; // vänta tills utdelningen har visats
     for (const p of room.players.filter((x) => x.bot)) {
-      const move = botMove(g, p.id);
+      const move = botMove(g, p.id, p.personality);
       if (!move) continue;
       botTimer = setTimeout(() => {
         try { g.act(p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
