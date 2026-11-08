@@ -2,6 +2,7 @@
 // Kör servern och spelar hela spel med 2–6 klienter över Socket.IO.
 // Kontrollerar också att ingen klient får se andras dolda kort, att fusk nekas och att återanslutning fungerar.
 const assert = require('assert');
+process.env.GURSCH_BOT_DELAY = '3'; // snabba bottar i testet
 const { io } = require('socket.io-client');
 const { server } = require('../src/server');
 const { Game, GameError } = require('../src/game');
@@ -282,7 +283,42 @@ async function run(n) {
   console.log(`OK: helt spel över nätverket med ${n} spelare (${R.map((r) => r.name + ' ' + r.score).join(', ')})`);
 }
 
+// Två människor och tre bottar i samma rum, med inställningar från menyn.
+async function runWithBots() {
+  const host = client('Värd'); await new Promise((r) => host.on('connect', r));
+  const res = await emit(host, 'create', { name: 'Värd' });
+  const friend = client('Vän'); await new Promise((r) => friend.on('connect', r));
+  assert.ok((await emit(friend, 'join', { code: res.code, name: 'Vän' })).ok);
+  const notHost = await emit(friend, 'addBot'); assert.ok(!notHost.ok, 'bara värden får lägga till bottar');
+  await emit(host, 'settings', { maxPlayers: 5, multiplier: 10, botSpeed: 'fast', extraExchanges: false });
+  for (let k = 0; k < 3; k++) assert.ok((await emit(host, 'addBot')).ok);
+  assert.ok(!(await emit(host, 'addBot')).ok, 'rummet är fullt');
+  const L = host.state.lobby;
+  assert.strictEqual(L.players.filter((p) => p.bot).length, 3);
+  assert.deepStrictEqual([L.settings.multiplier, L.settings.botSpeed, L.settings.extraExchanges], [10, 'fast', false]);
+  const gone = L.players.find((p) => p.bot).id;
+  await emit(host, 'removeBot', gone); assert.strictEqual(host.state.lobby.players.length, 4);
+  await emit(host, 'addBot');
+  friend.emit('ready', true); await wait(20);
+  assert.ok((await emit(host, 'start')).ok);
+  await wait(50);
+  assert.strictEqual(host.state.game.phase, 'exchange');
+  host.emit('animDone');
+  let iters = 0;
+  while (host.state.game.phase !== 'finished') {
+    if (++iters > 20000) throw new Error('fastnade med bottar');
+    assert.ok(!host.state.game.exchange || host.state.game.exchange.step !== 'extra', 'extra byten är avstängda');
+    let any = false;
+    for (const p of [host, friend]) { const r = await bot(p); if (r) { if (!r.ok) throw new Error(r.error); any = true; } }
+    if (!any) await wait(5);
+  }
+  await wait(30);
+  host.state.game.results.forEach((r) => assert.strictEqual(r.score, r.value * 10));
+  host.close(); friend.close();
+  console.log('OK: spel över nätverket med 2 människor och 3 bottar');
+}
+
 server.listen(PORT, async () => {
-  try { for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
+  try { await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
   catch (e) { console.error(e); process.exit(1); }
 });

@@ -49,9 +49,10 @@ const fail = (msg) => { throw new GameError(msg); };
 
 class Game {
   /** players: [{id, name}] i sittordning (medurs). */
-  constructor(players, { multiplier = 2 } = {}) {
+  constructor(players, { multiplier = 2, extraExchanges = true } = {}) {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
     this.multiplier = multiplier;
+    this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
     this.asked = new Set(); // vilka som har frågat om extra byte
     this.deck = makeDeck();
@@ -225,6 +226,7 @@ class Game {
     if (Object.keys(ex.offers).length > 0) return;
     for (const p of this.players) if (p.hand.length !== 6) throw new Error('Fel antal kort efter byte');
     if (ex.round === 1) return this.startExchangeRound(2);
+    if (!this.extraExchanges) return this.startPlay();
     this.startExtra(ex.round + 1);
   }
 

@@ -5,6 +5,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { Game, GameError } = require('./game');
+const { botMove } = require('./bots');
 const Tally = require('./tally');
 
 const app = express();
@@ -24,6 +25,9 @@ function newCode() {
     if (!rooms.has(c)) return c;
   }
 }
+const BOT_NAMES = ['Astrid', 'Bertil', 'Cissi', 'David', 'Elsa'];
+const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
+const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true });
 const cleanName = (n) => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 20) || 'Spelare';
 
 function lobbyView(room) {
@@ -34,7 +38,7 @@ function lobbyView(room) {
     inGame: !!room.game,
     tally: room.tally,
     ended: room.ended,
-    players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, connected: p.sockets.size > 0 })),
+    players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: !!p.bot || p.sockets.size > 0 })),
   };
 }
 
@@ -44,7 +48,32 @@ function broadcast(room) {
     const state = { lobby, you: p.id, game: room.game ? room.game.viewFor(p.id) : null };
     for (const sid of p.sockets) io.to(sid).emit('state', state);
   }
+  scheduleBots(room);
 }
+
+// Kör ett drag (från en människa eller en bot) och för in resultatet i poängtavlan.
+function applyAction(room, pid, a) {
+  room.game.act(pid, a);
+  if (room.game.phase === 'finished' && !room.game.tallied) { room.game.tallied = true; Tally.addRound(room.tally, room.game.results); }
+}
+
+// Bottarna gör ett drag i taget med en kort paus, så att människorna hinner se vad som händer.
+function scheduleBots(room) {
+  clearTimeout(room.botTimer);
+  const g = room.game;
+  if (!g || g.phase === 'finished' || room.hold || !rooms.has(room.code)) return;
+  for (const p of room.players.filter((x) => x.bot)) {
+    const move = botMove(g, p.id);
+    if (!move) continue;
+    room.botTimer = setTimeout(() => {
+      if (room.game !== g) return;
+      try { applyAction(room, p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
+      broadcast(room);
+    }, Number(process.env.GURSCH_BOT_DELAY) || BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
+    return;
+  }
+}
+const humans = (room) => room.players.filter((p) => !p.bot);
 
 function attach(socket, room, player) {
   player.sockets.add(socket.id);
@@ -64,7 +93,7 @@ io.on('connection', (socket) => {
 
   socket.on('create', ({ name, token } = {}, cb) => {
     const code = newCode();
-    const room = { code, hostId: null, settings: { maxPlayers: 6, multiplier: 2 }, players: [], game: null, tally: Tally.create(), ended: false };
+    const room = { code, hostId: null, settings: DEFAULT_SETTINGS(), players: [], game: null, tally: Tally.create(), ended: false };
     rooms.set(code, room);
     const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: cleanName(name), ready: false, sockets: new Set() };
     room.players.push(player);
@@ -103,6 +132,8 @@ io.on('connection', (socket) => {
     const multiplier = Math.round(Number(s.multiplier));
     if (maxPlayers >= 2 && maxPlayers <= 6) room.settings.maxPlayers = Math.max(maxPlayers, room.players.length);
     if (multiplier >= 1 && multiplier <= 100) room.settings.multiplier = multiplier;
+    if (s.botSpeed in BOT_DELAY) room.settings.botSpeed = s.botSpeed;
+    if (typeof s.extraExchanges === 'boolean') room.settings.extraExchanges = s.extraExchanges;
     reply(cb, { ok: true });
     broadcast(room);
   });
@@ -114,9 +145,42 @@ io.on('connection', (socket) => {
     if (room.players.length < 2) return reply(cb, { ok: false, error: 'Det behövs minst två spelare.' });
     if (!room.game && room.players.some((p) => !p.ready && p.id !== room.hostId))
       return reply(cb, { ok: false, error: 'Alla spelare är inte redo än.' });
-    room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier });
+    room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })),
+      { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
+    // Bottarna väntar tills utdelningen har visats (eller högst 30 sekunder).
+    room.hold = room.players.some((p) => p.bot);
+    clearTimeout(room.holdTimer);
+    if (room.hold) room.holdTimer = setTimeout(() => { room.hold = false; scheduleBots(room); }, 30000);
     reply(cb, { ok: true });
     broadcast(room);
+  });
+
+  // Värden lägger till eller tar bort en bot i rummet.
+  socket.on('addBot', (_, cb) => {
+    const { room, player } = ctx();
+    if (!room || room.game || room.hostId !== player.id) return reply(cb, { ok: false, error: 'Endast värden kan lägga till bottar.' });
+    if (room.players.length >= room.settings.maxPlayers) return reply(cb, { ok: false, error: 'Rummet är fullt. Höj antalet spelare först.' });
+    const taken = new Set(room.players.map((p) => p.name));
+    const name = (BOT_NAMES.find((n) => !taken.has(n + ' (bot)')) || 'Bot ' + room.players.length) + ' (bot)';
+    room.players.push({ id: 'bot-' + crypto.randomUUID(), token: crypto.randomUUID(), name, ready: true, bot: true, sockets: new Set() });
+    reply(cb, { ok: true });
+    broadcast(room);
+  });
+  socket.on('removeBot', (id, cb) => {
+    const { room, player } = ctx();
+    if (!room || room.game || room.hostId !== player.id) return reply(cb, { ok: false, error: 'Endast värden kan ta bort bottar.' });
+    room.players = room.players.filter((p) => !(p.bot && p.id === id));
+    reply(cb, { ok: true });
+    broadcast(room);
+  });
+
+  // Utdelningen har visats hos en spelare – då får bottarna börja.
+  socket.on('animDone', () => {
+    const { room } = ctx();
+    if (!room || !room.hold) return;
+    room.hold = false;
+    clearTimeout(room.holdTimer);
+    scheduleBots(room);
   });
 
   // Avsluta: visa slutskärmen med ställningen för alla.
@@ -147,8 +211,8 @@ io.on('connection', (socket) => {
     socket.data.room = null;
     if (!room.game) {
       room.players = room.players.filter((p) => p !== player);
-      if (room.hostId === player.id && room.players[0]) room.hostId = room.players[0].id;
-      if (room.players.length === 0) rooms.delete(room.code);
+      if (room.hostId === player.id && humans(room)[0]) room.hostId = humans(room)[0].id;
+      if (humans(room).length === 0) { clearTimeout(room.botTimer); rooms.delete(room.code); }
     }
     broadcast(room);
   });
@@ -158,8 +222,7 @@ io.on('connection', (socket) => {
     const { room, player } = ctx();
     if (!room || !room.game) return reply(cb, { ok: false, error: 'Inget spel pågår.' });
     try {
-      room.game.act(player.id, a);
-      if (room.game.phase === 'finished' && !room.game.tallied) { room.game.tallied = true; Tally.addRound(room.tally, room.game.results); }
+      applyAction(room, player.id, a);
       reply(cb, { ok: true });
       broadcast(room);
     } catch (e) {
@@ -174,7 +237,7 @@ io.on('connection', (socket) => {
     player.sockets.delete(socket.id);
     broadcast(room);
     if (room.players.every((p) => p.sockets.size === 0)) {
-      room.cleanup = setTimeout(() => rooms.delete(room.code), 1000 * 60 * 60 * 6);
+      room.cleanup = setTimeout(() => { clearTimeout(room.botTimer); rooms.delete(room.code); }, 1000 * 60 * 60 * 6);
     }
   });
 });

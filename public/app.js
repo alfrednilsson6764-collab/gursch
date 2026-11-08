@@ -63,6 +63,15 @@ function needName() {
   store.set('name', n); return n;
 }
 $('createBtn').onclick = () => { const name = needName(); if (name) socket.emit('create', { name }, enter); };
+// Snabbstart mot bottar: skapa ett rum och fyll på med tre bottar (fler kan läggas till i rummet).
+$('botsBtn').onclick = () => {
+  const name = needName(); if (!name) return;
+  socket.emit('create', { name }, (res) => {
+    enter(res); if (!res.ok) return;
+    socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true });
+    for (let k = 0; k < 3; k++) socket.emit('addBot');
+  });
+};
 $('joinBtn').onclick = () => {
   const name = needName(); const code = $('code').value.trim().toUpperCase();
   if (!name) return;
@@ -87,9 +96,18 @@ $('copyBtn').onclick = async () => {
 $('readyBtn').onclick = () => { const me = S.lobby.players.find((p) => p.id === S.you); socket.emit('ready', !me.ready); };
 $('startBtn').onclick = () => socket.emit('start', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
 $('leaveBtn').onclick = () => { socket.emit('leave'); store.set('code', null); S = null; setUrl(location.pathname); show('home'); };
-const pushSettings = () => socket.emit('settings', { maxPlayers: $('maxPlayers').value, multiplier: $('multiplier').value }, (r) => { if (!r.ok) $('lobbyError').textContent = r.error; });
-$('maxPlayers').onchange = pushSettings;
-$('multiplier').onchange = pushSettings;
+const pushSettings = (extra = {}) => socket.emit('settings', { ...S.lobby.settings, maxPlayers: $('maxPlayers').value, ...extra },
+  (r) => { if (!r.ok) $('lobbyError').textContent = r.error; });
+$('maxPlayers').onchange = () => pushSettings();
+const segClick = (id, fn) => $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) pushSettings(fn(b.dataset.v)); });
+segClick('multSeg', (v) => ({ multiplier: Number(v) }));
+segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
+segClick('speedSeg', (v) => ({ botSpeed: v }));
+$('addBotBtn').onclick = () => socket.emit('addBot', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
+$('lobbyPlayers').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) socket.emit('removeBot', b.dataset.remove); });
+function setSeg(id, value, disabled) {
+  for (const b of $(id).querySelectorAll('button')) { b.classList.toggle('on', b.dataset.v === String(value)); b.disabled = disabled; }
+}
 
 function renderLobby() {
   const L = S.lobby, isHost = L.hostId === S.you;
@@ -97,13 +115,20 @@ function renderLobby() {
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
   $('lobbyPlayers').innerHTML = L.players.map((p) => `<li>
-      <span class="dot ${p.connected ? 'on' : ''}"></span>
+      <span class="avatar ${p.bot ? 'bot' : ''}">${p.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}</span>
       <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
+      ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten">✕</button>` : ''}
+      ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
     </li>`).join('');
+  $('addBotBtn').classList.toggle('hidden', !isHost || !!L.local);
+  $('addBotBtn').disabled = L.players.length >= L.settings.maxPlayers;
   $('maxPlayers').value = L.settings.maxPlayers; $('maxPlayers').disabled = !isHost;
-  if (document.activeElement !== $('multiplier')) $('multiplier').value = L.settings.multiplier;
-  $('multiplier').disabled = !isHost;
+  const mult = L.settings.multiplier;
+  if (![1, 2, 5, 10].includes(mult)) setSeg('multSeg', 2, !isHost); else setSeg('multSeg', mult, !isHost);
+  setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
+  setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
+  $('settingsNote').textContent = isHost ? '' : '· värden väljer';
   const me = L.players.find((p) => p.id === S.you);
   $('readyBtn').classList.toggle('hidden', isHost);
   $('readyBtn').textContent = me && me.ready ? 'Inte redo' : 'Jag är redo';
@@ -163,7 +188,8 @@ function renderGame() {
     const offer = ex && ex.offers[p.id];
     const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" data-pid="${p.id}" style="left:${pos[k].x}%;top:${pos[k].y}%">
-      <div class="seat-name">${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}${esc(p.name)}
+      <div class="seat-avatar ${lp.bot ? 'bot' : ''}">${lp.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
+      <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}

@@ -14,7 +14,7 @@ ${gameJs}
 
 let html = R('public/index.html');
 const extraCss = `
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }`;
 html = html
   .replace('  <script src="tally.js"></script>\n', '')
@@ -22,7 +22,7 @@ html = html
   .replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${R('public/style.css')}\n${extraCss}\n</style>`)
   .replace('<p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>',
     '<p class="tagline"><span class="test-badge">TESTVERSION</span><br>Spela mot bottar · välj antal spelare i rummet</p>')
-  .replace('<button id="createBtn" class="btn primary big">Skapa spel</button>', '<button id="createBtn" class="btn primary big">Spela mot bottar</button>')
+  .replace('<button id="createBtn" class="btn primary big">Skapa spel med vänner</button>', '<button id="createBtn" class="btn primary big">Spela mot bottar</button>')
   .replace('<script src="/socket.io/socket.io.js"></script>\n  <script src="app.js"></script>', () =>
     ['<script>', shim, '</script>',
       '<script>', R('src/bots.js'), '</script>',

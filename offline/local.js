@@ -5,7 +5,7 @@ window.GURSCH_LOCAL = function () {
   const { botMove } = window.GurschBots;
   const Tally = window.GurschTally;
   const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
-  const BOT_DELAY = 900;
+  const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
   let room = null, botTimer = null, holdTimer = null;
 
@@ -19,8 +19,8 @@ window.GURSCH_LOCAL = function () {
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
-    return { code: 'TEST', hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
-      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, connected: true })) };
+    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
+      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
@@ -37,7 +37,7 @@ window.GURSCH_LOCAL = function () {
       botTimer = setTimeout(() => {
         try { g.act(p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
         broadcast();
-      }, BOT_DELAY);
+      }, BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
       return;
     }
   }
@@ -45,7 +45,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2 }, game: null, tally: Tally.create(), ended: false,
+        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -56,10 +56,12 @@ window.GURSCH_LOCAL = function () {
         const m = Math.round(Number(data.maxPlayers)), x = Math.round(Number(data.multiplier));
         if (m >= 2 && m <= 6) room.settings.maxPlayers = m;
         if (x >= 1 && x <= 100) room.settings.multiplier = x;
+        if (data.botSpeed in BOT_DELAY) room.settings.botSpeed = data.botSpeed;
+        if (typeof data.extraExchanges === 'boolean') room.settings.extraExchanges = data.extraExchanges;
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
-        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier });
+        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
         room.hold = true;
         clearTimeout(holdTimer);
         holdTimer = setTimeout(() => { if (room) { room.hold = false; scheduleBots(); } }, 30000);

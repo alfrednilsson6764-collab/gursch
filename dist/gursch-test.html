@@ -436,54 +436,113 @@ body::after { background: radial-gradient(ellipse at center, transparent 60%, rg
 .status { font-size: 14px; line-height: 1.4; max-width: 640px; margin-left: auto; margin-right: auto; }
 .tally { background: rgba(4,14,10,.8); border-color: rgba(255,255,255,.1); }
 
-/* ---------- mobil ---------- */
+/* ---------- lobby och inställningar ---------- */
+.lobby-card { max-width: 520px; }
+.lobby-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.lobby-head .logo.small { font-size: 28px; text-align: left; padding-left: 0; }
+.lobby-head .room-code { margin: 0; text-align: right; font-size: 12px; opacity: .8; }
+.lobby-head .room-code strong { font-size: 22px; letter-spacing: .15em; }
+.panel { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 12px; margin-bottom: 12px; }
+.panel-head { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .75; margin-bottom: 10px; }
+.player-list { margin: 0; }
+.player-list li { padding: 8px 10px; background: rgba(255,255,255,.04); border-radius: 10px; }
+.avatar, .seat-avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none;
+  background: #2f6b52; color: #fff; font-weight: 700; font-size: 14px; position: relative; }
+.avatar.bot, .seat-avatar.bot { background: #2b3540; font-size: 16px; }
+.icon-btn { border: 0; background: rgba(255,255,255,.08); color: #fff; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.icon-btn:hover { background: rgba(255,82,82,.4); }
+.add-bot { width: 100%; margin-top: 4px; border-style: dashed; background: transparent; }
+.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.06); }
+.setting:first-of-type { border-top: 0; padding-top: 0; }
+.setting-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.setting-text b { font-size: 14px; font-weight: 600; } .setting-text span { font-size: 12px; opacity: .6; }
+.setting select { width: auto; min-width: 70px; margin: 0; padding: 8px 10px; background: rgba(255,255,255,.08); color: #fff; border-color: rgba(255,255,255,.12); }
+.setting select option { color: #111; }
+.seg { display: inline-flex; background: rgba(0,0,0,.3); border-radius: 10px; padding: 3px; gap: 2px; flex: none; }
+.seg button { font: inherit; font-size: 13px; font-weight: 600; border: 0; background: transparent; color: rgba(255,255,255,.7); padding: 7px 11px; border-radius: 8px; cursor: pointer; }
+.seg button.on { background: var(--gold); color: #241800; }
+.seg button:disabled { cursor: default; } .seg button:disabled:not(.on) { opacity: .5; }
+.lobby-actions { flex-direction: column; align-items: stretch; }
+.lobby-actions .btn { width: 100%; }
+#botsBtn { margin-top: 8px; }
+.seat-avatar { margin: 0 auto 4px; width: 34px; height: 34px; }
+.seat-avatar .crown { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); margin: 0; font-size: 14px; }
+
+/* ---------- mobil (v3): lugn, ren och tydlig ---------- */
 @media (max-width: 640px) {
-  :root { --card-w: min(14.5vw, 58px); --card-h: calc(var(--card-w) * 1.42); }
-  .card .pip { font-size: calc(var(--card-w) * .5); } .card .corner { font-size: 12px; } .card .tl { top: 4px; left: 4px; } .card .br { bottom: 4px; right: 4px; }
-  .card.face::before { inset: 5px; }
+  :root { --card-w: min(14.6vw, 60px); --card-h: calc(var(--card-w) * 1.42); }
+  body { background: #0a1f17; } body::after { display: none; }
+  .card { border-radius: 7px; } .card .pip { font-size: calc(var(--card-w) * .5); } .card .corner { font-size: 12px; }
+  .card .tl { top: 4px; left: 4px; } .card .br { bottom: 4px; right: 4px; } .card.face::before { inset: 5px; }
 
-  .topbar { padding: 6px 10px; padding-top: calc(6px + env(safe-area-inset-top)); gap: 8px; }
-  .brand { font-size: 13px; }
-  .round-info { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  #historyBtn { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+  /* toppen: bara rundinfo och historik */
+  .topbar { padding: 8px 12px; padding-top: calc(8px + env(safe-area-inset-top)); gap: 8px; background: transparent; border: 0; }
+  .brand { display: none; }
+  .round-info { text-align: left; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #historyBtn { min-height: 32px; padding: 4px 12px; font-size: 13px; background: rgba(255,255,255,.08); }
 
-  .table { margin: 10px 10px 6px; border-radius: 22px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 0 0 4px #24150a, 0 0 0 5px rgba(245,196,81,.3), 0 10px 30px rgba(0,0,0,.5); }
-  #seats { gap: 6px; flex-wrap: nowrap; }
-  .seat { flex: 1 1 0; min-width: 0; max-width: 34%; padding: 6px 4px; }
-  .seat-name { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
-  .seat-cards i { width: 9px; height: 13px; margin-left: -5px; }
-  .table { display: flex; flex-direction: column; overflow: hidden; }
-  #seats { position: static; padding: 10px 8px 0; }
-  .table-center { position: static; transform: none; margin: auto; width: 94%; padding: 8px 0; }
-  .center-title { font-size: 13px; }
+  /* bordet: platt filt utan träkant */
+  .table-wrap { flex-direction: column; }
+  .table { display: flex; flex-direction: column; overflow: hidden; margin: 0 10px; border-radius: 20px;
+    background: radial-gradient(ellipse at 50% 30%, #157a52, #0d5c3d 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+  #seats { position: static; display: flex; justify-content: space-around; gap: 4px; padding: 12px 6px 0; flex-wrap: nowrap; }
+  .seat { position: static; transform: none; flex: 1 1 0; min-width: 0; max-width: 25%; padding: 4px 2px; background: transparent; border: 0; box-shadow: none; }
+  .seat.turn { border: 0; box-shadow: none; }
+  .seat.turn .seat-avatar { box-shadow: 0 0 0 2px var(--gold), 0 0 12px rgba(245,196,81,.6); }
+  .seat.leader { border: 0; }
+  .seat-avatar { width: 38px; height: 38px; font-size: 15px; }
+  .seat-name { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .seat-cards { margin-top: 2px; } .seat-cards i { display: none; }
+  .seat-cards span { margin: 0; font-size: 11px; opacity: .75; } .seat-cards span::after { content: ' kort'; }
+  .seat-turn { font-size: 10px; } .seat .tiny { font-size: 10px; }
+  .seat-offer .card.mini { width: 18px; height: 26px; } .seat-offer { font-size: 0; }
+  .table-center { position: static; transform: none; margin: auto; width: 100%; padding: 8px 8px 12px; }
+  .center-title { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .7; margin-bottom: 8px; }
+  .play { padding: 5px 6px; } .play .tiny { font-size: 11px; }
+  .play-cards .card.small { width: 36px; height: 52px; } .play-cards .card + .card { margin-left: -16px; }
+  .deck-pile { transform: scale(.8); margin: 4px auto 0; } #deckInfo { font-size: 11px; }
+  .tally { position: static; transform: none; margin: 8px 10px 0; min-width: 0; max-width: none; font-size: 12px; padding: 6px 10px;
+    display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: center; }
+  .tally:empty { display: none; }
+  .tally-head { margin: 0; width: 100%; }
 
-  .me-area { padding: 14px 10px calc(10px + env(safe-area-inset-bottom)); }
-  .status { font-size: 13px; margin-bottom: 4px; }
-  .hand { gap: 4px; padding-top: 16px; min-height: calc(var(--card-h) + 18px); }
+  /* min del: en fast panel längst ner */
+  .me-area { background: #0f2a20; border-top: 1px solid rgba(255,255,255,.06); border-radius: 18px 18px 0 0; margin-top: 10px;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 24px rgba(0,0,0,.35); }
+  .me-area.my-turn::before { display: none; }
+  .me-area.my-turn { box-shadow: 0 -8px 24px rgba(0,0,0,.35), inset 0 2px 0 var(--gold); }
+  .status { font-size: 13px; line-height: 1.35; margin: 0 0 4px; opacity: .9; }
+  .hand { gap: 4px; padding-top: 14px; min-height: calc(var(--card-h) + 16px); flex-wrap: nowrap; }
   .hand .card:hover { transform: none; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
   .hand .card.selected { transform: translateY(-12px); box-shadow: 0 0 0 3px var(--gold), 0 8px 16px rgba(0,0,0,.45); }
-  .me-bar { flex-direction: column; align-items: stretch; gap: 8px; margin-top: 6px; }
-  .me-info { text-align: center; font-size: 13px; } .me-info strong { font-size: 16px; }
+  .me-bar { flex-direction: column; align-items: stretch; gap: 8px; margin-top: 8px; }
+  .me-info { text-align: center; font-size: 12px; opacity: .8; } .me-info strong { font-size: 14px; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .actions > .btn { width: 100%; min-height: 46px; padding: 10px 8px; }
+  .actions > .btn { width: 100%; min-height: 46px; padding: 10px 8px; font-size: 15px; }
   .actions > .btn:only-child, .actions > .btn-group + .btn:last-child { grid-column: 1 / -1; }
   .btn-group { grid-column: 1 / -1; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; }
-  .btn-group-label { text-align: center; }
+  .btn-group-label { text-align: center; font-size: 12px; }
   .btn-group-row { display: grid; grid-template-columns: repeat(6, 1fr); }
   .btn.num { min-width: 0; }
+  .offer-cards .card { --card-w: 48px; }
 
-  .tally { left: 50%; right: auto; bottom: 8px; transform: translateX(-50%); min-width: 0; max-width: 92%; }
-  .overlay { padding: 10px; }
-  .home-card { padding: 22px 18px; }
-  .overlay h2 { font-size: 26px; }
+  /* lobby */
+  #home, #lobby { align-items: flex-start; padding: 12px; }
+  .home-card { padding: 18px 14px; border-radius: 18px; }
+  #home .home-card { margin-top: 8vh; }
+  .setting { flex-wrap: wrap; } .setting .seg { margin-left: auto; }
+  .overlay { padding: 10px; } .overlay h2 { font-size: 24px; }
+  .history { width: 88%; }
 }
 @media (max-width: 640px) and (max-height: 700px) {
-  .deck-pile { transform: scale(.85); margin-top: 4px; }
-  .table-center .tiny { display: none; }
+  .table-center .tiny#deckInfo { display: none; }
+  .seat-avatar { width: 32px; height: 32px; }
 }
+.btn.primary:disabled { background: rgba(255,255,255,.1); color: rgba(255,255,255,.55); box-shadow: none; opacity: 1; }
+.count-badge { box-shadow: none; }
 
 
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row { display: none !important; }
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
 </style>
 </head>
@@ -500,6 +559,7 @@ body::after { background: radial-gradient(ellipse at center, transparent 60%, rg
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
       </label>
       <button id="createBtn" class="btn primary big">Spela mot bottar</button>
+      <button id="botsBtn" class="btn big">Spela mot bottar</button>
       <div class="divider"><span>eller gå med i ett spel</span></div>
       <div class="join-row">
         <input id="code" maxlength="5" placeholder="RUMSKOD" autocapitalize="characters" autocomplete="off">
@@ -511,26 +571,47 @@ body::after { background: radial-gradient(ellipse at center, transparent 60%, rg
 
   <!-- Lobby -->
   <section id="lobby" class="screen hidden">
-    <div class="home-card wide">
-      <h1 class="logo small">GURSCH</h1>
-      <div class="room-code">Rumskod <strong id="lobbyCode"></strong></div>
+    <div class="home-card wide lobby-card">
+      <div class="lobby-head">
+        <h1 class="logo small">GURSCH</h1>
+        <div class="room-code">Rumskod <strong id="lobbyCode"></strong></div>
+      </div>
       <div class="invite">
         <input id="inviteLink" readonly>
         <button id="copyBtn" class="btn">Kopiera länk</button>
       </div>
-      <h3>Spelare <span id="playerCount" class="muted"></span></h3>
-      <ul id="lobbyPlayers" class="player-list"></ul>
-      <div class="settings">
-        <label>Antal spelare
-          <select id="maxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
-        </label>
-        <label>Poängmultiplikator
-          <input id="multiplier" type="number" min="1" max="100" value="2">
-        </label>
+
+      <div class="panel">
+        <div class="panel-head">Spelare <span id="playerCount" class="muted"></span></div>
+        <ul id="lobbyPlayers" class="player-list"></ul>
+        <button id="addBotBtn" class="btn add-bot">+ Lägg till bot</button>
       </div>
+
+      <div class="panel">
+        <div class="panel-head">Inställningar <span id="settingsNote" class="muted tiny"></span></div>
+        <div class="setting">
+          <div class="setting-text"><b>Antal platser</b><span>Hur många som får vara med (2–6)</span></div>
+          <select id="maxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Poängmultiplikator</b><span>Kortvärdet gångras med detta i slutet</span></div>
+          <div class="seg" id="multSeg">
+            <button data-v="1">×1</button><button data-v="2">×2</button><button data-v="5">×5</button><button data-v="10">×10</button>
+          </div>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Extra byten</b><span>Efter bytesrunda 2 får man fråga om alla vill slänga fler</span></div>
+          <div class="seg" id="extraSeg"><button data-v="1">På</button><button data-v="0">Av</button></div>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Bottarnas tempo</b><span>Hur snabbt bottarna gör sina drag</span></div>
+          <div class="seg" id="speedSeg"><button data-v="slow">Lugnt</button><button data-v="normal">Normalt</button><button data-v="fast">Snabbt</button></div>
+        </div>
+      </div>
+
       <div class="lobby-actions">
         <button id="readyBtn" class="btn">Jag är redo</button>
-        <button id="startBtn" class="btn primary">Starta spelet</button>
+        <button id="startBtn" class="btn primary big">Starta spelet</button>
         <button id="leaveBtn" class="btn ghost">Lämna rummet</button>
       </div>
       <p id="lobbyInfo" class="muted center"></p>
@@ -674,9 +755,10 @@ const fail = (msg) => { throw new GameError(msg); };
 
 class Game {
   /** players: [{id, name}] i sittordning (medurs). */
-  constructor(players, { multiplier = 2 } = {}) {
+  constructor(players, { multiplier = 2, extraExchanges = true } = {}) {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
     this.multiplier = multiplier;
+    this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
     this.asked = new Set(); // vilka som har frågat om extra byte
     this.deck = makeDeck();
@@ -850,6 +932,7 @@ class Game {
     if (Object.keys(ex.offers).length > 0) return;
     for (const p of this.players) if (p.hand.length !== 6) throw new Error('Fel antal kort efter byte');
     if (ex.round === 1) return this.startExchangeRound(2);
+    if (!this.extraExchanges) return this.startPlay();
     this.startExtra(ex.round + 1);
   }
 
@@ -1293,7 +1376,7 @@ window.GURSCH_LOCAL = function () {
   const { botMove } = window.GurschBots;
   const Tally = window.GurschTally;
   const BOT_NAMES = ['Astrid (bot)', 'Bertil (bot)', 'Cissi (bot)', 'David (bot)', 'Elsa (bot)'];
-  const BOT_DELAY = 900;
+  const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
   let room = null, botTimer = null, holdTimer = null;
 
@@ -1307,8 +1390,8 @@ window.GURSCH_LOCAL = function () {
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
-    return { code: 'TEST', hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
-      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, connected: true })) };
+    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended,
+      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
@@ -1325,7 +1408,7 @@ window.GURSCH_LOCAL = function () {
       botTimer = setTimeout(() => {
         try { g.act(p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
         broadcast();
-      }, BOT_DELAY);
+      }, BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
       return;
     }
   }
@@ -1333,7 +1416,7 @@ window.GURSCH_LOCAL = function () {
   function handle(ev, data, cb) {
     switch (ev) {
       case 'create':
-        room = { settings: { maxPlayers: 4, multiplier: 2 }, game: null, tally: Tally.create(), ended: false,
+        room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true }, game: null, tally: Tally.create(), ended: false,
           players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
@@ -1344,10 +1427,12 @@ window.GURSCH_LOCAL = function () {
         const m = Math.round(Number(data.maxPlayers)), x = Math.round(Number(data.multiplier));
         if (m >= 2 && m <= 6) room.settings.maxPlayers = m;
         if (x >= 1 && x <= 100) room.settings.multiplier = x;
+        if (data.botSpeed in BOT_DELAY) room.settings.botSpeed = data.botSpeed;
+        if (typeof data.extraExchanges === 'boolean') room.settings.extraExchanges = data.extraExchanges;
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
-        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier });
+        room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
         room.hold = true;
         clearTimeout(holdTimer);
         holdTimer = setTimeout(() => { if (room) { room.hold = false; scheduleBots(); } }, 30000);
@@ -1442,6 +1527,15 @@ function needName() {
   store.set('name', n); return n;
 }
 $('createBtn').onclick = () => { const name = needName(); if (name) socket.emit('create', { name }, enter); };
+// Snabbstart mot bottar: skapa ett rum och fyll på med tre bottar (fler kan läggas till i rummet).
+$('botsBtn').onclick = () => {
+  const name = needName(); if (!name) return;
+  socket.emit('create', { name }, (res) => {
+    enter(res); if (!res.ok) return;
+    socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true });
+    for (let k = 0; k < 3; k++) socket.emit('addBot');
+  });
+};
 $('joinBtn').onclick = () => {
   const name = needName(); const code = $('code').value.trim().toUpperCase();
   if (!name) return;
@@ -1466,9 +1560,18 @@ $('copyBtn').onclick = async () => {
 $('readyBtn').onclick = () => { const me = S.lobby.players.find((p) => p.id === S.you); socket.emit('ready', !me.ready); };
 $('startBtn').onclick = () => socket.emit('start', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
 $('leaveBtn').onclick = () => { socket.emit('leave'); store.set('code', null); S = null; setUrl(location.pathname); show('home'); };
-const pushSettings = () => socket.emit('settings', { maxPlayers: $('maxPlayers').value, multiplier: $('multiplier').value }, (r) => { if (!r.ok) $('lobbyError').textContent = r.error; });
-$('maxPlayers').onchange = pushSettings;
-$('multiplier').onchange = pushSettings;
+const pushSettings = (extra = {}) => socket.emit('settings', { ...S.lobby.settings, maxPlayers: $('maxPlayers').value, ...extra },
+  (r) => { if (!r.ok) $('lobbyError').textContent = r.error; });
+$('maxPlayers').onchange = () => pushSettings();
+const segClick = (id, fn) => $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) pushSettings(fn(b.dataset.v)); });
+segClick('multSeg', (v) => ({ multiplier: Number(v) }));
+segClick('extraSeg', (v) => ({ extraExchanges: v === '1' }));
+segClick('speedSeg', (v) => ({ botSpeed: v }));
+$('addBotBtn').onclick = () => socket.emit('addBot', null, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
+$('lobbyPlayers').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) socket.emit('removeBot', b.dataset.remove); });
+function setSeg(id, value, disabled) {
+  for (const b of $(id).querySelectorAll('button')) { b.classList.toggle('on', b.dataset.v === String(value)); b.disabled = disabled; }
+}
 
 function renderLobby() {
   const L = S.lobby, isHost = L.hostId === S.you;
@@ -1476,13 +1579,20 @@ function renderLobby() {
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
   $('lobbyPlayers').innerHTML = L.players.map((p) => `<li>
-      <span class="dot ${p.connected ? 'on' : ''}"></span>
+      <span class="avatar ${p.bot ? 'bot' : ''}">${p.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}</span>
       <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
+      ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten">✕</button>` : ''}
+      ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
     </li>`).join('');
+  $('addBotBtn').classList.toggle('hidden', !isHost || !!L.local);
+  $('addBotBtn').disabled = L.players.length >= L.settings.maxPlayers;
   $('maxPlayers').value = L.settings.maxPlayers; $('maxPlayers').disabled = !isHost;
-  if (document.activeElement !== $('multiplier')) $('multiplier').value = L.settings.multiplier;
-  $('multiplier').disabled = !isHost;
+  const mult = L.settings.multiplier;
+  if (![1, 2, 5, 10].includes(mult)) setSeg('multSeg', 2, !isHost); else setSeg('multSeg', mult, !isHost);
+  setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
+  setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
+  $('settingsNote').textContent = isHost ? '' : '· värden väljer';
   const me = L.players.find((p) => p.id === S.you);
   $('readyBtn').classList.toggle('hidden', isHost);
   $('readyBtn').textContent = me && me.ready ? 'Inte redo' : 'Jag är redo';
@@ -1542,7 +1652,8 @@ function renderGame() {
     const offer = ex && ex.offers[p.id];
     const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" data-pid="${p.id}" style="left:${pos[k].x}%;top:${pos[k].y}%">
-      <div class="seat-name">${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}${esc(p.name)}
+      <div class="seat-avatar ${lp.bot ? 'bot' : ''}">${lp.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
+      <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}

@@ -22,7 +22,8 @@
       <label class="field">Ditt namn
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
       </label>
-      <button id="createBtn" class="btn primary big">Skapa spel</button>
+      <button id="createBtn" class="btn primary big">Skapa spel med vänner</button>
+      <button id="botsBtn" class="btn big">Spela mot bottar</button>
       <div class="divider"><span>eller gå med i ett spel</span></div>
       <div class="join-row">
         <input id="code" maxlength="5" placeholder="RUMSKOD" autocapitalize="characters" autocomplete="off">
@@ -34,26 +35,47 @@
 
   <!-- Lobby -->
   <section id="lobby" class="screen hidden">
-    <div class="home-card wide">
-      <h1 class="logo small">GURSCH</h1>
-      <div class="room-code">Rumskod <strong id="lobbyCode"></strong></div>
+    <div class="home-card wide lobby-card">
+      <div class="lobby-head">
+        <h1 class="logo small">GURSCH</h1>
+        <div class="room-code">Rumskod <strong id="lobbyCode"></strong></div>
+      </div>
       <div class="invite">
         <input id="inviteLink" readonly>
         <button id="copyBtn" class="btn">Kopiera länk</button>
       </div>
-      <h3>Spelare <span id="playerCount" class="muted"></span></h3>
-      <ul id="lobbyPlayers" class="player-list"></ul>
-      <div class="settings">
-        <label>Antal spelare
-          <select id="maxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
-        </label>
-        <label>Poängmultiplikator
-          <input id="multiplier" type="number" min="1" max="100" value="2">
-        </label>
+
+      <div class="panel">
+        <div class="panel-head">Spelare <span id="playerCount" class="muted"></span></div>
+        <ul id="lobbyPlayers" class="player-list"></ul>
+        <button id="addBotBtn" class="btn add-bot">+ Lägg till bot</button>
       </div>
+
+      <div class="panel">
+        <div class="panel-head">Inställningar <span id="settingsNote" class="muted tiny"></span></div>
+        <div class="setting">
+          <div class="setting-text"><b>Antal platser</b><span>Hur många som får vara med (2–6)</span></div>
+          <select id="maxPlayers"><option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option></select>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Poängmultiplikator</b><span>Kortvärdet gångras med detta i slutet</span></div>
+          <div class="seg" id="multSeg">
+            <button data-v="1">×1</button><button data-v="2">×2</button><button data-v="5">×5</button><button data-v="10">×10</button>
+          </div>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Extra byten</b><span>Efter bytesrunda 2 får man fråga om alla vill slänga fler</span></div>
+          <div class="seg" id="extraSeg"><button data-v="1">På</button><button data-v="0">Av</button></div>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Bottarnas tempo</b><span>Hur snabbt bottarna gör sina drag</span></div>
+          <div class="seg" id="speedSeg"><button data-v="slow">Lugnt</button><button data-v="normal">Normalt</button><button data-v="fast">Snabbt</button></div>
+        </div>
+      </div>
+
       <div class="lobby-actions">
         <button id="readyBtn" class="btn">Jag är redo</button>
-        <button id="startBtn" class="btn primary">Starta spelet</button>
+        <button id="startBtn" class="btn primary big">Starta spelet</button>
         <button id="leaveBtn" class="btn ghost">Lämna rummet</button>
       </div>
       <p id="lobbyInfo" class="muted center"></p>
