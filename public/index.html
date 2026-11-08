@@ -17,7 +17,7 @@
   <!-- Startsida -->
   <section id="home" class="screen">
     <div class="home-card">
-      <h1 class="logo">GURSCH</h1>
+      <h1 class="logo"><span class="logo-text">GURSCH</span><span class="logo-shine" aria-hidden="true"><span>GURSCH</span></span></h1>
       <p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>
       <label class="field">Ditt namn
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
@@ -51,7 +51,10 @@
 
       <div class="panel">
         <div class="panel-head">Spelare <span id="playerCount" class="muted"></span></div>
-        <ul id="lobbyPlayers" class="player-list"></ul>
+        <div class="lobby-table">
+          <div class="lobby-felt"><div id="lobbyTableInfo" class="lobby-table-info"></div></div>
+          <ul id="lobbyPlayers" class="player-list seated"></ul>
+        </div>
         <button id="addBotBtn" class="btn add-bot">+ Lägg till bot</button>
         <div id="botPicker" class="bot-picker hidden"></div>
         <div id="lobbyReacts" class="react-row" aria-label="Reaktioner"></div>
@@ -84,6 +87,10 @@
         <div class="setting">
           <div class="setting-text"><b>Tid per drag</b><span>När tiden tar slut görs ett drag åt spelaren</span></div>
           <div class="seg" id="timeSeg"><button data-v="0">Av</button><button data-v="20">20 s</button><button data-v="30">30 s</button><button data-v="60">60 s</button></div>
+        </div>
+        <div class="setting">
+          <div class="setting-text"><b>Animationer</b><span>Gäller bara dig. Stäng av om det känns segt eller rörigt</span></div>
+          <div class="seg" id="animSeg"><button data-v="on">På</button><button data-v="off">Av</button></div>
         </div>
         <div class="setting" id="visSetting">
           <div class="setting-text"><b>Synlighet</b><span>Öppna rum syns på startsidan så att vem som helst kan gå med</span></div>

@@ -757,3 +757,213 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
 .bot-opt-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bot-opt-text b { font-size: 14px; } .bot-opt-text em { font-style: italic; font-family: var(--serif); color: var(--gold-2); font-weight: 600; margin-left: 4px; }
 .bot-opt-text span { font-size: 12px; opacity: .7; }
+
+/* =====================================================================
+   PÅKOSTAD KASINOGRAFIK (Alfred 2026-11-08)
+   Samma stil – mörkgrön filt, guld och serif – men med egna kortframsidor, träkant,
+   spotlight och animationer. Allt rörligt animerar bara transform och opacity.
+   ===================================================================== */
+
+/* ---------- korten ---------- */
+.card { width: var(--card-w); height: calc(var(--card-w) * 1.42); border-radius: calc(var(--card-w) * .1);
+  overflow: hidden; isolation: isolate; color: #17171a;
+  background: radial-gradient(120% 90% at 30% 15%, #fffefa 0%, #fbf5e6 55%, #efe4ca 100%);
+  border: 1px solid rgba(60,40,10,.22);
+  box-shadow: 0 1px 1px rgba(0,0,0,.25), 0 4px 10px rgba(0,0,0,.3), 0 14px 26px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255,255,255,.8), inset 0 0 0 3px rgba(212,175,95,.18); }
+.card.red { color: #a8162a; }
+.card.small { --card-w: 46px; width: var(--card-w); height: calc(var(--card-w) * 1.42); }
+.card.mini { --card-w: 28px; width: var(--card-w); height: calc(var(--card-w) * 1.42); border-radius: 4px; }
+.card.big { --card-w: 84px; width: var(--card-w); height: calc(var(--card-w) * 1.42); }
+.card::before, .card.face::before { display: none; }
+.card .corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 0; line-height: .82; font-family: var(--serif); z-index: 2; }
+.card .corner b { font-weight: 700; font-size: calc(var(--card-w) * .26); letter-spacing: -.04em; font-variant-numeric: lining-nums; }
+.card .corner i { font-style: normal; font-size: calc(var(--card-w) * .2); line-height: 1; margin-top: 1px; }
+.card .tl { top: 5%; left: 6%; } .card .br { bottom: 5%; right: 6%; transform: rotate(180deg); }
+.card .pips { position: absolute; inset: 8.3% 7.5%; z-index: 1; }
+.card .pips i { position: absolute; transform: translate(-50%, -50%); font-style: normal; line-height: 1; font-size: calc(var(--card-w) * .19); }
+.card .pips i.flip { transform: translate(-50%, -50%) rotate(180deg); }
+.card .ace-art { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1; }
+.card .ace-art::before, .card .ace-art::after { content: ''; position: absolute; left: 50%; top: 50%; border-radius: 50%; transform: translate(-50%, -50%); }
+.card .ace-art::before { width: 70%; aspect-ratio: 1; border: 1px solid rgba(184,142,60,.75); box-shadow: inset 0 0 0 3px rgba(212,175,95,.12); }
+.card .ace-art::after { width: 58%; aspect-ratio: 1; border: 1px dashed rgba(184,142,60,.45); }
+.card .ace-art i { position: relative; font-style: normal; line-height: 1; font-size: calc(var(--card-w) * .58); filter: drop-shadow(0 2px 1px rgba(0,0,0,.15)); }
+.card .face-art { position: absolute; left: 15%; top: 11%; width: 70%; height: 78%; z-index: 1; overflow: visible; }
+.face-art .fr { fill: #fbf1d8; stroke: #b88e3c; stroke-width: .9; }
+.face-art .g { fill: #d9b45f; stroke: #8c6a2a; stroke-width: .5; }
+.face-art .s { fill: currentColor; }
+.face-art .r { fill: currentColor; opacity: .88; }
+.face-art .l { fill: none; stroke: #b88e3c; stroke-width: .6; }
+.face-art .sym { fill: #fff6dc; font-size: 9px; text-anchor: middle; font-family: Georgia, serif; }
+.face-art .big { fill: currentColor; font-family: var(--serif); font-weight: 900; font-size: 17px; text-anchor: middle; paint-order: stroke; stroke: #fbf1d8; stroke-width: 3px; }
+.card.face { background: radial-gradient(120% 90% at 30% 15%, #fffdf5 0%, #f9efd6 60%, #ecdcb2 100%); }
+.card.mini .pips, .card.mini .ace-art, .card.mini .face-art, .card.mini .br, .card.mini .shine { display: none; }
+.card.mini .corner b { font-size: 12px; } .card.mini .corner i { font-size: 10px; } .card.mini .tl { top: 3px; left: 3px; }
+
+/* baksidan: Gursch-mönster i guld på vinrött */
+.card.back { border: 2px solid #f1e3bd;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='90' viewBox='0 0 60 90'><defs><pattern id='p' width='7' height='7' patternUnits='userSpaceOnUse' patternTransform='rotate(45)'><path d='M0 3.5h7M3.5 0v7' stroke='%23d4af5f' stroke-opacity='.32' stroke-width='.55'/><circle cx='3.5' cy='3.5' r='.7' fill='%23d4af5f' fill-opacity='.45'/></pattern><radialGradient id='v' cx='50%25' cy='45%25' r='70%25'><stop offset='0' stop-color='%23861a2c'/><stop offset='1' stop-color='%234a0913'/></radialGradient></defs><rect width='60' height='90' fill='url(%23v)'/><rect width='60' height='90' fill='url(%23p)'/><rect x='3.5' y='3.5' width='53' height='83' rx='3' fill='none' stroke='%23d4af5f' stroke-width='.9'/><rect x='6' y='6' width='48' height='78' rx='2' fill='none' stroke='%23d4af5f' stroke-opacity='.5' stroke-width='.4'/><circle cx='30' cy='45' r='12' fill='%235c0d1a' stroke='%23d4af5f' stroke-width='1'/><circle cx='30' cy='45' r='9.2' fill='none' stroke='%23d4af5f' stroke-opacity='.55' stroke-width='.45'/><text x='30' y='49.6' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-weight='700' font-size='13' fill='%23f3dfa2'>G</text></svg>") center / 100% 100% no-repeat;
+  box-shadow: 0 1px 1px rgba(0,0,0,.3), 0 6px 14px rgba(0,0,0,.45); }
+.card.back::after { display: none; }
+
+/* glans som sveper över kortet när man hovrar eller håller på det */
+.card .shine { position: absolute; inset: -10% -40%; z-index: 3; pointer-events: none; opacity: 0;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,.65) 48%, rgba(255,246,214,.35) 53%, transparent 62%);
+  transform: translateX(-60%); transition: transform .8s cubic-bezier(.2,.7,.2,1), opacity .25s; }
+.hand .card:hover .shine, .hand .card:active .shine, .card.selected .shine, .bot-opt:hover .card .shine { opacity: 1; transform: translateX(60%); }
+@media (hover: none) { .hand .card:hover .shine { opacity: 0; transform: translateX(-60%); } .hand .card:active .shine { opacity: 1; transform: translateX(60%); } }
+.hand .card { transition: transform .22s cubic-bezier(.3,.8,.3,1.3), box-shadow .22s; }
+
+/* ---------- bordet: filt med textur, spotlight, träkant och guldlist ---------- */
+.table { border: 16px solid transparent;
+  background:
+    radial-gradient(ellipse 55% 50% at 50% 46%, rgba(255,248,220,.13), transparent 72%),
+    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.45) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.25' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .26 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 50% 45%, #17784c 0%, #0c5636 50%, #053120 100%),
+    repeating-linear-gradient(92deg, rgba(255,220,170,.05) 0 1px, transparent 1px 5px, rgba(0,0,0,.08) 5px 6px, transparent 6px 11px),
+    linear-gradient(180deg, #7a4520 0%, #4e2810 45%, #2c150a 100%);
+  background-origin: border-box;
+  background-clip: padding-box, padding-box, padding-box, padding-box, padding-box, border-box, border-box;
+  box-shadow: inset 0 0 0 2px #d4af5f, inset 0 0 0 4px rgba(5,40,25,.85), inset 0 0 0 5px rgba(212,175,95,.35), inset 0 18px 50px rgba(0,0,0,.45),
+    0 0 0 1px rgba(243,223,162,.55), 0 2px 0 2px rgba(0,0,0,.4), 0 28px 60px rgba(0,0,0,.7); }
+.table::before { color: rgba(243,223,162,.05); }
+
+/* spelarplatser: rund avatar med egen färg, guldring för den vars tur det är och krona för styret */
+.seat-avatar, .avatar { background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--av, #2f6b52) 70%, #fff 30%), var(--av, #2f6b52) 55%, color-mix(in srgb, var(--av, #2f6b52) 60%, #000 40%));
+  color: #fff6dc; box-shadow: 0 0 0 2px rgba(243,223,162,.7), 0 0 0 3px rgba(0,0,0,.4), 0 6px 12px rgba(0,0,0,.5); text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.seat-avatar.bot, .avatar.bot { background: radial-gradient(circle at 32% 28%, #3c4650, #1b2026 70%); }
+.seat-avatar { width: 44px; height: 44px; font-size: 18px; position: relative; }
+.seat-avatar::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid #f3dfa2; opacity: 0; pointer-events: none;
+  box-shadow: 0 0 14px 2px rgba(212,175,95,.75), inset 0 0 10px rgba(212,175,95,.5); }
+.seat.turn .seat-avatar::after { animation: ringGlow 1.4s ease-in-out infinite; }
+@keyframes ringGlow { 0%, 100% { opacity: .55; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.06); } }
+.seat-avatar .crown, .avatar .host-crown { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 17px; color: #f3dfa2; margin: 0;
+  text-shadow: 0 0 8px rgba(212,175,95,.9), 0 2px 2px rgba(0,0,0,.6); animation: crownIn .6s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes crownIn { from { opacity: 0; transform: translate(-50%, 8px) scale(.4); } }
+.seat.turn { border-color: rgba(243,223,162,.7); }
+
+/* ---------- animationer ---------- */
+/* lagda kort glider in mot mitten med lite rotation och landar med en mjuk studs */
+@keyframes arrive {
+  0% { transform: translate(var(--fx), var(--fy)) rotate(-14deg) scale(.82); opacity: 0; }
+  12% { opacity: 1; }
+  62% { transform: translate(0, -8px) rotate(2deg) scale(1.05); }
+  80% { transform: translate(0, 2px) rotate(-.5deg) scale(.985); }
+  100% { transform: none; opacity: 1; }
+}
+.arrive { animation: arrive .62s cubic-bezier(.25,.75,.3,1) both; }
+/* guldblixt runt korten när någon tar styret */
+.play { position: relative; }
+.play.flash::after { content: ''; position: absolute; inset: -6px; border-radius: 14px; pointer-events: none;
+  border: 2px solid #f3dfa2; box-shadow: 0 0 22px 4px rgba(212,175,95,.75), inset 0 0 16px rgba(243,223,162,.5); animation: goldFlash .9s ease-out forwards; }
+@keyframes goldFlash { 0% { opacity: 0; transform: scale(.9); } 25% { opacity: 1; transform: scale(1.04); } 100% { opacity: 0; transform: scale(1.14); } }
+/* blandning före utdelningen */
+.deck-pile.shuffling .card:nth-child(1) { animation: riffleL .38s ease-in-out 4 alternate; }
+.deck-pile.shuffling .card:nth-child(3) { animation: riffleR .38s ease-in-out 4 alternate; }
+.deck-pile.shuffling .card:nth-child(2) { animation: riffleUp .38s ease-in-out 4 alternate; }
+@keyframes riffleL { to { transform: translate(-30px, -4px) rotate(-12deg); } }
+@keyframes riffleR { to { transform: translate(30px, -4px) rotate(12deg); } }
+@keyframes riffleUp { to { transform: translate(0, -10px) scale(1.04); } }
+/* kort som delas ut flyger med lite rotation */
+.fly .card { box-shadow: 0 10px 24px rgba(0,0,0,.5); }
+/* konfetti i guld och grönt */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.confetti i { position: absolute; top: -20px; background: var(--c); border-radius: 1px; animation-name: confettiFall; animation-timing-function: cubic-bezier(.25,.6,.45,1); animation-fill-mode: forwards; }
+@keyframes confettiFall { 0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate3d(var(--dx), 108vh, 0) rotate(var(--r)); opacity: 0; } }
+/* vinnarens namn stort i mitten */
+.winner-banner { position: fixed; left: 50%; top: 42%; z-index: 61; pointer-events: none; text-align: center; transform: translate(-50%, -50%);
+  padding: 18px 34px 20px; border-radius: 20px; background: radial-gradient(ellipse at center, rgba(8,20,14,.92), rgba(5,12,9,.85));
+  border: 1px solid var(--gold); box-shadow: 0 0 0 4px rgba(0,0,0,.35), 0 0 60px rgba(212,175,95,.35), 0 20px 60px rgba(0,0,0,.6);
+  animation: winnerIn 2.4s cubic-bezier(.2,1.2,.3,1) forwards; }
+.winner-banner small { display: block; font-family: var(--serif); font-style: italic; color: #f3dfa2; font-size: 16px; letter-spacing: .1em; text-transform: uppercase; }
+.winner-banner b { display: block; font-family: var(--serif); font-weight: 900; font-size: clamp(34px, 9vw, 64px); line-height: 1.1; letter-spacing: .02em;
+  background: linear-gradient(180deg, #fff3cc, #f3dfa2 35%, #d4af5f 65%, #9a7430); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@keyframes winnerIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } 14% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  22% { transform: translate(-50%, -50%) scale(1); } 85% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -58%) scale(.96); } }
+/* gå ut: korten vänds upp ett i taget */
+.flip3d { --card-w: 38px; display: inline-block; width: var(--card-w); height: calc(var(--card-w) * 1.42); perspective: 700px; }
+.sd-out .flip3d { --card-w: 52px; }
+.flip-inner { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3,.8,.3,1.25) var(--d, 0ms); }
+.flip3d .card { position: absolute; inset: 0; width: 100%; height: 100%; --card-w: inherit; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flip3d .flip-front { transform: rotateY(180deg); }
+.flip3d.turned .flip-inner { transform: rotateY(180deg); }
+.sd-cards { gap: 5px; }
+
+/* ---------- startsida: logga med skimmer och svävande kort ---------- */
+.logo { position: relative; }
+.logo-shine { position: absolute; inset: 0; padding-left: inherit; overflow: hidden; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 38%, #000 50%, transparent 62%); mask-image: linear-gradient(90deg, transparent 38%, #000 50%, transparent 62%);
+  animation: shineWindow 6s ease-in-out infinite; }
+.logo-shine > span { display: block; color: #fff8e2; -webkit-text-fill-color: #fff8e2; background: none; animation: shineText 6s ease-in-out infinite; }
+@keyframes shineWindow { 0%, 55% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+@keyframes shineText { 0%, 55% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+.bg-card { --card-w: 72px; position: absolute !important; bottom: -170px; filter: none; animation-name: floatDrift; animation-timing-function: linear; animation-iteration-count: infinite; }
+@keyframes floatDrift { from { transform: translateY(0) rotate(var(--r0)) scale(var(--s)); } to { transform: translateY(-135vh) rotate(var(--r1)) scale(var(--s)); } }
+
+/* ---------- lobbyn: spelarna sitter runt ett litet bord ---------- */
+.lobby-table { position: relative; height: 300px; margin: 34px 0 46px; }
+.lobby-felt { position: absolute; inset: 24% 20%; border-radius: 50%; border: 9px solid transparent;
+  background: radial-gradient(ellipse 60% 55% at 50% 45%, rgba(255,248,220,.14), transparent 70%), radial-gradient(ellipse at 50% 45%, #17784c, #0b4f32 60%, #053120) padding-box,
+    linear-gradient(180deg, #7a4520, #3a1c0b) border-box;
+  box-shadow: inset 0 0 0 2px #d4af5f, inset 0 10px 30px rgba(0,0,0,.4), 0 0 0 1px rgba(243,223,162,.5), 0 14px 30px rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center; }
+.lobby-table-info { text-align: center; font-family: var(--serif); color: #f3dfa2; line-height: 1.1; }
+.lobby-table-info b { display: block; font-size: 24px; font-variant-numeric: lining-nums; } .lobby-table-info span { font-style: italic; font-size: 13px; opacity: .8; }
+.player-list.seated { position: absolute; inset: 0; margin: 0; }
+.player-list.seated li { position: absolute; transform: translate(-50%, -50%); width: 100px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 0; margin: 0; background: none; border: 0; text-align: center; }
+.player-list.seated .avatar { width: 46px; height: 46px; font-size: 19px; margin-bottom: 2px; }
+.player-list.seated .avatar.empty { background: transparent; border: 1.5px dashed rgba(243,223,162,.4); box-shadow: none; color: rgba(243,223,162,.5); }
+.player-list.seated .pname { flex: none; max-width: 100%; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-list.seated .pname .persona { font-weight: 500; }
+.player-list.seated .empty-seat .pname { font-weight: 400; font-style: italic; opacity: .5; font-family: var(--serif); }
+.player-list.seated .badge { font-size: 10px; padding: 2px 7px; }
+.player-list.seated .icon-btn { position: absolute; top: -4px; left: calc(50% + 14px); width: 22px; height: 22px; font-size: 11px; border-radius: 50%; padding: 0; }
+.player-list.seated li.me .avatar { box-shadow: 0 0 0 2px #f3dfa2, 0 0 14px rgba(212,175,95,.6), 0 6px 12px rgba(0,0,0,.5); }
+
+/* ---------- mobil ---------- */
+@media (max-width: 640px) {
+  .table { border-width: 8px;
+    box-shadow: inset 0 0 0 1.5px #d4af5f, inset 0 0 0 3px rgba(5,40,25,.85), inset 0 14px 40px rgba(0,0,0,.45), 0 0 0 1px rgba(243,223,162,.5), 0 16px 40px rgba(0,0,0,.7); }
+  .seat-avatar { width: 40px; height: 40px; font-size: 17px; }
+  .card .corner b { font-size: calc(var(--card-w) * .28); } .card .corner i { font-size: calc(var(--card-w) * .21); }
+  .lobby-table { height: 290px; }
+  .player-list.seated li { width: 86px; }
+  .player-list.seated .avatar { width: 42px; height: 42px; }
+  .bg-card { --card-w: 58px; }
+}
+/* mobil i liggande läge: bordet till vänster, min hand och knapparna till höger */
+@media (orientation: landscape) and (max-height: 540px) {
+  #game { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 44%); grid-template-rows: auto minmax(0, 1fr); }
+  .topbar { grid-column: 1 / -1; padding: 4px 12px; }
+  .table-wrap { grid-row: 2; grid-column: 1; min-height: 0; }
+  .table { margin: 4px 8px 8px 14px; border-width: 8px; }
+  .me-area { grid-row: 2; grid-column: 2; overflow-y: auto; margin: 0; padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); border-radius: 16px 0 0 0; border-top: 0; border-left: 1px solid rgba(212,175,95,.3); }
+  :root { --card-w: min(50px, 6.6vw); }
+  .hand { flex-wrap: nowrap; gap: 4px; padding-top: 12px; min-height: calc(var(--card-w) * 1.42 + 14px); }
+  .hand .card { --card-w: min(50px, 6.6vw); }
+  .me-area.my-turn::before { display: none; }
+  .me-bar { flex-direction: column; align-items: stretch; gap: 6px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .actions > .btn { min-height: 42px; }
+  .actions > .btn:only-child, .actions > .btn-group + .btn:last-child { grid-column: 1 / -1; }
+  .btn-group { grid-column: 1 / -1; } .btn-group-row { display: grid; grid-template-columns: repeat(6, 1fr); }
+  .seat { padding: 4px 8px; min-width: 0; } .seat-avatar { width: 34px; height: 34px; font-size: 15px; }
+  .table-center { width: 64%; top: 56%; } .center-title { font-size: 13px; margin-bottom: 4px; }
+  .deck-pile { transform: scale(.8); }
+  .tally { display: none; }
+  .status { font-size: 13px; }
+  .react-picker { left: 8px; bottom: auto; top: 6px; }
+  #home, #lobby { align-items: flex-start; }
+  .lobby-table { height: 260px; }
+}
+
+/* ---------- animationer av ---------- */
+html.no-anim *, html.no-anim *::before, html.no-anim *::after {
+  animation-duration: 0s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+  transition-duration: 0s !important; transition-delay: 0s !important; }
+html.no-anim .logo-shine, html.no-anim .bg-cards, html.no-anim .confetti { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: 0s !important; transition-delay: 0s !important; }
+  .logo-shine, .bg-cards, .confetti { display: none !important; }
+}

@@ -6,6 +6,15 @@ const store = {
   get: (k) => { try { return localStorage.getItem('gursch.' + k); } catch { return null; } },
   set: (k, v) => { try { v == null ? localStorage.removeItem('gursch.' + k) : localStorage.setItem('gursch.' + k, v); } catch {} },
 };
+// Animationer: av om systemet ber om mindre rörelse, eller om man har stängt av dem i inställningarna.
+const prefersReduced = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
+const noMotion = () => prefersReduced.matches || store.get('anim') === 'off';
+const applyMotion = () => document.documentElement.classList.toggle('no-anim', noMotion());
+applyMotion();
+document.addEventListener('touchstart', () => {}, { passive: true }); // gör :active (glansen) till något även på mobil
+// En egen färg per spelare till avataren (samma färg varje gång för samma id).
+const AV_COLORS = ['#2f6b52', '#7a2531', '#1f4f7a', '#6a4a8c', '#8a5a1c', '#2c6b70', '#7a3f5e', '#4c6a2a'];
+const avColor = (id) => { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) | 0; return AV_COLORS[Math.abs(h) % AV_COLORS.length]; };
 const setUrl = (u) => { if (window.GURSCH_LOCAL) return; try { history.replaceState(null, '', u); } catch {} };
 let S = null;            // senaste läget från servern
 let selected = new Set(); // valda kort-id
@@ -20,14 +29,49 @@ const rl = (r) => RANK[r] || String(r);
 const rn = (r) => RANK_NAME[r] || String(r);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// ---------- kortens utseende (egna framsidor i SVG/CSS, inga bildfiler) ----------
+// Pipplaceringar för 2–10 i procent av kortytan (x, y). Pippar på nedre halvan vänds upp och ned.
+const PIPS = {
+  2: [[50, 20], [50, 80]],
+  3: [[50, 20], [50, 50], [50, 80]],
+  4: [[30, 20], [70, 20], [30, 80], [70, 80]],
+  5: [[30, 20], [70, 20], [50, 50], [30, 80], [70, 80]],
+  6: [[30, 20], [70, 20], [30, 50], [70, 50], [30, 80], [70, 80]],
+  7: [[30, 20], [70, 20], [50, 35], [30, 50], [70, 50], [30, 80], [70, 80]],
+  8: [[30, 20], [70, 20], [50, 35], [30, 50], [70, 50], [50, 65], [30, 80], [70, 80]],
+  9: [[30, 20], [70, 20], [30, 40], [70, 40], [50, 50], [30, 60], [70, 60], [30, 80], [70, 80]],
+  10: [[30, 20], [70, 20], [50, 30], [30, 40], [70, 40], [30, 60], [70, 60], [50, 70], [30, 80], [70, 80]],
+};
+// Klädda kort: en dubbelvänd figur med krona (K), tiara (D) eller plymhatt (Kn) och en stor serif-bokstav.
+const FACE_HAT = {
+  13: '<path d="M18 22 L22 12 L26 18 L30 9 L34 18 L38 12 L42 22 Z" class="g"/><circle cx="30" cy="9" r="1.6" class="g"/><circle cx="22" cy="12" r="1.3" class="g"/><circle cx="38" cy="12" r="1.3" class="g"/>',
+  12: '<path d="M19 22 Q30 6 41 22 Z" class="g"/><circle cx="30" cy="12" r="2.2" class="s"/><path d="M22 20 Q30 14 38 20" class="l"/>',
+  11: '<path d="M18 22 Q22 13 34 14 Q42 15 42 22 Z" class="g"/><path d="M34 14 Q40 4 47 8 Q41 9 37 15" class="s"/>',
+};
+const faceCache = {};
+function faceArt(rank, suit) {
+  const key = rank + suit;
+  if (faceCache[key]) return faceCache[key];
+  const half = `<g>${FACE_HAT[rank]}<path d="M21 23 Q30 30 39 23 L41 41 Q30 45 19 41 Z" class="r"/>
+    <text x="30" y="40" class="sym">${SUIT[suit]}</text></g>`;
+  faceCache[key] = `<svg class="face-art" viewBox="0 0 60 90" aria-hidden="true">
+    <rect x="5" y="6" width="50" height="78" rx="4" class="fr"/>
+    ${half}<g transform="rotate(180 30 45)">${half}</g>
+    <line x1="9" y1="45" x2="51" y2="45" class="l"/>
+    <text x="30" y="52" class="big">${rl(rank)}</text>
+  </svg>`;
+  return faceCache[key];
+}
 function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
-  if (back || !c) return `<div class="card back ${cls}"></div>`;
+  if (back || !c) return `<div class="card back ${cls}"><span class="shine"></span></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
-  const face = c.rank >= 11;
-  return `<div class="card ${red} ${face ? 'face' : ''} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''}>
-    <span class="corner tl">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
-    <span class="pip">${face ? `<b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i>` : SUIT[c.suit]}</span>
-    <span class="corner br">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
+  const kind = c.rank >= 11 && c.rank <= 13 ? 'face' : c.rank === 14 ? 'ace' : 'num';
+  const corner = (pos) => `<span class="corner ${pos}"><b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i></span>`;
+  const art = kind === 'face' ? faceArt(c.rank, c.suit)
+    : kind === 'ace' ? `<span class="ace-art"><i>${SUIT[c.suit]}</i></span>`
+      : `<span class="pips">${PIPS[c.rank].map(([x, y]) => `<i style="left:${x}%;top:${y}%"${y > 50 ? ' class="flip"' : ''}>${SUIT[c.suit]}</i>`).join('')}</span>`;
+  return `<div class="card ${red} ${kind} ${cls}" data-id="${c.id}"${style ? ` style="${style}"` : ''} aria-label="${rn(c.rank)} ${SUIT[c.suit]}">
+    ${corner('tl')}${art}${corner('br')}<span class="shine"></span>
   </div>`;
 }
 
@@ -115,6 +159,10 @@ const pushSettings = (extra = {}) => socket.emit('settings', { ...S.lobby.settin
 $('maxPlayers').onchange = () => pushSettings();
 const segClick = (id, fn) => $(id).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) pushSettings(fn(b.dataset.v)); });
 segClick('multSeg', (v) => ({ multiplier: Number(v) }));
+$('animSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  store.set('anim', b.dataset.v === 'off' ? 'off' : null); applyMotion(); setSeg('animSeg', b.dataset.v, false);
+});
 segClick('multCardSeg', (v) => ({ multiplier: v }));
 segClick('timeSeg', (v) => ({ turnTime: Number(v) }));
 segClick('visSeg', (v) => ({ visibility: v }));
@@ -148,13 +196,24 @@ function renderLobby() {
   $('lobbyCode').textContent = L.code;
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
-  $('lobbyPlayers').innerHTML = L.players.map((p) => `<li data-pid="${p.id}">
-      <span class="avatar ${p.bot ? 'bot' : ''}" ${p.bot ? `title="${persona(p.personality).label}"` : ''}>${p.bot ? persona(p.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}</span>
-      <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}${p.bot ? `<small class="persona">${persona(p.personality).label} · ${persona(p.personality).desc}</small>` : ''}</span>
+  // spelarna sitter runt ett litet bord: jag längst ner, de andra medurs, och lediga platser med streckad ram
+  const myIdx = Math.max(0, L.players.findIndex((p) => p.id === S.you));
+  const order = L.players.slice(myIdx).concat(L.players.slice(0, myIdx));
+  const seats = Math.max(L.settings.maxPlayers, order.length);
+  const at = (k) => { const a = Math.PI / 2 + (2 * Math.PI * k) / seats; return `left:${50 + 38 * Math.cos(a)}%;top:${50 + 40 * Math.sin(a)}%`; };
+  $('lobbyPlayers').innerHTML = Array.from({ length: seats }, (_, k) => {
+    const p = order[k];
+    if (!p) return `<li class="empty-seat" style="${at(k)}"><span class="avatar empty">+</span><span class="pname">Ledig plats</span></li>`;
+    const P = p.bot ? persona(p.personality) : null;
+    return `<li data-pid="${p.id}" style="${at(k)}" class="${p.id === S.you ? 'me' : ''}" ${P ? `title="${esc(P.label + ': ' + P.desc)}"` : ''}>
+      <span class="avatar ${p.bot ? 'bot' : ''}" style="--av:${avColor(p.id)}">${P ? P.emoji : esc(p.name.slice(0, 1).toUpperCase())}${p.id === L.hostId ? '<span class="host-crown" title="Värd">♛</span>' : ''}</span>
+      <span class="pname">${esc(p.name.replace(' (bot)', ''))}${p.id === S.you ? ' (du)' : ''}${P ? `<small class="persona">${P.label}</small>` : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
-      ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten">✕</button>` : ''}
+      ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten" aria-label="Ta bort ${esc(p.name)}">✕</button>` : ''}
       ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
-    </li>`).join('');
+    </li>`;
+  }).join('');
+  $('lobbyTableInfo').innerHTML = `<b>${L.players.length}/${L.settings.maxPlayers}</b><span>spelare</span>`;
   $('addBotBtn').classList.toggle('hidden', !isHost || !!L.local);
   $('addBotBtn').disabled = L.players.length >= L.settings.maxPlayers;
   $('maxPlayers').value = L.settings.maxPlayers; $('maxPlayers').disabled = !isHost;
@@ -162,6 +221,7 @@ function renderLobby() {
   setSeg('multSeg', mult, !isHost);
   setSeg('multCardSeg', mult, !isHost);
   setSeg('timeSeg', L.settings.turnTime || 0, !isHost);
+  setSeg('animSeg', store.get('anim') === 'off' ? 'off' : 'on', false);
   setSeg('visSeg', L.settings.visibility || 'private', !isHost);
   $('visSetting').classList.toggle('hidden', !!L.local);
   setSeg('extraSeg', L.settings.extraExchanges === false ? 0 : 1, !isHost);
@@ -226,7 +286,7 @@ function renderGame() {
     const offer = ex && ex.offers[p.id];
     const vote = ex && ex.proposal ? ex.proposal.votes[p.id] : undefined;
     return `<div class="seat ${isTurn ? 'turn' : ''} ${G.leaderId === p.id ? 'leader' : ''}" data-pid="${p.id}" style="left:${pos[k].x}%;top:${pos[k].y}%">
-      <div class="seat-avatar ${lp.bot ? 'bot' : ''}" ${lp.bot ? `title="${persona(lp.personality).label}: ${persona(lp.personality).desc}"` : ''}>${lp.bot ? persona(lp.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
+      <div class="seat-avatar ${lp.bot ? 'bot' : ''}" style="--av:${avColor(p.id)}" ${lp.bot ? `title="${persona(lp.personality).label}: ${persona(lp.personality).desc}"` : ''}>${lp.bot ? persona(lp.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
       <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}${lp.bot ? `<small class="persona">${persona(lp.personality).label}</small>` : ''}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
@@ -280,7 +340,7 @@ function renderGame() {
   }
   renderTally();
   renderDeal(G);
-  if (G.phase === 'finished' && outSeen && !reduceMotion) { outSeen = false; startShowdown(G); }
+  if (G.phase === 'finished' && outSeen && !noMotion()) { outSeen = false; startShowdown(G); }
   renderResults(G);
   if (!showdownRunning) celebrate(G);
 }
@@ -497,7 +557,7 @@ socket.on('state', (state) => {
     show('game');
     const G = S.game;
     const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
-    if (fresh && !reduceMotion) startDealAnim();
+    if (fresh && !noMotion()) startDealAnim();
     renderGame();
     renderTimers();
   }
@@ -505,7 +565,6 @@ socket.on('state', (state) => {
 });
 
 // ---------- animationer ----------
-const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let dealing = false;
 let crownShown = false, outSeen = false, showdownRunning = false, showdownTimers = [];
 let seenPlays = new Set(), prevHand = null, prevCounts = {}, seenOffers = new Set();
@@ -516,7 +575,7 @@ function seatEl(pid) { return pid === S.you ? $('hand') : document.querySelector
 
 /** Låter en kort-klon flyga mellan två element. */
 function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
-  if (!fromEl || !toEl || reduceMotion) return;
+  if (!fromEl || !toEl || noMotion()) return;
   const a = center(fromEl), b = center(toEl);
   const el = document.createElement('div');
   el.className = 'fly';
@@ -541,7 +600,7 @@ function flyBacks(fromPid, toPid, n, delay = 0) {
 }
 /** Ger ett element en start-förskjutning så att det "kommer från" ett annat element. */
 function arriveFrom(el, fromEl, delay = 0) {
-  if (!el || !fromEl || reduceMotion) return;
+  if (!el || !fromEl || noMotion()) return;
   const a = center(fromEl), b = center(el);
   el.style.setProperty('--fx', `${a.x - b.x}px`); el.style.setProperty('--fy', `${a.y - b.y}px`);
   el.style.animationDelay = `${delay}ms`;
@@ -557,6 +616,8 @@ function animateChanges(G) {
     if (seenPlays.has(key)) return;
     seenPlays.add(key);
     if (prevHand !== null) arriveFrom(el, seatEl(el.dataset.by));
+    // tog någon styret? en kort guldblixt runt korten när de har landat
+    if (prevHand !== null && el.classList.contains('beat') && !noMotion()) setTimeout(() => el.classList.add('flash'), 420);
   });
   // ersättningskort med framsidan upp kommer från kortleken
   const ex = G.exchange;
@@ -590,7 +651,10 @@ function startDealAnim() {
     const G = S.game, n = G.players.length, deck = $('deckPile');
     const reveal = Object.fromEntries(G.dealReveal.map((r) => [r.playerId, r.cards]));
     // långsamt nog att hinna följa med: dolda kort ett i taget, sedan de öppna korten med paus mellan varje
-    let t = 400;
+    // blanda leken först
+    deck.classList.add('shuffling');
+    setTimeout(() => deck.classList.remove('shuffling'), 1500);
+    let t = 1700;
     for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK, t, 450); t += 170; }
     t += 600;
     banner('Det sjätte kortet delas ut med framsidan upp – högst kort styr', t);
@@ -672,6 +736,11 @@ function stopShowdown() {
   const el = $('showdown'); if (el) el.remove();
   if (showdownRunning) { showdownRunning = false; if (S && S.game) { renderResults(S.game); celebrate(S.game); } }
 }
+/** Ett kort som ligger med baksidan upp och vänds (flip) efter `delay` ms. */
+function flipCard(c, delay) {
+  return `<span class="flip3d" style="--d:${delay}ms"><span class="flip-inner">${cardHTML(null, { back: true, cls: 'sd-card flip-back' })}${cardHTML(c, { cls: 'sd-card flip-front' })}</span></span>`;
+}
+function turnFlips(root) { requestAnimationFrame(() => requestAnimationFrame(() => root.querySelectorAll('.flip3d').forEach((f) => f.classList.add('turned')))); }
 function startShowdown(G) {
   stopShowdown();
   showdownRunning = true;
@@ -685,7 +754,7 @@ function startShowdown(G) {
     <div class="sd-title">Uppgörelse</div>
     <div class="sd-out">
       <div class="sd-out-name">🔥 ${who(out)} gick ut</div>
-      <div class="sd-cards">${out.hand.map((c, k) => cardHTML(c, { cls: 'sd-card in', style: `animation-delay:${k * 120}ms` })).join('')}</div>
+      <div class="sd-cards">${out.hand.map((c, k) => flipCard(c, 500 + k * 260)).join('')}</div>
       <div class="sd-value">Kortvärde <b>${out.value}</b></div>
     </div>
     <div class="sd-vs">VS</div>
@@ -696,19 +765,21 @@ function startShowdown(G) {
     <div class="sd-actions"><button class="btn" id="sdSkip">Hoppa över</button></div>
   </div>`;
   document.body.appendChild(el);
+  turnFlips(el.querySelector('.sd-out'));
   el.querySelector('#sdSkip').onclick = stopShowdown;
-  let t = 1600 + out.hand.length * 120;
+  let t = 1600 + out.hand.length * 260;
   for (const r of rest) {
     const row = el.querySelector(`.sd-row[data-pid="${r.playerId}"]`);
     later(() => row.classList.add('next'), t);
     t += 900;
     later(() => {
       row.classList.remove('next'); row.classList.add('shown');
-      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => cardHTML(c, { cls: 'sd-card flip', style: `animation-delay:${k * 110}ms` })).join('') || '–';
+      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => flipCard(c, k * 220)).join('') || '–';
+      turnFlips(row);
       const sum = row.querySelector('.sd-sum'), steps = 12;
       for (let k = 1; k <= steps; k++) later(() => { sum.textContent = Math.round(r.value * k / steps); }, k * 45);
     }, t);
-    t += 700 + r.hand.length * 110;
+    t += 800 + r.hand.length * 220;
   }
   later(() => {
     for (const r of G.results) {
@@ -727,42 +798,48 @@ function startShowdown(G) {
 
 // ---------- effekter ----------
 function burst(symbol, kind = '') {
-  if (reduceMotion) return;
+  if (noMotion()) return;
   const el = document.createElement('div');
   el.className = 'burst ' + kind;
   el.innerHTML = `<div class="burst-flash"></div><div class="burst-ring"></div><div class="burst-sym">${symbol}</div>`;
   $('fx').appendChild(el);
   setTimeout(() => el.remove(), 1400);
 }
-function confetti(ms = 2600) {
-  if (reduceMotion) return;
-  const c = document.createElement('canvas');
-  c.className = 'confetti'; c.width = innerWidth; c.height = innerHeight;
-  document.body.appendChild(c);
-  const ctx = c.getContext('2d');
-  const colors = ['#f2c14e', '#ffe08a', '#e53935', '#ffffff', '#43a047', '#29b6f6'];
-  const parts = Array.from({ length: 160 }, () => ({
-    x: innerWidth / 2 + (Math.random() - .5) * 200, y: innerHeight * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
-    s: 4 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: colors[Math.floor(Math.random() * colors.length)],
-  }));
-  const t0 = performance.now();
-  (function frame(t) {
-    ctx.clearRect(0, 0, c.width, c.height);
-    for (const p of parts) {
-      p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
-      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
-      ctx.globalAlpha = Math.max(0, 1 - (t - t0) / ms); ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore();
-    }
-    if (t - t0 < ms) requestAnimationFrame(frame); else c.remove();
-  })(t0);
+function confetti() {
+  if (noMotion()) return;
+  const box = document.createElement('div');
+  box.className = 'confetti';
+  const colors = ['#f3dfa2', '#d4af5f', '#b88e3c', '#1f8a5b', '#0f5a3c', '#fff6dc'];
+  let html = '';
+  for (let k = 0; k < 90; k++) {
+    const x = Math.random() * 100, drift = (Math.random() - .5) * 240, rot = (Math.random() - .5) * 1440;
+    const d = Math.random() * 600, dur = 1800 + Math.random() * 1400, w = 6 + Math.random() * 7;
+    html += `<i style="left:${x}%;--dx:${drift}px;--r:${rot}deg;--c:${colors[k % colors.length]};width:${w}px;height:${w * .45}px;animation-delay:${d}ms;animation-duration:${dur}ms"></i>`;
+  }
+  box.innerHTML = html;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 3800);
+}
+function winnerBanner(G) {
+  const winners = G.results.filter((r) => r.winner);
+  const el = document.createElement('div');
+  el.className = 'winner-banner';
+  el.innerHTML = G.isDraw ? '<small>Oavgjort</small><b>Alla lika!</b>'
+    : `<small>${winners.length > 1 ? 'Vinnare' : 'Vinnare'}</small><b>${winners.map((w) => esc(w.playerId === S.you ? 'Du' : w.name.replace(' (bot)', ''))).join(' & ')}</b>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), noMotion() ? 2000 : 2400);
 }
 // svävande kort på startsidan
 (function bgCards() {
   const box = $('bgCards'); if (!box) return;
-  const ranks = [14, 13, 12, 11, 10, 7, 2, 14, 13, 12];
-  box.innerHTML = ranks.map((r, k) => cardHTML({ id: 'bg' + k, rank: r, suit: 'SHDC'[k % 4] }, {
-    cls: 'bg-card', style: `left:${(k * 37 + 5) % 95}%;animation-delay:${-k * 2.3}s;animation-duration:${16 + (k % 5) * 3}s`,
-  })).join('');
+  const cards = [[14, 'S'], [13, 'H'], [12, 'D'], [11, 'C'], [10, 'H'], [7, 'S'], [2, 'D'], [14, 'H'], [0], [13, 'S'], [12, 'C'], [0], [9, 'D'], [11, 'H']];
+  box.innerHTML = cards.map(([r, suit], k) => {
+    // djup: kort långt bort är mindre, svagare och rör sig långsammare
+    const depth = 0.55 + ((k * 37) % 50) / 100;
+    const style = `left:${(k * 29 + 3) % 96}%;--s:${depth.toFixed(2)};--r0:${(k % 2 ? -1 : 1) * (10 + k * 3)}deg;--r1:${(k % 2 ? 1 : -1) * (20 + k * 2)}deg;`
+      + `opacity:${(0.05 + depth * 0.1).toFixed(2)};animation-delay:${-k * 3.1}s;animation-duration:${(30 - depth * 12).toFixed(1)}s`;
+    return r ? cardHTML({ id: 'bg' + k, rank: r, suit }, { cls: 'bg-card', style }) : `<div class="card back bg-card" style="${style}"></div>`;
+  }).join('');
 })();
 let celebrated = null;
 function celebrate(G) {
@@ -770,6 +847,7 @@ function celebrate(G) {
   const key = G.history.length + ':' + G.results.map((r) => r.score).join();
   if (celebrated === key) return;
   celebrated = key;
-  const mine = G.results.find((r) => r.playerId === S.you);
-  if (mine && mine.winner) confetti();
+  // vinnaren av omgången: konfetti i guld och grönt och namnet stort i mitten i två sekunder
+  winnerBanner(G);
+  if (!G.isDraw) confetti();
 }
