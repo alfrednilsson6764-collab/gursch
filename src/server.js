@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const { Game, GameError } = require('./game');
 const { botMove } = require('./bots');
 const { timeoutMove, createTurnTimers } = require('./turntimer');
+const Reactions = require('./reactions');
 const Tally = require('./tally');
 
 const app = express();
@@ -96,6 +97,24 @@ function closeRoom(room) {
 function applyAction(room, pid, a) {
   room.game.act(pid, a);
   if (room.game.phase === 'finished' && !room.game.tallied) { room.game.tallied = true; Tally.addRound(room.tally, room.game.results); }
+  botsReact(room);
+}
+
+// ---------- snabbreaktioner ----------
+function sendReaction(room, player, emoji) {
+  if (!Reactions.allow(player, emoji)) return false; // fel emoji eller spam: ignoreras tyst
+  io.to(room.code).emit('reaction', { playerId: player.id, emoji });
+  return true;
+}
+function botsReact(room) {
+  const g = room.game, bots = room.players.filter((p) => p.bot);
+  if (!g || !bots.length) return;
+  const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id));
+  room.reactSeq = seq;
+  reactions.forEach((r, k) => setTimeout(() => {
+    const bot = room.players.find((p) => p.id === r.playerId);
+    if (bot && rooms.has(room.code)) sendReaction(room, bot, r.emoji);
+  }, 500 + k * 700));
 }
 
 // Bottarna gör ett drag i taget med en kort paus, så att människorna hinner se vad som händer.
@@ -190,6 +209,7 @@ io.on('connection', (socket) => {
     if (room.players.length < 2) return reply(cb, { ok: false, error: 'Det behövs minst två spelare.' });
     if (!room.game && room.players.some((p) => !p.ready && p.id !== room.hostId))
       return reply(cb, { ok: false, error: 'Alla spelare är inte redo än.' });
+    room.reactSeq = 0;
     room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })),
       { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
     // Bottarna väntar tills utdelningen har visats (eller högst 30 sekunder).
@@ -218,6 +238,13 @@ io.on('connection', (socket) => {
     room.players = room.players.filter((p) => !(p.bot && p.id === id));
     reply(cb, { ok: true });
     broadcast(room);
+  });
+
+  // Snabbreaktion: bara emojis från den fasta listan, högst en per 2 sekunder och spelare.
+  socket.on('react', (emoji) => {
+    const { room, player } = ctx();
+    if (!room || !player) return;
+    sendReaction(room, player, String(emoji));
   });
 
   // Utdelningen har visats hos en spelare – då får bottarna börja.

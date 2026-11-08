@@ -722,6 +722,39 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
 .arrive { animation-name: arrive; }
 @keyframes arrive { from { transform: translate(var(--fx), var(--fy)) scale(.9) rotate(-6deg); opacity: 0; } 40% { opacity: 1; } }
 
+/* ---------- snabbreaktioner ---------- */
+.me-info { display: flex; align-items: center; gap: 8px; }
+.react-btn { width: 44px; height: 44px; flex: none; border-radius: 50%; font-size: 22px; line-height: 1; cursor: pointer;
+  background: rgba(0,0,0,.35); border: 1px solid var(--gold-line); box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+.react-btn:active { transform: scale(.94); }
+.react-picker { position: absolute; left: 10px; bottom: calc(100% + 8px); z-index: 30; display: flex; gap: 4px; padding: 6px;
+  border-radius: 99px; background: rgba(6,12,9,.96); border: 1px solid var(--gold-line); box-shadow: 0 12px 30px rgba(0,0,0,.6);
+  animation: pickerIn .18s ease-out; }
+@keyframes pickerIn { from { transform: translateY(8px) scale(.95); opacity: 0; } }
+.react-opt { width: 48px; height: 48px; border: 0; border-radius: 50%; background: transparent; font-size: 26px; line-height: 1; cursor: pointer; transition: transform .12s, background .12s; }
+.react-opt:hover, .react-opt:focus-visible { background: rgba(212,175,95,.15); transform: scale(1.12); outline: none; }
+.react-opt:active { transform: scale(.92); }
+.react-row { display: flex; justify-content: space-between; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(212,175,95,.12); }
+.react-row .react-opt { flex: 1; width: auto; border-radius: 12px; height: 44px; font-size: 22px; }
+.react-bubble { position: fixed; z-index: 70; pointer-events: none; transform: translate(-50%, -100%); font-size: 30px; line-height: 1;
+  padding: 8px 10px; border-radius: 18px; background: #fffaf0; border: 1px solid var(--gold); box-shadow: 0 10px 24px rgba(0,0,0,.5);
+  animation: bubble 2.5s cubic-bezier(.2,1.2,.3,1) forwards; }
+.react-bubble::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 10px; height: 10px; background: #fffaf0;
+  border-right: 1px solid var(--gold); border-bottom: 1px solid var(--gold); transform: translateX(-50%) rotate(45deg); }
+@keyframes bubble {
+  0% { transform: translate(-50%, -60%) scale(.3); opacity: 0; }
+  12% { transform: translate(-50%, -110%) scale(1.15); opacity: 1; }
+  20% { transform: translate(-50%, -105%) scale(1); }
+  80% { transform: translate(-50%, -115%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -135%) scale(.9); opacity: 0; }
+}
+@media (max-width: 640px) {
+  .me-info { justify-content: center; }
+  .react-picker { left: 50%; transform: translateX(-50%); animation: none; }
+  .react-opt { width: 46px; height: 46px; font-size: 25px; }
+}
+@media (prefers-reduced-motion: reduce) { .react-bubble { animation: none; opacity: 1; } }
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -770,6 +803,7 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
         <div class="panel-head">Spelare <span id="playerCount" class="muted"></span></div>
         <ul id="lobbyPlayers" class="player-list"></ul>
         <button id="addBotBtn" class="btn add-bot">+ Lägg till bot</button>
+        <div id="lobbyReacts" class="react-row" aria-label="Reaktioner"></div>
       </div>
 
       <div class="panel">
@@ -844,8 +878,9 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
       <div id="status" class="status"></div>
       <div id="offer" class="offer hidden"></div>
       <div id="hand" class="hand"></div>
+      <div id="reactPicker" class="react-picker hidden" role="menu" aria-label="Reaktioner"></div>
       <div class="me-bar">
-        <div class="me-info"><span id="meName"></span> · Kortvärde <strong id="meValue">0</strong></div>
+        <div class="me-info"><button id="reactBtn" class="react-btn" aria-label="Skicka reaktion" title="Reaktioner">😀</button><span id="meName"></span> · Kortvärde <strong id="meValue">0</strong></div>
         <div id="actions" class="actions"></div>
       </div>
     </div>
@@ -1595,9 +1630,55 @@ module.exports = { Game, GameError, RULES, makeDeck };
 </script>
 <script>
 'use strict';
+// Snabbreaktioner i Gursch (Alfred 2026-11-08). Delas av servern och testversionen.
+(function (root) {
+  const REACTIONS = ['😂', '🔥', '😤', '👏', '😱', '🙏'];
+  const COOLDOWN_MS = 2000; // högst en reaktion per 2 sekunder och spelare
+
+  /** Ska en reaktion släppas igenom? Uppdaterar spelarens senaste tid. Tyst nej för spam och okända emojis. */
+  function allow(player, emoji, now = Date.now()) {
+    if (!REACTIONS.includes(emoji)) return false;
+    if (player.lastReact && now - player.lastReact < COOLDOWN_MS) return false;
+    player.lastReact = now;
+    return true;
+  }
+
+  /**
+   * Bottar reagerar ibland på det som hänt sedan förra gången:
+   * 👏 eller 😤 när någon tar styret, 😂 när de vinner en omgång. Bara ibland, så att det inte blir tjatigt.
+   * Returnerar { reactions: [{ playerId, emoji }], seq }.
+   */
+  function botReactions(game, sinceSeq, botIds, rnd = Math.random) {
+    const out = [];
+    if (!game || !botIds.length) return { reactions: out, seq: sinceSeq };
+    let seq = sinceSeq;
+    for (const ev of game.events) {
+      if (ev.seq <= sinceSeq) continue;
+      seq = Math.max(seq, ev.seq);
+      if (ev.type === 'leader' && ev.reason === 'beat' && rnd() < 0.2) {
+        const others = botIds.filter((id) => id !== ev.playerId);
+        if (others.length) out.push({ playerId: others[Math.floor(rnd() * others.length)], emoji: rnd() < 0.5 ? '👏' : '😤' });
+      }
+    }
+    if (game.phase === 'finished' && !game.botsCheered) {
+      game.botsCheered = true;
+      for (const r of game.results || []) if (r.winner && botIds.includes(r.playerId) && rnd() < 0.6) out.push({ playerId: r.playerId, emoji: '😂' });
+    }
+    return { reactions: out, seq };
+  }
+
+  const api = { REACTIONS, COOLDOWN_MS, allow, botReactions };
+  if (typeof module !== 'undefined') module.exports = api;
+  else root.GurschReactions = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
 // Poängtavla över flera omgångar med samma sällskap. Delas av servern, testversionen och klienten.
-// Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten):
-// vinnaren får (förlorarens poäng − vinnarens poäng) mot förloraren, och förloraren lika mycket i minus.
+// Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten).
+// Talet som används är förlorarens poäng, precis som omgången slutade (Alfred 2026-11-08):
+// vinnaren får +förlorarens poäng och förloraren lika mycket i minus. Inga egna omräkningar.
 // En omgång sparas som { scores, winners, losers }.
 (function (root) {
   function addRound(tally, results) {
@@ -1613,7 +1694,8 @@ module.exports = { Game, GameError, RULES, makeDeck };
     let sum = 0;
     for (const r of tally.rounds) {
       const w = r.winners || [], l = r.losers || [];
-      if ((w.includes(me) && l.includes(other)) || (l.includes(me) && w.includes(other))) sum += r.scores[other] - r.scores[me];
+      if (w.includes(me) && l.includes(other)) sum += r.scores[other];
+      else if (l.includes(me) && w.includes(other)) sum -= r.scores[me];
     }
     return sum;
   }
@@ -1652,6 +1734,18 @@ window.GURSCH_LOCAL = function () {
   const { botMove } = window.GurschBots;
   const Tally = window.GurschTally;
   const { timeoutMove, createTurnTimers } = window.GurschTimer;
+  const Reactions = window.GurschReactions;
+  const me = {}; // för spamskyddet
+  function botsReact() {
+    const g = room && room.game; if (!g) return;
+    const bots = room.players.filter((p) => p.bot);
+    const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id));
+    room.reactSeq = seq;
+    reactions.forEach((r, k) => setTimeout(() => {
+      const bot = room && room.players.find((p) => p.id === r.playerId);
+      if (bot && Reactions.allow(bot, r.emoji)) fire('reaction', { playerId: bot.id, emoji: r.emoji });
+    }, 500 + k * 700));
+  }
   const timers = createTurnTimers((pid) => {
     const g = room && room.game; if (!g) return;
     const move = timeoutMove(g, pid); if (!move) return;
@@ -1679,6 +1773,7 @@ window.GURSCH_LOCAL = function () {
   function broadcast() {
     if (!room) return;
     timers.sync(room.game, ['me'], room.settings.turnTime, room.hold);
+    botsReact();
     fire('state', { lobby: lobbyView(), you: 'me', game: room.game ? room.game.viewFor('me') : null });
     scheduleBots();
   }
@@ -1718,6 +1813,7 @@ window.GURSCH_LOCAL = function () {
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
+        room.reactSeq = 0;
         room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
         room.hold = true;
         clearTimeout(holdTimer);
@@ -1729,6 +1825,9 @@ window.GURSCH_LOCAL = function () {
         return broadcast();
       case 'animDone':
         if (room) { room.hold = false; clearTimeout(holdTimer); broadcast(); }
+        return;
+      case 'react':
+        if (room && Reactions.allow(me, String(data))) fire('reaction', { playerId: 'me', emoji: String(data) });
         return;
       case 'endSession':
         room.ended = true; return broadcast();
@@ -1881,7 +1980,7 @@ function renderLobby() {
   $('lobbyCode').textContent = L.code;
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
-  $('lobbyPlayers').innerHTML = L.players.map((p) => `<li>
+  $('lobbyPlayers').innerHTML = L.players.map((p) => `<li data-pid="${p.id}">
       <span class="avatar ${p.bot ? 'bot' : ''}">${p.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}</span>
       <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
@@ -2170,6 +2269,31 @@ $('copyEndBtn').onclick = async () => {
   try { await navigator.clipboard.writeText(t.value); toast('Ställningen är kopierad'); }
   catch { t.classList.remove('hidden'); t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
 };
+
+// ---------- snabbreaktioner ----------
+const REACTIONS = ['😂', '🔥', '😤', '👏', '😱', '🙏'];
+const reactButtons = () => REACTIONS.map((e) => `<button class="react-opt" data-emoji="${e}" aria-label="Skicka ${e}">${e}</button>`).join('');
+$('reactPicker').innerHTML = reactButtons();
+$('lobbyReacts').innerHTML = reactButtons();
+$('reactBtn').onclick = (e) => { e.stopPropagation(); $('reactPicker').classList.toggle('hidden'); };
+const sendReact = (e) => { const b = e.target.closest('[data-emoji]'); if (!b) return; socket.emit('react', b.dataset.emoji); $('reactPicker').classList.add('hidden'); };
+$('reactPicker').addEventListener('click', sendReact);
+$('lobbyReacts').addEventListener('click', sendReact);
+document.addEventListener('click', (e) => { if (!e.target.closest('#reactPicker, #reactBtn')) $('reactPicker').classList.add('hidden'); });
+socket.on('reaction', ({ playerId, emoji }) => {
+  if (!REACTIONS.includes(emoji) || !S) return;
+  // var ska bubblan visas? vid platsen runt bordet, vid min hand, eller vid namnet i lobbyn
+  const anchor = !$('game').classList.contains('hidden')
+    ? (playerId === S.you ? document.querySelector('.me-info') : document.querySelector(`.seat[data-pid="${playerId}"]`))
+    : document.querySelector(`#lobbyPlayers li[data-pid="${playerId}"] .avatar`);
+  if (!anchor) return;
+  const r = anchor.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'react-bubble'; el.textContent = emoji;
+  el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = r.top + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+});
 
 // ---------- turtimer ----------
 let deadlines = {};

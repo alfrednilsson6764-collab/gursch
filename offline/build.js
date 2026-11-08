@@ -27,6 +27,7 @@ html = html
     ['<script>', shim, '</script>',
       '<script>', R('src/bots.js'), '</script>',
       '<script>', R('src/turntimer.js'), '</script>',
+      '<script>', R('src/reactions.js'), '</script>',
       '<script>', R('src/tally.js'), '</script>',
       '<script>', R('offline/local.js'), '</script>',
       '<script>', R('public/app.js'), '</script>'].join('\n'))

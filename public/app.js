@@ -131,7 +131,7 @@ function renderLobby() {
   $('lobbyCode').textContent = L.code;
   $('inviteLink').value = `${location.origin}${location.pathname}?rum=${L.code}`;
   $('playerCount').textContent = `(${L.players.length}/${L.settings.maxPlayers})`;
-  $('lobbyPlayers').innerHTML = L.players.map((p) => `<li>
+  $('lobbyPlayers').innerHTML = L.players.map((p) => `<li data-pid="${p.id}">
       <span class="avatar ${p.bot ? 'bot' : ''}">${p.bot ? '🤖' : esc(p.name.slice(0, 1).toUpperCase())}</span>
       <span class="pname">${esc(p.name)}${p.id === S.you ? ' (du)' : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
@@ -420,6 +420,31 @@ $('copyEndBtn').onclick = async () => {
   try { await navigator.clipboard.writeText(t.value); toast('Ställningen är kopierad'); }
   catch { t.classList.remove('hidden'); t.focus(); t.select(); toast('Markerat – kopiera med Ctrl+C / Cmd+C'); }
 };
+
+// ---------- snabbreaktioner ----------
+const REACTIONS = ['😂', '🔥', '😤', '👏', '😱', '🙏'];
+const reactButtons = () => REACTIONS.map((e) => `<button class="react-opt" data-emoji="${e}" aria-label="Skicka ${e}">${e}</button>`).join('');
+$('reactPicker').innerHTML = reactButtons();
+$('lobbyReacts').innerHTML = reactButtons();
+$('reactBtn').onclick = (e) => { e.stopPropagation(); $('reactPicker').classList.toggle('hidden'); };
+const sendReact = (e) => { const b = e.target.closest('[data-emoji]'); if (!b) return; socket.emit('react', b.dataset.emoji); $('reactPicker').classList.add('hidden'); };
+$('reactPicker').addEventListener('click', sendReact);
+$('lobbyReacts').addEventListener('click', sendReact);
+document.addEventListener('click', (e) => { if (!e.target.closest('#reactPicker, #reactBtn')) $('reactPicker').classList.add('hidden'); });
+socket.on('reaction', ({ playerId, emoji }) => {
+  if (!REACTIONS.includes(emoji) || !S) return;
+  // var ska bubblan visas? vid platsen runt bordet, vid min hand, eller vid namnet i lobbyn
+  const anchor = !$('game').classList.contains('hidden')
+    ? (playerId === S.you ? document.querySelector('.me-info') : document.querySelector(`.seat[data-pid="${playerId}"]`))
+    : document.querySelector(`#lobbyPlayers li[data-pid="${playerId}"] .avatar`);
+  if (!anchor) return;
+  const r = anchor.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'react-bubble'; el.textContent = emoji;
+  el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = r.top + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+});
 
 // ---------- turtimer ----------
 let deadlines = {};

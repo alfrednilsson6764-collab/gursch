@@ -5,6 +5,18 @@ window.GURSCH_LOCAL = function () {
   const { botMove } = window.GurschBots;
   const Tally = window.GurschTally;
   const { timeoutMove, createTurnTimers } = window.GurschTimer;
+  const Reactions = window.GurschReactions;
+  const me = {}; // för spamskyddet
+  function botsReact() {
+    const g = room && room.game; if (!g) return;
+    const bots = room.players.filter((p) => p.bot);
+    const { reactions, seq } = Reactions.botReactions(g, room.reactSeq || 0, bots.map((b) => b.id));
+    room.reactSeq = seq;
+    reactions.forEach((r, k) => setTimeout(() => {
+      const bot = room && room.players.find((p) => p.id === r.playerId);
+      if (bot && Reactions.allow(bot, r.emoji)) fire('reaction', { playerId: bot.id, emoji: r.emoji });
+    }, 500 + k * 700));
+  }
   const timers = createTurnTimers((pid) => {
     const g = room && room.game; if (!g) return;
     const move = timeoutMove(g, pid); if (!move) return;
@@ -32,6 +44,7 @@ window.GURSCH_LOCAL = function () {
   function broadcast() {
     if (!room) return;
     timers.sync(room.game, ['me'], room.settings.turnTime, room.hold);
+    botsReact();
     fire('state', { lobby: lobbyView(), you: 'me', game: room.game ? room.game.viewFor('me') : null });
     scheduleBots();
   }
@@ -71,6 +84,7 @@ window.GURSCH_LOCAL = function () {
         syncBots(); reply(cb, { ok: true }); return broadcast();
       }
       case 'start':
+        room.reactSeq = 0;
         room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })), { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges });
         room.hold = true;
         clearTimeout(holdTimer);
@@ -82,6 +96,9 @@ window.GURSCH_LOCAL = function () {
         return broadcast();
       case 'animDone':
         if (room) { room.hold = false; clearTimeout(holdTimer); broadcast(); }
+        return;
+      case 'react':
+        if (room && Reactions.allow(me, String(data))) fire('reaction', { playerId: 'me', emoji: String(data) });
         return;
       case 'endSession':
         room.ended = true; return broadcast();

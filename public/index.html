@@ -53,6 +53,7 @@
         <div class="panel-head">Spelare <span id="playerCount" class="muted"></span></div>
         <ul id="lobbyPlayers" class="player-list"></ul>
         <button id="addBotBtn" class="btn add-bot">+ Lägg till bot</button>
+        <div id="lobbyReacts" class="react-row" aria-label="Reaktioner"></div>
       </div>
 
       <div class="panel">
@@ -127,8 +128,9 @@
       <div id="status" class="status"></div>
       <div id="offer" class="offer hidden"></div>
       <div id="hand" class="hand"></div>
+      <div id="reactPicker" class="react-picker hidden" role="menu" aria-label="Reaktioner"></div>
       <div class="me-bar">
-        <div class="me-info"><span id="meName"></span> · Kortvärde <strong id="meValue">0</strong></div>
+        <div class="me-info"><button id="reactBtn" class="react-btn" aria-label="Skicka reaktion" title="Reaktioner">😀</button><span id="meName"></span> · Kortvärde <strong id="meValue">0</strong></div>
         <div id="actions" class="actions"></div>
       </div>
     </div>

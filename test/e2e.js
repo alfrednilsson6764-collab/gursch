@@ -166,13 +166,14 @@ function setHands(g, hands) {
   Tally.addRound(t, [R('a', 10, 1), R('b', 30, 0, 1), R('c', 20)]); // c i mitten räknas inte
   Tally.addRound(t, [R('a', 40, 0, 1), R('b', 0, 1), R('c', 40, 0, 1)]); // a och c förlorar tillsammans
   Tally.addRound(t, [R('a', 5), R('b', 5), R('c', 5)]); // oavgjort: inget räknas
-  assert.strictEqual(Tally.versus(t, 'a', 'b'), 20 - 40); // +20 i första, -40 i andra
-  assert.strictEqual(Tally.versus(t, 'b', 'a'), 20);
+  // talet är förlorarens poäng som omgången slutade på: +30 i första, -40 i andra
+  assert.strictEqual(Tally.versus(t, 'a', 'b'), 30 - 40);
+  assert.strictEqual(Tally.versus(t, 'b', 'a'), 40 - 30);
   assert.strictEqual(Tally.versus(t, 'a', 'c'), 0, 'mitten och två förlorare räknas inte mot varandra');
   assert.strictEqual(Tally.versus(t, 'b', 'c'), 40);
   const T = Object.fromEntries(Tally.totals(t).map((x) => [x.playerId, x]));
-  assert.deepStrictEqual([T.a.net, T.b.net, T.c.net], [-20, 60, -40]);
-  assert.ok(Tally.summaryText(t).includes('A\t-20') && Tally.summaryText(t).split('\n')[1].startsWith('B\t+60'));
+  assert.deepStrictEqual([T.a.net, T.b.net, T.c.net], [-10, 50, -40]);
+  assert.ok(Tally.summaryText(t).includes('A\t-10') && Tally.summaryText(t).split('\n')[1].startsWith('B\t+50'));
   console.log('OK: poängtavla');
 }
 
@@ -368,6 +369,35 @@ async function runTimer() {
   console.log('OK: turtimern spelar klart när ingen gör något');
 }
 
+// Snabbreaktioner: fast lista, spamskydd och bara till samma rum.
+async function runReactions() {
+  const host = client('Värd'); await new Promise((r) => host.on('connect', r));
+  const res = await emit(host, 'create', { name: 'Värd' });
+  const friend = client('Vän'); await new Promise((r) => friend.on('connect', r));
+  await emit(friend, 'join', { code: res.code, name: 'Vän' });
+  const outsider = client('Annan'); await new Promise((r) => outsider.on('connect', r));
+  await emit(outsider, 'create', { name: 'Annan' });
+  const got = [], other = [];
+  friend.on('reaction', (r) => got.push(r)); outsider.on('reaction', (r) => other.push(r));
+  host.emit('react', 'hej'); host.emit('react', '<b>x</b>'); // inget fritt innehåll
+  host.emit('react', '😂'); host.emit('react', '🔥'); // den andra är spam inom 2 s
+  friend.emit('react', '👏');
+  await wait(80);
+  const hostId = host.state.you, friendId = friend.state.you;
+  assert.deepStrictEqual(got, [{ playerId: hostId, emoji: '😂' }, { playerId: friendId, emoji: '👏' }]);
+  assert.deepStrictEqual(other, [], 'andra rum får inget');
+  [host, friend, outsider].forEach((c) => c.close());
+
+  const R = require('../src/reactions');
+  const g = { events: [{ seq: 1, type: 'leader', reason: 'deal', playerId: 'a' }, { seq: 2, type: 'leader', reason: 'beat', playerId: 'a' }], phase: 'finished',
+    results: [{ playerId: 'b', winner: true }, { playerId: 'a', winner: false }] };
+  const out = R.botReactions(g, 0, ['a', 'b'], () => 0);
+  assert.strictEqual(out.seq, 2);
+  assert.deepStrictEqual(out.reactions, [{ playerId: 'b', emoji: '👏' }, { playerId: 'b', emoji: '😂' }]);
+  assert.deepStrictEqual(R.botReactions(g, 2, ['a', 'b'], () => 0).reactions, [], 'samma händelse ger ingen ny reaktion');
+  console.log('OK: snabbreaktioner');
+}
+
 // Öppna rum: listan uppdateras live och visar bara kod, värdnamn och antal.
 async function runOpenRooms() {
   const watcher = client('Tittare'); let list = null;
@@ -396,6 +426,6 @@ async function runOpenRooms() {
 }
 
 server.listen(PORT, async () => {
-  try { await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
+  try { await runReactions(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
   catch (e) { console.error(e); process.exit(1); }
 });

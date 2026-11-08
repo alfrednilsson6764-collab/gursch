@@ -1,7 +1,8 @@
 'use strict';
 // Poängtavla över flera omgångar med samma sällskap. Delas av servern, testversionen och klienten.
-// Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten):
-// vinnaren får (förlorarens poäng − vinnarens poäng) mot förloraren, och förloraren lika mycket i minus.
+// Plus/minus räknas bara mellan omgångens vinnare och förlorare (inte de i mitten).
+// Talet som används är förlorarens poäng, precis som omgången slutade (Alfred 2026-11-08):
+// vinnaren får +förlorarens poäng och förloraren lika mycket i minus. Inga egna omräkningar.
 // En omgång sparas som { scores, winners, losers }.
 (function (root) {
   function addRound(tally, results) {
@@ -17,7 +18,8 @@
     let sum = 0;
     for (const r of tally.rounds) {
       const w = r.winners || [], l = r.losers || [];
-      if ((w.includes(me) && l.includes(other)) || (l.includes(me) && w.includes(other))) sum += r.scores[other] - r.scores[me];
+      if (w.includes(me) && l.includes(other)) sum += r.scores[other];
+      else if (l.includes(me) && w.includes(other)) sum -= r.scores[me];
     }
     return sum;
   }
