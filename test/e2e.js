@@ -130,11 +130,22 @@ function setHands(g, hands) {
   for (const p of g.players) g.act(p.id, { type: 'exchangeExtraDiscard', cardIds: [p.hand[5].id] });
   while (g.exchange.step === 'replace') g.act(Object.keys(g.exchange.offers)[0], { type: 'exchangeReplace', keep: Math.random() < 0.5 });
   assert.strictEqual(g.exchange.step, 'extra');
+  // den som redan har frågat får inte fråga igen (ingen spam) och räknas som nöjd
+  throwsGame(() => g.act(o2.id, { type: 'exchangePropose', count: 1 }), 'bara en fråga per spelare');
+  assert.ok(g.exchange.satisfied[o2.id]);
+  assert.ok(g.viewFor(o1.id).players.find((p) => p.id === o2.id).asked);
   // nytt förslag, någon säger nej → spelet börjar
   g.act(L.id, { type: 'exchangePropose', count: 3 });
   g.act(o1.id, { type: 'exchangeVote', yes: false });
   assert.strictEqual(g.phase, 'play');
   g.players.forEach((p) => assert.strictEqual(p.hand.length, 6));
+  // när alla har frågat en gång börjar spelet av sig självt
+  {
+    const h = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
+    h.asked.add('a'); h.asked.add('b');
+    h.phase = 'exchange'; h.startExtra(3);
+    assert.strictEqual(h.phase, 'play');
+  }
   console.log('OK: bytesregler');
 }
 
@@ -174,7 +185,7 @@ function checkPrivacy(st) {
   // inga motståndare får visas med hela händer: bara offentliga kort
   for (const p of st.game.players) {
     assert.ok(!('hand' in p), 'motståndares hand skickades');
-    if (p.id !== st.you) for (const c of p.publicCards) assert.ok(!mine.has(c.id));
+    assert.ok(!('publicCards' in p), 'motståndares synliga kort ska man komma ihåg själv');
   }
   if (st.game.phase !== 'finished') assert.ok(!json.includes('"results"'));
 }
@@ -190,7 +201,7 @@ async function bot(s) {
     if (ex.step === 'replace' && ex.offers[me]) return act({ type: 'exchangeReplace', keep: Math.random() < 0.5 });
     if (ex.step === 'extra' && ex.waitingFor.includes(me)) {
       if (ex.proposal) return act({ type: 'exchangeVote', yes: Math.random() < 0.7 });
-      if (Math.random() < 0.15) return act({ type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 3) });
+      if (Math.random() < 0.15 && !G.players.find((p) => p.id === me).asked) return act({ type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 3) });
       return act({ type: 'exchangeSatisfied' });
     }
     if (ex.step === 'extraDiscard' && ex.waitingFor.includes(me)) return act({ type: 'exchangeExtraDiscard', cardIds: hand.slice(0, ex.leaderCount).map((c) => c.id) });

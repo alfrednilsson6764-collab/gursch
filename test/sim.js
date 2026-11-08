@@ -7,7 +7,7 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)];
 function randomize(g, pid, move) {
   const ex = g.exchange;
   // ibland föreslår någon ett extra byte, och ibland säger någon ja trots allt
-  if (ex && ex.step === 'extra' && !ex.proposal && Math.random() < 0.2) return { type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 6) };
+  if (ex && ex.step === 'extra' && !ex.proposal && !g.asked.has(pid) && Math.random() < 0.2) return { type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 6) };
   if (move && move.type === 'exchangeVote' && Math.random() < 0.5) return { ...move, yes: true };
   if (move && move.type === 'exchangeReplace') return { ...move, keep: Math.random() < 0.5 };
   return move;

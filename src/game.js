@@ -16,6 +16,9 @@ const RULES = {
   // Ersättningskort (Alfred 2026-11-07): man får alla på en gång med framsidan upp,
   // och väljer att behålla alla eller ta lika många dolda.
   // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
+  // Varje spelare får bara fråga en gång under hela inledningen (Alfred 2026-11-08), så att
+  // ingen kan spamma frågor; har man redan frågat återstår bara "nöjd".
+  // Motståndarnas synliga kort visas inte i efterhand – man får själv komma ihåg dem (Alfred 2026-11-08).
   // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
   // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
   // Kan man lägga över (på något av sätten) måste man; annars läggs de lägsta korten.
@@ -49,6 +52,7 @@ class Game {
     if (players.length < 2 || players.length > 6) fail('Gursch spelas av 2–6 spelare.');
     this.multiplier = multiplier;
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
+    this.asked = new Set(); // vilka som har frågat om extra byte
     this.deck = makeDeck();
     this.discard = [];
     this.setAside = [];
@@ -225,6 +229,12 @@ class Game {
 
   startExtra(round) {
     this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
+    // Den som redan har frågat räknas som nöjd; har alla frågat börjar spelet direkt.
+    for (const p of this.players) if (this.asked.has(p.id)) this.exchange.satisfied[p.id] = true;
+    if (this.players.every((p) => this.asked.has(p.id))) {
+      this.log('Alla har redan frågat en gång – nu börjar spelet.');
+      return this.startPlay();
+    }
     this.log(`Extra byte: vill någon slänga fler kort? Alla måste vara med. Annars börjar spelet när alla är nöjda.`);
   }
 
@@ -233,8 +243,10 @@ class Game {
     const i = this.idx(pid), ex = this.exchange;
     if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att föreslå byte nu.');
     if (ex.proposal) fail('Det finns redan ett förslag att svara på.');
+    if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
     count = Math.round(Number(count));
     if (!(count >= 1 && count <= 6)) fail('Välj 1–6 kort.');
+    this.asked.add(pid);
     ex.proposal = { by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])) };
     this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
   }
@@ -452,7 +464,7 @@ class Game {
       deckCount: this.deck.length,
       players: this.players.map((p) => ({
         id: p.id, name: p.name, handCount: p.hand.length,
-        publicCards: p.hand.filter((c) => p.publicIds.has(c.id)),
+        asked: this.asked.has(p.id),
       })),
       dealReveal: this.dealReveal,
       history: this.history.slice(-60),
@@ -460,7 +472,7 @@ class Game {
     };
     if (me >= 0) {
       const p = this.players[me];
-      v.me = { id: pid, hand: p.hand.map((c) => ({ ...c, public: p.publicIds.has(c.id) })), value: p.hand.reduce((s, c) => s + c.rank, 0) };
+      v.me = { id: pid, hand: p.hand.map((c) => ({ ...c })), value: p.hand.reduce((s, c) => s + c.rank, 0) };
     }
     if (ex) {
       v.exchange = {

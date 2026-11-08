@@ -28,7 +28,6 @@ function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
     <span class="corner tl">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
     <span class="pip">${face ? `<b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i>` : SUIT[c.suit]}</span>
     <span class="corner br">${rl(c.rank)}<br>${SUIT[c.suit]}</span>
-    ${c.public ? '<span class="eye" title="Synligt för alla">👁</span>' : ''}
   </div>`;
 }
 
@@ -167,7 +166,6 @@ function renderGame() {
       <div class="seat-name">${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}${esc(p.name)}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
-      ${p.publicCards.length ? `<div class="seat-public">${p.publicCards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
       ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : ''}
       ${ex && ex.step === 'extra' && !ex.proposal && ex.satisfied[p.id] ? '<div class="tiny muted">Nöjd</div>' : ''}
@@ -272,10 +270,10 @@ function renderActions(G) {
           acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
         } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
       } else if (!ex.satisfied[me]) {
-        status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med. Annars börjar spelet när alla är nöjda.';
+        status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';
         for (let n = 1; n <= 6; n++) acts.push(btn(`Fråga: ${n}`, () => send('exchangePropose', { count: n }), 'small'));
         acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
-      } else status = `Du är nöjd. Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+      } else status = `${G.players.find((p) => p.id === me).asked ? 'Du har redan frågat en gång.' : 'Du är nöjd.'} Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
     } else if (ex.step === 'extraDiscard') {
       const k = ex.leaderCount;
       if (ex.waitingFor.includes(me)) {
