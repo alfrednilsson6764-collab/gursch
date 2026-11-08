@@ -22,7 +22,10 @@ body { background: radial-gradient(circle at 50% 30%, #145f42, #082a1c 75%); col
 .error { color: #ff8a80; min-height: 1.2em; text-align: center; margin: 8px 0 0; }
 
 .screen { position: absolute; inset: 0; display: flex; }
-#home, #lobby { align-items: center; justify-content: center; padding: 16px; overflow: auto; }
+/* "säker" centrering: margin:auto i stället för align-items:center, annars hamnar toppen utanför
+   och går inte att scrolla upp till när innehållet är högre än skärmen */
+#home, #lobby { align-items: flex-start; justify-content: flex-start; padding: 16px; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+#home > .home-card, #lobby > .home-card { margin: auto; flex: none; }
 .home-card { background: rgba(0,0,0,.35); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.12);
   border-radius: 22px; padding: 28px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
 .home-card.wide { max-width: 620px; }
@@ -979,6 +982,34 @@ html.no-anim .logo-shine, html.no-anim .bg-cards, html.no-anim .confetti { displ
   .logo-shine, .bg-cards, .confetti { display: none !important; }
 }
 
+/* ---------- övertalningsfristen vid extra byte ---------- */
+.table-wrap { position: relative; }
+.persuade { position: absolute; left: 50%; top: 50%; z-index: 30; width: min(92%, 440px); transform: translate(-50%, -50%);
+  padding: 14px 16px 12px; border-radius: 18px; text-align: center; color: #fbf1d8;
+  background: radial-gradient(120% 140% at 50% 0%, rgba(122,37,49,.96), rgba(52,10,18,.97));
+  border: 1.5px solid #d4af5f; box-shadow: 0 0 0 4px rgba(212,175,95,.15), 0 18px 40px rgba(0,0,0,.6);
+  animation: persuadeIn .35s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes persuadeIn { from { opacity: 0; transform: translate(-50%, -50%) scale(.8); } }
+.persuade-title { font-family: var(--serif); font-size: 21px; line-height: 1.2; }
+.persuade-title b { color: #f3dfa2; }
+.persuade-clock { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.persuade-num { font-family: var(--serif); font-weight: 700; font-size: 30px; min-width: 34px; color: #f3dfa2; font-variant-numeric: tabular-nums lining-nums; }
+.persuade-bar { flex: 1; height: 8px; border-radius: 99px; background: rgba(0,0,0,.4); overflow: hidden; }
+.persuade-bar i { display: block; height: 100%; background: linear-gradient(90deg, #b88e3c, #f3dfa2); transform-origin: left; transition: transform .2s linear; }
+.persuade.low .persuade-num { color: #ff9a8a; animation: persuadePulse .5s ease-in-out infinite alternate; }
+@keyframes persuadePulse { to { transform: scale(1.18); } }
+.persuade-reacts { display: flex; justify-content: center; gap: 14px; margin-top: 12px; }
+.persuade-reacts .react-opt { width: 64px; height: 56px; font-size: 32px; border-radius: 16px; background: rgba(255,255,255,.1); border: 1px solid rgba(243,223,162,.45);
+  animation: persuadeBeg 1.2s ease-in-out infinite; }
+.persuade-reacts .react-opt:nth-child(2) { animation-delay: .6s; }
+.persuade-reacts .react-opt:active { transform: scale(.9); }
+@keyframes persuadeBeg { 50% { transform: translateY(-4px) scale(1.06); } }
+.seat-turn.no { color: #ffb3a6; border-color: rgba(255,120,100,.5); background: rgba(120,20,30,.55); }
+.player-list.seated .icon-btn.kick:hover { background: #7a2531; color: #fff; }
+@media (max-width: 640px) { .persuade-title { font-size: 18px; } .persuade { padding: 12px; } }
+html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .persuade.low .persuade-num { animation: none; }
+@media (prefers-reduced-motion: reduce) { .persuade, .persuade-reacts .react-opt, .persuade.low .persuade-num { animation: none; } }
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -1186,15 +1217,24 @@ const RULES = {
   // Om ingen slår och turen kommer tillbaka: styrspelaren behåller styret.
   // Ersättningskort (Alfred 2026-11-07): man får alla på en gång med framsidan upp,
   // och väljer att behålla alla eller ta lika många dolda.
-  // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
-  // Varje spelare får bara fråga en gång under hela inledningen (Alfred 2026-11-08), så att
-  // ingen kan spamma frågor; har man redan frågat återstår bara "nöjd".
-  // Säger man nej till en fråga kan man kontra med en egen fråga (om man inte redan frågat).
+  // Extra byten (Alfred 2026-11-08, som i verkligheten):
+  //  1. Efter styrspelarens två bytesrundor kan vem som helst fråga "Ska alla slänga X kort?" (X = 1–6).
+  //  2. Alla andra svarar ja eller nej.
+  //  3. Säger alla ja slänger alla X kort och får ersättningskort som vanligt. Sedan kan vem som
+  //     helst fråga igen – hur många gånger som helst. Tar leken slut blandas slänghögen som vanligt.
+  //  4. Säger någon nej börjar en övertalningsfrist (PERSUADE_SECONDS). Den som sa nej kan ändra sig
+  //     ("Okej, jag är med") och då fortsätter omröstningen, eller avsluta direkt ("Nej, vi kör").
+  //     Har ingen ändrat sig när tiden är ute blir det inga fler byten och spelet börjar.
+  //     Tiden ägs av servern (src/turntimer.js), som anropar persuadeExpired().
+  //  5. "Vi kör" (när ingen fråga är ute) räcker att en spelare trycker: spelet börjar direkt.
+  //  6. Går turtimern ut för någon som ska svara räknas det som nej (och fristen startar).
   // Motståndarnas synliga kort visas inte i efterhand – man får själv komma ihåg dem (Alfred 2026-11-08).
   // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
   // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
   // Kan man lägga över (på något av sätten) måste man; annars läggs de lägsta korten.
 };
+
+const PERSUADE_SECONDS = 10; // övertalningsfristen när någon säger nej till extra byte
 
 function rankName(r) { return RANK_NAMES[r] || String(r); }
 function cardValue(c) { return c.rank; }
@@ -1228,7 +1268,7 @@ class Game {
     this.multiplier = this.multiplierMode === 'fixed' ? multiplier : null;
     this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
-    this.asked = new Set(); // vilka som har frågat om extra byte
+    this.proposalSeq = 0; // numrerar frågorna om extra byte
     this.deck = makeDeck();
     this.discard = [];
     this.setAside = [];
@@ -1309,7 +1349,7 @@ class Game {
   // Bytesrunda 1 och 2 styrs av styrspelaren. Därefter kan extra bytesrundor
   // föreslås av vem som helst, men de blir bara av om alla är med.
   startExchangeRound(round) {
-    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
+    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null };
     this.log(`Bytesrunda ${round}: ${this.name(this.leader)} väljer hur många kort som ska slängas.`);
   }
 
@@ -1410,70 +1450,87 @@ class Game {
   }
 
   startExtra(round) {
-    this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
-    // Den som redan har frågat räknas som nöjd; har alla frågat börjar spelet direkt.
-    for (const p of this.players) if (this.asked.has(p.id)) this.exchange.satisfied[p.id] = true;
-    if (this.players.every((p) => this.asked.has(p.id))) {
-      this.log('Alla har redan frågat en gång – nu börjar spelet.');
-      return this.startPlay();
-    }
-    this.log(`Extra byte: vill någon slänga fler kort? Alla måste vara med. Annars börjar spelet när alla är nöjda.`);
+    this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null };
+    this.log(round === 3 ? 'Extra byte: vem som helst kan fråga om alla ska slänga 1–6 kort. Annars – tryck "Vi kör".'
+      : 'Vill någon byta igen? Fråga, eller tryck "Vi kör".');
   }
 
-  // Föreslå att alla slänger `count` kort.
+  // Fråga om alla ska slänga `count` kort. Den som frågar räknas som ja.
   exchangePropose(pid, count) {
     const i = this.idx(pid), ex = this.exchange;
-    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att föreslå byte nu.');
-    if (ex.proposal) fail('Det finns redan ett förslag att svara på.');
-    if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
+    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att fråga om byte nu.');
+    if (ex.proposal) fail('Det finns redan en fråga att svara på.');
     count = Math.round(Number(count));
     if (!(count >= 1 && count <= 6)) fail('Välj 1–6 kort.');
-    this.asked.add(pid);
-    ex.proposal = { by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])) };
-    this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
+    ex.proposal = { id: ++this.proposalSeq, by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])), persuading: false };
+    this.log(`${this.name(i)} frågar: ska alla slänga ${count} kort?`);
   }
 
-  exchangeVote(pid, yes, counter = null) {
-    const i = this.idx(pid), ex = this.exchange;
-    if (this.phase !== 'exchange' || ex.step !== 'extra' || !ex.proposal) fail('Det finns inget förslag att svara på.');
-    if (ex.proposal.votes[pid] !== null) fail('Du har redan svarat.');
-    if (counter != null) {
-      if (yes) fail('Man kan bara kontra när man säger nej.');
-      if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
-      counter = Math.round(Number(counter));
-      if (!(counter >= 1 && counter <= 6)) fail('Välj 1–6 kort.');
-    }
-    ex.proposal.votes[pid] = !!yes;
+  requireProposal() {
+    const ex = this.exchange;
+    if (this.phase !== 'exchange' || !ex || ex.step !== 'extra' || !ex.proposal) fail('Det finns ingen fråga att svara på.');
+    return ex.proposal;
+  }
+
+  exchangeVote(pid, yes) {
+    const i = this.idx(pid), P = this.requireProposal();
+    if (P.votes[pid] !== null) fail('Du har redan svarat.');
+    P.votes[pid] = !!yes;
     if (!yes) {
-      // Kontra (Alfred 2026-11-08): den som säger nej får istället ställa en egen fråga,
-      // om hen inte redan har frågat. Varje spelare frågar max en gång, så det tar slut.
-      if (counter != null) {
-        this.log(`${this.name(i)} säger nej men kontrar.`);
-        ex.proposal = null;
-        return this.exchangePropose(pid, counter);
-      }
-      this.log(`${this.name(i)} vill inte slänga. Inga fler byten.`);
-      return this.startPlay();
+      this.log(`${this.name(i)} säger nej – övertala hen!`);
+      this.event('holdout', { playerId: pid });
+      P.persuading = true; // fristen startar (eller pågår redan)
+      return;
     }
     this.log(`${this.name(i)} är med.`);
-    if (Object.values(ex.proposal.votes).every((v) => v === true)) {
-      this.log(`Alla är med – alla slänger ${ex.proposal.count} kort.`);
-      ex.step = 'extraDiscard';
-      ex.leaderCount = ex.proposal.count;
-      this.players.forEach((p) => { ex.decisions[p.id] = null; });
-    }
+    this.settleVotes();
   }
 
-  exchangeSatisfied(pid) {
+  /** "Okej, jag är med": den som sa nej ändrar sig under fristen. */
+  exchangeChangeMind(pid) {
+    const i = this.idx(pid), P = this.requireProposal();
+    if (P.votes[pid] !== false) fail('Du har inte sagt nej.');
+    P.votes[pid] = true;
+    this.log(`${this.name(i)} ändrar sig – är med!`);
+    if (!Object.values(P.votes).includes(false)) P.persuading = false;
+    this.settleVotes();
+  }
+
+  /** "Nej, vi kör": den som sa nej avslutar fristen direkt. */
+  exchangeInsist(pid) {
+    const i = this.idx(pid), P = this.requireProposal();
+    if (P.votes[pid] !== false) fail('Du har inte sagt nej.');
+    this.log(`${this.name(i)} står fast vid nej. Inga fler byten.`);
+    this.startPlay();
+  }
+
+  /** Övertalningsfristen är slut (anropas av servern). proposalId skyddar mot en gammal timer. */
+  persuadeExpired(proposalId = null) {
+    const ex = this.exchange, P = ex && ex.proposal;
+    if (this.phase !== 'exchange' || !P || !P.persuading || (proposalId != null && P.id !== proposalId)) return false;
+    this.log('Ingen ändrade sig. Inga fler byten.');
+    this.startPlay();
+    this.checkInvariant();
+    return true;
+  }
+
+  /** "Vi kör": räcker att en spelare trycker – räknas som nej till fler byten, utan frist. */
+  exchangeGo(pid) {
     const i = this.idx(pid), ex = this.exchange;
     if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte nu.');
-    if (ex.proposal) return this.exchangeVote(pid, false);
-    ex.satisfied[pid] = true;
-    this.log(`${this.name(i)} är nöjd.`);
-    if (this.players.every((p) => ex.satisfied[p.id])) {
-      this.log('Alla är nöjda.');
-      this.startPlay();
-    }
+    if (ex.proposal) fail('Svara på frågan först.');
+    this.log(`${this.name(i)}: Vi kör!`);
+    this.startPlay();
+  }
+
+  settleVotes() {
+    const ex = this.exchange, P = ex.proposal;
+    if (!Object.values(P.votes).every((v) => v === true)) return;
+    this.log(`Alla är med – alla slänger ${P.count} kort.`);
+    ex.step = 'extraDiscard';
+    ex.leaderCount = P.count;
+    ex.proposal = null;
+    this.players.forEach((p) => { ex.decisions[p.id] = null; });
   }
 
   exchangeExtraDiscard(pid, cardIds) {
@@ -1638,8 +1695,10 @@ class Game {
       case 'exchangeOther': this.exchangeOther(pid, !!a.discard, a.cardIds); break;
       case 'exchangeReplace': this.exchangeReplace(pid, !!a.keep); break;
       case 'exchangePropose': this.exchangePropose(pid, a.count); break;
-      case 'exchangeVote': this.exchangeVote(pid, !!a.yes, a.counter ?? null); break;
-      case 'exchangeSatisfied': this.exchangeSatisfied(pid); break;
+      case 'exchangeVote': this.exchangeVote(pid, !!a.yes); break;
+      case 'exchangeChangeMind': this.exchangeChangeMind(pid); break;
+      case 'exchangeInsist': this.exchangeInsist(pid); break;
+      case 'exchangeGo': this.exchangeGo(pid); break;
       case 'exchangeExtraDiscard': this.exchangeExtraDiscard(pid, a.cardIds); break;
       case 'play': this.playCards(pid, a.cardIds); break;
       case 'dump': this.dumpLowest(pid); break;
@@ -1660,7 +1719,6 @@ class Game {
       deckCount: this.deck.length,
       players: this.players.map((p) => ({
         id: p.id, name: p.name, handCount: p.hand.length,
-        asked: this.asked.has(p.id),
       })),
       dealReveal: this.dealReveal,
       history: this.history.slice(-60),
@@ -1675,12 +1733,12 @@ class Game {
         round: ex.round, step: ex.step, leaderCount: ex.leaderCount,
         waitingFor: ex.step === 'others' || ex.step === 'extraDiscard' ? Object.keys(ex.decisions).filter((k) => ex.decisions[k] === null)
           : ex.step === 'replace' ? Object.keys(ex.offers)
-            : ex.step === 'extra' ? (ex.proposal ? Object.keys(ex.proposal.votes).filter((k) => ex.proposal.votes[k] === null)
-              : this.players.map((p) => p.id).filter((k) => !ex.satisfied[k]))
+            : ex.step === 'extra' ? (ex.proposal ? Object.keys(ex.proposal.votes).filter((k) => ex.proposal.votes[k] !== true)
+              : this.players.map((p) => p.id))
               : [this.players[this.leader].id],
         proposal: ex.proposal,
         replaceQueue: ex.replaceQueue || [],
-        satisfied: ex.satisfied,
+        persuadeSeconds: PERSUADE_SECONDS,
         offers: ex.offers, // synliga ersättningskort visas för alla
         pending: ex.pending,
         eligible: ex.step === 'others' ? Object.keys(ex.decisions) : this.eligibleOthers().map((k) => this.players[k].id),
@@ -1709,7 +1767,7 @@ function describe(cards) {
   return n === 1 ? `en ${r}` : `${words[n]} ${r}${r.match(/\d/) ? ':or' : 'ar'}`.replace('essar', 'ess').replace('damar', 'damer').replace('kungar', 'kungar');
 }
 
-module.exports = { Game, GameError, RULES, makeDeck };
+module.exports = { Game, GameError, RULES, makeDeck, PERSUADE_SECONDS };
 
   window.GurschGame = module.exports;
 })();
@@ -1792,6 +1850,23 @@ module.exports = { Game, GameError, RULES, makeDeck };
     return m;
   }
   // ---------- inledningen (byten) ----------
+  // Extra byten per personlighet: vilka kort räknas som höga, och hur lätt boten låter sig övertalas.
+  const EXTRA = {
+    normal: { high: 10, persuade: 0.35 },
+    cautious: { high: 9, persuade: 0.03 },
+    gambler: { high: 11, persuade: 0.8 },
+    novice: { high: 10, persuade: 0.5 },
+    expert: { high: 8, persuade: 0.2 },
+  };
+  // Beslut som bara ska slumpas en gång per fråga/byte (annars skulle boten "slå om" vid varje uppdatering).
+  const decisions = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  function decide(obj, pid, fn) {
+    if (!decisions) return fn();
+    let m = decisions.get(obj);
+    if (!m) { m = {}; decisions.set(obj, m); }
+    if (!(pid in m)) m[pid] = fn();
+    return m[pid];
+  }
   function exchangeMove(game, i, pid, P, rnd) {
     const ex = game.exchange, hand = game.players[i].hand, value = sum(hand);
     // nivåer per personlighet: vilka kort räknas som "höga", när är ett erbjudande bra nog att behålla
@@ -1824,15 +1899,27 @@ module.exports = { Game, GameError, RULES, makeDeck };
       return { type: 'exchangeReplace', keep: sum(o) <= T.keepAvg * o.length };
     }
     if (ex.step === 'extra') {
-      if (ex.proposal) {
-        if (ex.proposal.votes[pid] !== null) return null;
-        const high = hand.filter((c) => c.rank >= 10).length;
-        if (high >= ex.proposal.count) return { type: 'exchangeVote', yes: true };
-        // har boten själv inte frågat än kan den kontra med så många kort den vill bli av med
-        if (high > 0 && !game.asked.has(pid)) return { type: 'exchangeVote', yes: false, counter: high };
-        return { type: 'exchangeVote', yes: false };
+      // Extra byten (Alfred 2026-11-08). Ju fler extra byten som redan gjorts, desto mer benägen att säga nej,
+      // så att det inte blir oändligt.
+      const done = Math.max(0, ex.round - 3);
+      const fade = Math.pow(0.55, done);
+      const Pr = ex.proposal;
+      if (Pr) {
+        if (Pr.votes[pid] === null) {
+          // ja om boten har höga kort den vill bli av med
+          const high = hand.filter((c) => c.rank >= EXTRA[P].high).length;
+          return { type: 'exchangeVote', yes: high >= Pr.count && rnd() < fade };
+        }
+        if (Pr.votes[pid] === false && Pr.persuading) {
+          // låter sig ibland övertalas under fristen (Bertil ofta, Astrid nästan aldrig) – bestäms en gång per fråga
+          if (decide(Pr, pid, () => rnd() < EXTRA[P].persuade)) return { type: 'exchangeChangeMind', delay: 2500 + Math.floor(rnd() * 4000) };
+        }
+        return null;
       }
-      return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
+      // frågar själv bara om korten är tydligt dåliga
+      const bad = hand.filter((c) => c.rank >= 11);
+      if (bad.length >= 3 && decide(ex, pid, () => rnd() < 0.7 * fade)) return { type: 'exchangePropose', count: bad.length };
+      return { type: 'exchangeGo' }; // servern låter inte bottar trycka "Vi kör" när det finns människor i rummet
     }
     if (ex.step === 'extraDiscard' && ex.decisions[pid] === null) return { type: 'exchangeExtraDiscard', cardIds: ids(highest(hand, ex.leaderCount)) };
     return null;
@@ -1987,16 +2074,21 @@ module.exports = { Game, GameError, RULES, makeDeck };
 (function (root) {
   const { botMove } = typeof module !== 'undefined' ? require('./bots') : root.GurschBots;
 
-  /** Draget som görs när tiden har gått ut. Under bytet är standardvalet "nöjd/behåll". null = spelaren behöver inte göra något. */
+  /** Draget som görs när tiden har gått ut. Under bytet är standardvalet "behåll"/"nej". null = spelaren behöver inte göra något. */
   function timeoutMove(game, pid) {
+    const ex = game.exchange;
+    // Extra byte: den som ska svara och inte hinner räknas som nej (då startar övertalningsfristen).
+    // Är ingen fråga ute och ingen gör något blir det "Vi kör".
+    if (game.phase === 'exchange' && ex && ex.step === 'extra') {
+      if (!ex.proposal) return { type: 'exchangeGo' };
+      return ex.proposal.votes[pid] === null ? { type: 'exchangeVote', yes: false } : null;
+    }
     const move = botMove(game, pid);
     if (!move) return null;
-    const ex = game.exchange;
     if (game.phase === 'exchange' && ex) {
       if (ex.step === 'leader') return { type: 'exchangeLeader', cardIds: [] };
       if (ex.step === 'others') return { type: 'exchangeOther', discard: false };
       if (ex.step === 'replace') return { type: 'exchangeReplace', keep: true };
-      if (ex.step === 'extra') return ex.proposal ? { type: 'exchangeVote', yes: false } : { type: 'exchangeSatisfied' };
     }
     return move; // spelet och extra slängning (som alla redan sagt ja till): samma logik som bottarna
   }
@@ -2004,7 +2096,7 @@ module.exports = { Game, GameError, RULES, makeDeck };
   /** En nyckel som ändras när ett nytt beslut ska fattas, så att timern startar om bara då. */
   function turnKey(game) {
     const ex = game.exchange, pl = game.play;
-    if (ex) return `x${ex.round}:${ex.step}:${ex.proposal ? ex.proposal.by + ex.proposal.count : ''}:${Object.keys(ex.offers).join(',')}`;
+    if (ex) return `x${ex.round}:${ex.step}:${ex.proposal ? ex.proposal.id : ''}:${Object.keys(ex.offers).join(',')}`;
     if (pl) return `p${pl.roundNo}:${pl.table.length}:${pl.turn}`;
     return game.phase;
   }
@@ -2043,7 +2135,29 @@ module.exports = { Game, GameError, RULES, makeDeck };
     };
   }
 
-  const api = { timeoutMove, turnKey, createTurnTimers };
+  /**
+   * Övertalningsfristen vid extra byte: när någon har sagt nej får de andra PERSUADE_SECONDS på sig.
+   * sync(game, scale) anropas efter varje ändring; onExpire(proposalId) när tiden är ute.
+   */
+  function createPersuadeTimer(onExpire, seconds = 10) {
+    let cur = null; // { id, deadline, handle }
+    const clear = () => { if (cur) clearTimeout(cur.handle); cur = null; };
+    return {
+      sync(game, scale = 1) {
+        const ex = game && game.phase === 'exchange' && game.exchange, P = ex && ex.proposal;
+        if (!P || !P.persuading) return clear();
+        if (cur && cur.id === P.id) return;
+        clear();
+        const ms = seconds * 1000 * scale, id = P.id;
+        cur = { id, deadline: Date.now() + ms, handle: setTimeout(() => { cur = null; onExpire(id); }, ms) };
+      },
+      /** Kvarvarande millisekunder (eller null om ingen frist pågår). */
+      remaining() { return cur ? Math.max(0, cur.deadline - Date.now()) : null; },
+      clear,
+    };
+  }
+
+  const api = { timeoutMove, turnKey, createTurnTimers, createPersuadeTimer };
   if (typeof module !== 'undefined') module.exports = api;
   else root.GurschTimer = api;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2066,7 +2180,7 @@ module.exports = { Game, GameError, RULES, makeDeck };
 
   /**
    * Bottar reagerar ibland på det som hänt sedan förra gången:
-   * 👏 eller 😤 när någon tar styret, 😂 när de vinner en omgång. Bara ibland, så att det inte blir tjatigt.
+   * 👏 eller 😤 när någon tar styret, 🙏 eller 😤 när någon säger nej till extra byte, 😂 när de vinner en omgång. Bara ibland, så att det inte blir tjatigt.
    * chattiness per bot ändrar hur ofta (Bertil är högljudd, Astrid reagerar sällan).
    * Returnerar { reactions: [{ playerId, emoji }], seq }.
    */
@@ -2083,6 +2197,12 @@ module.exports = { Game, GameError, RULES, makeDeck };
         if (!others.length) continue;
         const who = others[Math.floor(rnd() * others.length)];
         if (rnd() < Math.min(0.9, 0.2 * c(who))) out.push({ playerId: who, emoji: rnd() < 0.5 ? '👏' : '😤' });
+      }
+      // någon säger nej till extra byte: bottarna tjatar under övertalningsfristen
+      if (ev.type === 'holdout') {
+        for (const who of botIds.filter((id) => id !== ev.playerId)) {
+          if (rnd() < Math.min(0.9, 0.4 * c(who))) out.push({ playerId: who, emoji: rnd() < 0.6 ? '🙏' : '😤' });
+        }
       }
     }
     if (game.phase === 'finished' && !game.botsCheered) {
@@ -2158,7 +2278,7 @@ window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
   const { botMove, BOT_PROFILES, CHATTINESS } = window.GurschBots;
   const Tally = window.GurschTally;
-  const { timeoutMove, createTurnTimers } = window.GurschTimer;
+  const { timeoutMove, createTurnTimers, createPersuadeTimer } = window.GurschTimer;
   const Reactions = window.GurschReactions;
   const me = {}; // för spamskyddet
   function botsReact() {
@@ -2178,6 +2298,10 @@ window.GURSCH_LOCAL = function () {
     try { g.act(pid, move); } catch (e) { console.error('Timerfel', e); }
     broadcast();
   });
+  const persuade = createPersuadeTimer((proposalId) => {
+    const g = room && room.game; if (!g) return;
+    if (g.persuadeExpired(proposalId)) broadcast();
+  });
   const BOT_NAMES = BOT_PROFILES.map((b) => b.name + ' (bot)');
   const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
@@ -2193,12 +2317,13 @@ window.GURSCH_LOCAL = function () {
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
-    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(),
+    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(), persuadeLeft: persuade.remaining(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
     timers.sync(room.game, ['me'], room.settings.turnTime, room.hold);
+    persuade.sync(room.game);
     botsReact();
     fire('state', { lobby: lobbyView(), you: 'me', game: room.game ? room.game.viewFor('me') : null });
     scheduleBots();
@@ -2209,11 +2334,11 @@ window.GURSCH_LOCAL = function () {
     if (!g || g.phase === 'finished' || room.hold) return; // vänta tills utdelningen har visats
     for (const p of room.players.filter((x) => x.bot)) {
       const move = botMove(g, p.id, p.personality);
-      if (!move) continue;
+      if (!move || move.type === 'exchangeGo') continue; // "Vi kör" lämnas åt människan
       botTimer = setTimeout(() => {
         try { g.act(p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
         broadcast();
-      }, BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
+      }, move.delay || BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
       return;
     }
   }
@@ -2260,7 +2385,7 @@ window.GURSCH_LOCAL = function () {
       case 'closeSession':
         room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
       case 'leave':
-        clearTimeout(botTimer); timers.clearAll(); room = null; return;
+        clearTimeout(botTimer); timers.clearAll(); persuade.clear(); room = null; return;
       default:
     }
   }
@@ -2461,7 +2586,19 @@ $('botPicker').addEventListener('click', (e) => {
   socket.emit('addBot', { name: b.dataset.bot }, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
   $('botPicker').classList.add('hidden');
 });
-$('lobbyPlayers').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) socket.emit('removeBot', b.dataset.remove); });
+// värden tar bort en bot eller kickar en spelare (spelare måste bekräftas)
+$('lobbyPlayers').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remove]'); if (!b || !S || !S.lobby) return;
+  const p = S.lobby.players.find((x) => x.id === b.dataset.remove); if (!p) return;
+  if (p.bot) return socket.emit('removeBot', p.id);
+  if (!confirm(`Kicka ${p.name} från rummet?`)) return;
+  socket.emit('kick', p.id, (res) => { if (res && !res.ok) toast(res.error); else toast(`${p.name} är borttagen`); });
+});
+socket.on('kicked', () => {
+  store.set('code', null); store.set('token', null); S = null;
+  history.replaceState(null, '', location.pathname);
+  show('home'); toast('Värden tog bort dig från rummet.');
+});
 function setSeg(id, value, disabled) {
   for (const b of $(id).querySelectorAll('button')) { b.classList.toggle('on', b.dataset.v === String(value)); b.disabled = disabled; }
 }
@@ -2484,7 +2621,7 @@ function renderLobby() {
       <span class="avatar ${p.bot ? 'bot' : ''}" style="--av:${avColor(p.id)}">${P ? P.emoji : esc(p.name.slice(0, 1).toUpperCase())}${p.id === L.hostId ? '<span class="host-crown" title="Värd">♛</span>' : ''}</span>
       <span class="pname">${esc(p.name.replace(' (bot)', ''))}${p.id === S.you ? ' (du)' : ''}${P ? `<small class="persona">${P.label}</small>` : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
-      ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten" aria-label="Ta bort ${esc(p.name)}">✕</button>` : ''}
+      ${isHost && p.id !== S.you && !L.local ? `<button class="icon-btn kick" data-remove="${p.id}" title="${p.bot ? 'Ta bort boten' : 'Kicka spelaren'}" aria-label="Ta bort ${esc(p.name)}">✕</button>` : ''}
       ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
     </li>`;
   }).join('');
@@ -2566,8 +2703,7 @@ function renderGame() {
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
-      ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : ''}
-      ${ex && ex.step === 'extra' && !ex.proposal && ex.satisfied[p.id] ? '<div class="tiny muted">Nöjd</div>' : ''}
+      ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : vote === false ? '<div class="seat-turn no">Säger nej ✗</div>' : ''}
       ${isTurn ? `<div class="seat-turn">${pl ? 'Spelar…' : 'Väljer…'}</div>` : ''}
     </div>`;
   }).join('');
@@ -2658,22 +2794,26 @@ function renderActions(G) {
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
     } else if (ex.step === 'extra') {
       const P = ex.proposal;
+      const names = (ids) => ids.map((id) => (id === me ? 'du' : esc(nameOf(id)))).join(', ');
       if (P) {
         const who = P.by === me ? 'Du' : esc(nameOf(P.by));
+        const nay = Object.keys(P.votes).filter((k) => P.votes[k] === false);
+        const open = Object.keys(P.votes).filter((k) => P.votes[k] === null);
         if (P.votes[me] === null) {
-          status = `${who} frågar om alla vill slänga ${P.count} kort till. Alla måste vara med – säger någon nej börjar spelet.`;
+          status = `${who} frågar: ska alla slänga ${P.count} kort?${nay.length ? ` ${names(nay)} har sagt nej.` : ''}`;
           acts.push(btn(`Ja, slänga ${P.count}`, () => send('exchangeVote', { yes: true }), 'primary'));
-          acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
-          if (!G.players.find((p) => p.id === me).asked) {
-            status += ' Du kan också säga nej och kontra med en egen fråga.';
-            acts.push({ group: 'Kontra – alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangeVote', { yes: false, counter: n }), 'num')) });
-          }
-        } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
-      } else if (!ex.satisfied[me]) {
-        status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';
-        acts.push({ group: 'Fråga om alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangePropose', { count: n }), 'num')) });
-        acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
-      } else status = `${G.players.find((p) => p.id === me).asked ? 'Du har redan frågat en gång.' : 'Du är nöjd.'} Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+          acts.push(btn('Nej', () => send('exchangeVote', { yes: false })));
+        } else if (P.votes[me] === false) {
+          status = `Du sa nej till att alla slänger ${P.count} kort. De andra försöker övertala dig – ändrar du dig?`;
+          acts.push(btn('Okej, jag är med', () => send('exchangeChangeMind'), 'primary'));
+          acts.push(btn('Nej, vi kör', () => send('exchangeInsist')));
+        } else if (nay.length) status = `${names(nay)} säger nej – övertala! Skicka 🙏 eller 😤.`;
+        else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${names(open)}…`;
+      } else {
+        status = 'Extra byte: fråga om alla ska slänga 1–6 kort till – eller tryck Vi kör så börjar spelet (det räcker att en trycker).';
+        acts.push({ group: 'Ska alla slänga', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangePropose', { count: n }), 'num')) });
+        acts.push(btn('Vi kör', () => send('exchangeGo'), 'primary'));
+      }
     } else if (ex.step === 'extraDiscard') {
       const k = ex.leaderCount;
       if (ex.waitingFor.includes(me)) {
@@ -2798,6 +2938,31 @@ socket.on('reaction', ({ playerId, emoji }) => {
   setTimeout(() => el.remove(), 2600);
 });
 
+// ---------- övertalningsfristen vid extra byte ----------
+let persuadeDeadline = null;
+function renderPersuade() {
+  const G = S && S.game, ex = G && G.exchange, P = ex && ex.step === 'extra' && ex.proposal;
+  let el = $('persuade');
+  if (!P || !P.persuading) { if (el) el.remove(); return; }
+  const nay = Object.keys(P.votes).filter((k) => P.votes[k] === false);
+  const iSaidNo = nay.includes(S.you);
+  const key = `${P.id}:${nay.join(',')}`;
+  if (!el || el.dataset.key !== key) {
+    if (!el) { el = document.createElement('div'); el.id = 'persuade'; el.className = 'persuade'; document.querySelector('#game .table-wrap').appendChild(el); }
+    el.dataset.key = key;
+    const who = nay.map((id) => (id === S.you ? 'Du' : esc(nameOf(id).replace(' (bot)', '')))).join(' & ');
+    el.innerHTML = `<div class="persuade-title"><b>${who}</b> ${iSaidNo && nay.length === 1 ? 'sa nej – de andra försöker övertala dig!' : `säger nej – övertala ${nay.length > 1 ? 'dem' : 'hen'}!`}</div>
+      <div class="persuade-clock"><span class="persuade-num"></span><div class="persuade-bar"><i></i></div></div>
+      ${iSaidNo ? '' : '<div class="persuade-reacts"><button class="react-opt" data-emoji="🙏" aria-label="Skicka 🙏">🙏</button><button class="react-opt" data-emoji="😤" aria-label="Skicka 😤">😤</button></div>'}`;
+  }
+  const total = ((ex.persuadeSeconds || 10) * 1000);
+  const ms = persuadeDeadline ? Math.max(0, persuadeDeadline - Date.now()) : total;
+  el.querySelector('.persuade-num').textContent = Math.ceil(ms / 1000);
+  el.querySelector('.persuade-bar i').style.transform = `scaleX(${Math.min(1, ms / total)})`;
+  el.classList.toggle('low', ms <= 3000);
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('#persuade [data-emoji]'); if (b) socket.emit('react', b.dataset.emoji); });
+
 // ---------- turtimer ----------
 let deadlines = {};
 function renderTimers() {
@@ -2820,10 +2985,11 @@ function renderTimers() {
     box.classList.toggle('low', ms <= 5000);
   }
 }
-setInterval(renderTimers, 200);
+setInterval(() => { renderTimers(); renderPersuade(); }, 200);
 
 socket.on('state', (state) => {
   deadlines = Object.fromEntries(Object.entries((state.lobby && state.lobby.timers) || {}).map(([pid, ms]) => [pid, Date.now() + ms]));
+  persuadeDeadline = state.lobby && state.lobby.persuadeLeft != null ? Date.now() + state.lobby.persuadeLeft : null;
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
   if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
@@ -2834,7 +3000,7 @@ socket.on('state', (state) => {
     const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
     if (fresh && !noMotion()) startDealAnim();
     renderGame();
-    renderTimers();
+    renderTimers(); renderPersuade();
   }
   else { $('results').classList.add('hidden'); show('lobby'); renderLobby(); }
 });

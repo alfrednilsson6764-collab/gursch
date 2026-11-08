@@ -75,6 +75,23 @@
     return m;
   }
   // ---------- inledningen (byten) ----------
+  // Extra byten per personlighet: vilka kort räknas som höga, och hur lätt boten låter sig övertalas.
+  const EXTRA = {
+    normal: { high: 10, persuade: 0.35 },
+    cautious: { high: 9, persuade: 0.03 },
+    gambler: { high: 11, persuade: 0.8 },
+    novice: { high: 10, persuade: 0.5 },
+    expert: { high: 8, persuade: 0.2 },
+  };
+  // Beslut som bara ska slumpas en gång per fråga/byte (annars skulle boten "slå om" vid varje uppdatering).
+  const decisions = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  function decide(obj, pid, fn) {
+    if (!decisions) return fn();
+    let m = decisions.get(obj);
+    if (!m) { m = {}; decisions.set(obj, m); }
+    if (!(pid in m)) m[pid] = fn();
+    return m[pid];
+  }
   function exchangeMove(game, i, pid, P, rnd) {
     const ex = game.exchange, hand = game.players[i].hand, value = sum(hand);
     // nivåer per personlighet: vilka kort räknas som "höga", när är ett erbjudande bra nog att behålla
@@ -107,15 +124,27 @@
       return { type: 'exchangeReplace', keep: sum(o) <= T.keepAvg * o.length };
     }
     if (ex.step === 'extra') {
-      if (ex.proposal) {
-        if (ex.proposal.votes[pid] !== null) return null;
-        const high = hand.filter((c) => c.rank >= 10).length;
-        if (high >= ex.proposal.count) return { type: 'exchangeVote', yes: true };
-        // har boten själv inte frågat än kan den kontra med så många kort den vill bli av med
-        if (high > 0 && !game.asked.has(pid)) return { type: 'exchangeVote', yes: false, counter: high };
-        return { type: 'exchangeVote', yes: false };
+      // Extra byten (Alfred 2026-11-08). Ju fler extra byten som redan gjorts, desto mer benägen att säga nej,
+      // så att det inte blir oändligt.
+      const done = Math.max(0, ex.round - 3);
+      const fade = Math.pow(0.55, done);
+      const Pr = ex.proposal;
+      if (Pr) {
+        if (Pr.votes[pid] === null) {
+          // ja om boten har höga kort den vill bli av med
+          const high = hand.filter((c) => c.rank >= EXTRA[P].high).length;
+          return { type: 'exchangeVote', yes: high >= Pr.count && rnd() < fade };
+        }
+        if (Pr.votes[pid] === false && Pr.persuading) {
+          // låter sig ibland övertalas under fristen (Bertil ofta, Astrid nästan aldrig) – bestäms en gång per fråga
+          if (decide(Pr, pid, () => rnd() < EXTRA[P].persuade)) return { type: 'exchangeChangeMind', delay: 2500 + Math.floor(rnd() * 4000) };
+        }
+        return null;
       }
-      return ex.satisfied[pid] ? null : { type: 'exchangeSatisfied' };
+      // frågar själv bara om korten är tydligt dåliga
+      const bad = hand.filter((c) => c.rank >= 11);
+      if (bad.length >= 3 && decide(ex, pid, () => rnd() < 0.7 * fade)) return { type: 'exchangePropose', count: bad.length };
+      return { type: 'exchangeGo' }; // servern låter inte bottar trycka "Vi kör" när det finns människor i rummet
     }
     if (ex.step === 'extraDiscard' && ex.decisions[pid] === null) return { type: 'exchangeExtraDiscard', cardIds: ids(highest(hand, ex.leaderCount)) };
     return null;

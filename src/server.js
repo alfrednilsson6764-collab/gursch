@@ -6,7 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { Game, GameError } = require('./game');
 const { botMove, BOT_PROFILES, CHATTINESS } = require('./bots');
-const { timeoutMove, createTurnTimers } = require('./turntimer');
+const { timeoutMove, createTurnTimers, createPersuadeTimer } = require('./turntimer');
 const Reactions = require('./reactions');
 const Tally = require('./tally');
 
@@ -43,6 +43,7 @@ function lobbyView(room) {
     tally: room.tally,
     ended: room.ended,
     timers: room.timers ? room.timers.remaining() : {},
+    persuadeLeft: room.persuade ? room.persuade.remaining() : null,
     players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: !!p.bot || p.sockets.size > 0 })),
   };
 }
@@ -72,6 +73,15 @@ function syncTimers(room) {
   }
   // gäller alla människor, även de som tappat anslutningen, så att spelet inte fastnar
   room.timers.sync(room.game, humans(room).map((p) => p.id), room.settings.turnTime * (Number(process.env.GURSCH_TIME_SCALE) || 1), room.hold);
+  // övertalningsfristen vid extra byte (10 sekunder efter att någon sagt nej)
+  if (!room.persuade) {
+    room.persuade = createPersuadeTimer((proposalId) => {
+      const g = room.game;
+      if (!g || !rooms.has(room.code)) return;
+      if (g.persuadeExpired(proposalId)) broadcast(room);
+    });
+  }
+  room.persuade.sync(room.game, Number(process.env.GURSCH_TIME_SCALE) || 1);
 }
 
 // ---------- öppna rum ----------
@@ -90,6 +100,7 @@ function pushOpenRooms() {
 function closeRoom(room) {
   clearTimeout(room.botTimer); clearTimeout(room.holdTimer);
   if (room.timers) room.timers.clearAll();
+  if (room.persuade) room.persuade.clear();
   rooms.delete(room.code);
   pushOpenRooms();
 }
@@ -127,15 +138,22 @@ function scheduleBots(room) {
   for (const p of room.players.filter((x) => x.bot)) {
     const move = botMove(g, p.id, p.personality);
     if (!move) continue;
+    // "Vi kör" avslutar bytena för alla – det får bara bottarna trycka när de spelar själva
+    if (move.type === 'exchangeGo' && humans(room).length) continue;
     room.botTimer = setTimeout(() => {
       if (room.game !== g) return;
       try { applyAction(room, p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
       broadcast(room);
-    }, Number(process.env.GURSCH_BOT_DELAY) || BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
+    }, botDelay(room, move));
     return;
   }
 }
 const humans = (room) => room.players.filter((p) => !p.bot);
+// Vanlig paus mellan botdrag; vissa drag (t.ex. att låta sig övertalas) väntar längre så att man hinner tjata.
+function botDelay(room, move) {
+  if (Number(process.env.GURSCH_BOT_DELAY)) return Number(process.env.GURSCH_BOT_DELAY);
+  return move.delay || BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal;
+}
 
 function attach(socket, room, player) {
   player.sockets.add(socket.id);
@@ -242,6 +260,22 @@ io.on('connection', (socket) => {
     const { room, player } = ctx();
     if (!room || room.game || room.hostId !== player.id) return reply(cb, { ok: false, error: 'Endast värden kan ta bort bottar.' });
     room.players = room.players.filter((p) => !(p.bot && p.id === id));
+    reply(cb, { ok: true });
+    broadcast(room);
+  });
+
+  // Värden kickar en spelare (människa eller bot) från lobbyn innan spelet har börjat.
+  socket.on('kick', (id, cb) => {
+    const { room, player } = ctx();
+    if (!room || room.hostId !== player.id) return reply(cb, { ok: false, error: 'Endast värden kan ta bort spelare.' });
+    if (room.game) return reply(cb, { ok: false, error: 'Det går inte att ta bort spelare under ett spel.' });
+    const target = room.players.find((p) => p.id === id);
+    if (!target || target.id === player.id) return reply(cb, { ok: false, error: 'Den spelaren finns inte.' });
+    room.players = room.players.filter((p) => p !== target);
+    for (const sid of target.sockets || []) {
+      const s = io.sockets.sockets.get(sid);
+      if (s) { s.leave(room.code); s.data.room = null; s.emit('kicked', { code: room.code }); }
+    }
     reply(cb, { ok: true });
     broadcast(room);
   });

@@ -186,7 +186,19 @@ $('botPicker').addEventListener('click', (e) => {
   socket.emit('addBot', { name: b.dataset.bot }, (r) => { $('lobbyError').textContent = r.ok ? '' : r.error; });
   $('botPicker').classList.add('hidden');
 });
-$('lobbyPlayers').addEventListener('click', (e) => { const b = e.target.closest('[data-remove]'); if (b) socket.emit('removeBot', b.dataset.remove); });
+// värden tar bort en bot eller kickar en spelare (spelare måste bekräftas)
+$('lobbyPlayers').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-remove]'); if (!b || !S || !S.lobby) return;
+  const p = S.lobby.players.find((x) => x.id === b.dataset.remove); if (!p) return;
+  if (p.bot) return socket.emit('removeBot', p.id);
+  if (!confirm(`Kicka ${p.name} från rummet?`)) return;
+  socket.emit('kick', p.id, (res) => { if (res && !res.ok) toast(res.error); else toast(`${p.name} är borttagen`); });
+});
+socket.on('kicked', () => {
+  store.set('code', null); store.set('token', null); S = null;
+  history.replaceState(null, '', location.pathname);
+  show('home'); toast('Värden tog bort dig från rummet.');
+});
 function setSeg(id, value, disabled) {
   for (const b of $(id).querySelectorAll('button')) { b.classList.toggle('on', b.dataset.v === String(value)); b.disabled = disabled; }
 }
@@ -209,7 +221,7 @@ function renderLobby() {
       <span class="avatar ${p.bot ? 'bot' : ''}" style="--av:${avColor(p.id)}">${P ? P.emoji : esc(p.name.slice(0, 1).toUpperCase())}${p.id === L.hostId ? '<span class="host-crown" title="Värd">♛</span>' : ''}</span>
       <span class="pname">${esc(p.name.replace(' (bot)', ''))}${p.id === S.you ? ' (du)' : ''}${P ? `<small class="persona">${P.label}</small>` : ''}</span>
       ${p.id === L.hostId ? '<span class="badge">Värd</span>' : p.ready ? '<span class="badge ok">Redo</span>' : '<span class="badge muted">Väntar</span>'}
-      ${p.bot && isHost && !L.local ? `<button class="icon-btn" data-remove="${p.id}" title="Ta bort boten" aria-label="Ta bort ${esc(p.name)}">✕</button>` : ''}
+      ${isHost && p.id !== S.you && !L.local ? `<button class="icon-btn kick" data-remove="${p.id}" title="${p.bot ? 'Ta bort boten' : 'Kicka spelaren'}" aria-label="Ta bort ${esc(p.name)}">✕</button>` : ''}
       ${!p.connected ? '<span class="badge bad">offline</span>' : ''}
     </li>`;
   }).join('');
@@ -291,8 +303,7 @@ function renderGame() {
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
       <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
       ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
-      ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : ''}
-      ${ex && ex.step === 'extra' && !ex.proposal && ex.satisfied[p.id] ? '<div class="tiny muted">Nöjd</div>' : ''}
+      ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : vote === false ? '<div class="seat-turn no">Säger nej ✗</div>' : ''}
       ${isTurn ? `<div class="seat-turn">${pl ? 'Spelar…' : 'Väljer…'}</div>` : ''}
     </div>`;
   }).join('');
@@ -383,22 +394,26 @@ function renderActions(G) {
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
     } else if (ex.step === 'extra') {
       const P = ex.proposal;
+      const names = (ids) => ids.map((id) => (id === me ? 'du' : esc(nameOf(id)))).join(', ');
       if (P) {
         const who = P.by === me ? 'Du' : esc(nameOf(P.by));
+        const nay = Object.keys(P.votes).filter((k) => P.votes[k] === false);
+        const open = Object.keys(P.votes).filter((k) => P.votes[k] === null);
         if (P.votes[me] === null) {
-          status = `${who} frågar om alla vill slänga ${P.count} kort till. Alla måste vara med – säger någon nej börjar spelet.`;
+          status = `${who} frågar: ska alla slänga ${P.count} kort?${nay.length ? ` ${names(nay)} har sagt nej.` : ''}`;
           acts.push(btn(`Ja, slänga ${P.count}`, () => send('exchangeVote', { yes: true }), 'primary'));
-          acts.push(btn('Nej, börja spela', () => send('exchangeVote', { yes: false })));
-          if (!G.players.find((p) => p.id === me).asked) {
-            status += ' Du kan också säga nej och kontra med en egen fråga.';
-            acts.push({ group: 'Kontra – alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangeVote', { yes: false, counter: n }), 'num')) });
-          }
-        } else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
-      } else if (!ex.satisfied[me]) {
-        status = 'Extra byte: vill du slänga fler kort kan du fråga de andra. Alla måste vara med, och du får bara fråga en gång. Annars börjar spelet när alla är nöjda.';
-        acts.push({ group: 'Fråga om alla slänger', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangePropose', { count: n }), 'num')) });
-        acts.push(btn('Nöjd – börja spela', () => send('exchangeSatisfied'), 'primary'));
-      } else status = `${G.players.find((p) => p.id === me).asked ? 'Du har redan frågat en gång.' : 'Du är nöjd.'} Väntar på ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')}…`;
+          acts.push(btn('Nej', () => send('exchangeVote', { yes: false })));
+        } else if (P.votes[me] === false) {
+          status = `Du sa nej till att alla slänger ${P.count} kort. De andra försöker övertala dig – ändrar du dig?`;
+          acts.push(btn('Okej, jag är med', () => send('exchangeChangeMind'), 'primary'));
+          acts.push(btn('Nej, vi kör', () => send('exchangeInsist')));
+        } else if (nay.length) status = `${names(nay)} säger nej – övertala! Skicka 🙏 eller 😤.`;
+        else status = `${who} frågade om alla slänger ${P.count} kort. Väntar på svar från ${names(open)}…`;
+      } else {
+        status = 'Extra byte: fråga om alla ska slänga 1–6 kort till – eller tryck Vi kör så börjar spelet (det räcker att en trycker).';
+        acts.push({ group: 'Ska alla slänga', items: [1, 2, 3, 4, 5, 6].map((n) => btn(String(n), () => send('exchangePropose', { count: n }), 'num')) });
+        acts.push(btn('Vi kör', () => send('exchangeGo'), 'primary'));
+      }
     } else if (ex.step === 'extraDiscard') {
       const k = ex.leaderCount;
       if (ex.waitingFor.includes(me)) {
@@ -523,6 +538,31 @@ socket.on('reaction', ({ playerId, emoji }) => {
   setTimeout(() => el.remove(), 2600);
 });
 
+// ---------- övertalningsfristen vid extra byte ----------
+let persuadeDeadline = null;
+function renderPersuade() {
+  const G = S && S.game, ex = G && G.exchange, P = ex && ex.step === 'extra' && ex.proposal;
+  let el = $('persuade');
+  if (!P || !P.persuading) { if (el) el.remove(); return; }
+  const nay = Object.keys(P.votes).filter((k) => P.votes[k] === false);
+  const iSaidNo = nay.includes(S.you);
+  const key = `${P.id}:${nay.join(',')}`;
+  if (!el || el.dataset.key !== key) {
+    if (!el) { el = document.createElement('div'); el.id = 'persuade'; el.className = 'persuade'; document.querySelector('#game .table-wrap').appendChild(el); }
+    el.dataset.key = key;
+    const who = nay.map((id) => (id === S.you ? 'Du' : esc(nameOf(id).replace(' (bot)', '')))).join(' & ');
+    el.innerHTML = `<div class="persuade-title"><b>${who}</b> ${iSaidNo && nay.length === 1 ? 'sa nej – de andra försöker övertala dig!' : `säger nej – övertala ${nay.length > 1 ? 'dem' : 'hen'}!`}</div>
+      <div class="persuade-clock"><span class="persuade-num"></span><div class="persuade-bar"><i></i></div></div>
+      ${iSaidNo ? '' : '<div class="persuade-reacts"><button class="react-opt" data-emoji="🙏" aria-label="Skicka 🙏">🙏</button><button class="react-opt" data-emoji="😤" aria-label="Skicka 😤">😤</button></div>'}`;
+  }
+  const total = ((ex.persuadeSeconds || 10) * 1000);
+  const ms = persuadeDeadline ? Math.max(0, persuadeDeadline - Date.now()) : total;
+  el.querySelector('.persuade-num').textContent = Math.ceil(ms / 1000);
+  el.querySelector('.persuade-bar i').style.transform = `scaleX(${Math.min(1, ms / total)})`;
+  el.classList.toggle('low', ms <= 3000);
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('#persuade [data-emoji]'); if (b) socket.emit('react', b.dataset.emoji); });
+
 // ---------- turtimer ----------
 let deadlines = {};
 function renderTimers() {
@@ -545,10 +585,11 @@ function renderTimers() {
     box.classList.toggle('low', ms <= 5000);
   }
 }
-setInterval(renderTimers, 200);
+setInterval(() => { renderTimers(); renderPersuade(); }, 200);
 
 socket.on('state', (state) => {
   deadlines = Object.fromEntries(Object.entries((state.lobby && state.lobby.timers) || {}).map(([pid, ms]) => [pid, Date.now() + ms]));
+  persuadeDeadline = state.lobby && state.lobby.persuadeLeft != null ? Date.now() + state.lobby.persuadeLeft : null;
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
   if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
@@ -559,7 +600,7 @@ socket.on('state', (state) => {
     const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
     if (fresh && !noMotion()) startDealAnim();
     renderGame();
-    renderTimers();
+    renderTimers(); renderPersuade();
   }
   else { $('results').classList.add('hidden'); show('lobby'); renderLobby(); }
 });

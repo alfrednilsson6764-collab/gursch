@@ -4,16 +4,21 @@
 (function (root) {
   const { botMove } = typeof module !== 'undefined' ? require('./bots') : root.GurschBots;
 
-  /** Draget som görs när tiden har gått ut. Under bytet är standardvalet "nöjd/behåll". null = spelaren behöver inte göra något. */
+  /** Draget som görs när tiden har gått ut. Under bytet är standardvalet "behåll"/"nej". null = spelaren behöver inte göra något. */
   function timeoutMove(game, pid) {
+    const ex = game.exchange;
+    // Extra byte: den som ska svara och inte hinner räknas som nej (då startar övertalningsfristen).
+    // Är ingen fråga ute och ingen gör något blir det "Vi kör".
+    if (game.phase === 'exchange' && ex && ex.step === 'extra') {
+      if (!ex.proposal) return { type: 'exchangeGo' };
+      return ex.proposal.votes[pid] === null ? { type: 'exchangeVote', yes: false } : null;
+    }
     const move = botMove(game, pid);
     if (!move) return null;
-    const ex = game.exchange;
     if (game.phase === 'exchange' && ex) {
       if (ex.step === 'leader') return { type: 'exchangeLeader', cardIds: [] };
       if (ex.step === 'others') return { type: 'exchangeOther', discard: false };
       if (ex.step === 'replace') return { type: 'exchangeReplace', keep: true };
-      if (ex.step === 'extra') return ex.proposal ? { type: 'exchangeVote', yes: false } : { type: 'exchangeSatisfied' };
     }
     return move; // spelet och extra slängning (som alla redan sagt ja till): samma logik som bottarna
   }
@@ -21,7 +26,7 @@
   /** En nyckel som ändras när ett nytt beslut ska fattas, så att timern startar om bara då. */
   function turnKey(game) {
     const ex = game.exchange, pl = game.play;
-    if (ex) return `x${ex.round}:${ex.step}:${ex.proposal ? ex.proposal.by + ex.proposal.count : ''}:${Object.keys(ex.offers).join(',')}`;
+    if (ex) return `x${ex.round}:${ex.step}:${ex.proposal ? ex.proposal.id : ''}:${Object.keys(ex.offers).join(',')}`;
     if (pl) return `p${pl.roundNo}:${pl.table.length}:${pl.turn}`;
     return game.phase;
   }
@@ -60,7 +65,29 @@
     };
   }
 
-  const api = { timeoutMove, turnKey, createTurnTimers };
+  /**
+   * Övertalningsfristen vid extra byte: när någon har sagt nej får de andra PERSUADE_SECONDS på sig.
+   * sync(game, scale) anropas efter varje ändring; onExpire(proposalId) när tiden är ute.
+   */
+  function createPersuadeTimer(onExpire, seconds = 10) {
+    let cur = null; // { id, deadline, handle }
+    const clear = () => { if (cur) clearTimeout(cur.handle); cur = null; };
+    return {
+      sync(game, scale = 1) {
+        const ex = game && game.phase === 'exchange' && game.exchange, P = ex && ex.proposal;
+        if (!P || !P.persuading) return clear();
+        if (cur && cur.id === P.id) return;
+        clear();
+        const ms = seconds * 1000 * scale, id = P.id;
+        cur = { id, deadline: Date.now() + ms, handle: setTimeout(() => { cur = null; onExpire(id); }, ms) };
+      },
+      /** Kvarvarande millisekunder (eller null om ingen frist pågår). */
+      remaining() { return cur ? Math.max(0, cur.deadline - Date.now()) : null; },
+      clear,
+    };
+  }
+
+  const api = { timeoutMove, turnKey, createTurnTimers, createPersuadeTimer };
   if (typeof module !== 'undefined') module.exports = api;
   else root.GurschTimer = api;
 })(typeof window !== 'undefined' ? window : globalThis);

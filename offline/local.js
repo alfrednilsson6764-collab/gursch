@@ -4,7 +4,7 @@ window.GURSCH_LOCAL = function () {
   const { Game, GameError } = window.GurschGame;
   const { botMove, BOT_PROFILES, CHATTINESS } = window.GurschBots;
   const Tally = window.GurschTally;
-  const { timeoutMove, createTurnTimers } = window.GurschTimer;
+  const { timeoutMove, createTurnTimers, createPersuadeTimer } = window.GurschTimer;
   const Reactions = window.GurschReactions;
   const me = {}; // för spamskyddet
   function botsReact() {
@@ -24,6 +24,10 @@ window.GURSCH_LOCAL = function () {
     try { g.act(pid, move); } catch (e) { console.error('Timerfel', e); }
     broadcast();
   });
+  const persuade = createPersuadeTimer((proposalId) => {
+    const g = room && room.game; if (!g) return;
+    if (g.persuadeExpired(proposalId)) broadcast();
+  });
   const BOT_NAMES = BOT_PROFILES.map((b) => b.name + ' (bot)');
   const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
   const handlers = {};
@@ -39,12 +43,13 @@ window.GURSCH_LOCAL = function () {
   function lobbyView() {
     const g = room.game;
     if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
-    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(),
+    return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(), persuadeLeft: persuade.remaining(),
       players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: true })) };
   }
   function broadcast() {
     if (!room) return;
     timers.sync(room.game, ['me'], room.settings.turnTime, room.hold);
+    persuade.sync(room.game);
     botsReact();
     fire('state', { lobby: lobbyView(), you: 'me', game: room.game ? room.game.viewFor('me') : null });
     scheduleBots();
@@ -55,11 +60,11 @@ window.GURSCH_LOCAL = function () {
     if (!g || g.phase === 'finished' || room.hold) return; // vänta tills utdelningen har visats
     for (const p of room.players.filter((x) => x.bot)) {
       const move = botMove(g, p.id, p.personality);
-      if (!move) continue;
+      if (!move || move.type === 'exchangeGo') continue; // "Vi kör" lämnas åt människan
       botTimer = setTimeout(() => {
         try { g.act(p.id, move); } catch (e) { console.error('Botfel', p.name, move, e); return; }
         broadcast();
-      }, BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
+      }, move.delay || BOT_DELAY[room.settings.botSpeed] || BOT_DELAY.normal);
       return;
     }
   }
@@ -106,7 +111,7 @@ window.GURSCH_LOCAL = function () {
       case 'closeSession':
         room.ended = false; room.tally = Tally.create(); room.game = null; return broadcast();
       case 'leave':
-        clearTimeout(botTimer); timers.clearAll(); room = null; return;
+        clearTimeout(botTimer); timers.clearAll(); persuade.clear(); room = null; return;
       default:
     }
   }

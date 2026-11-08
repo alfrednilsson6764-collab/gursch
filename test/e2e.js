@@ -16,7 +16,7 @@ function skipExchange(g) {
     for (const pid of Object.keys(g.exchange.decisions)) g.act(pid, { type: 'exchangeOther', discard: false });
   }
   assert.strictEqual(g.exchange.step, 'extra');
-  for (const p of g.players) g.act(p.id, { type: 'exchangeSatisfied' });
+  g.act(g.players[0].id, { type: 'exchangeGo' }); // en "Vi kör" räcker
   assert.strictEqual(g.phase, 'play');
 }
 // Sätter händerna (sittordning från styrspelaren) och lägger resten i leken utan att något kort dupliceras.
@@ -122,40 +122,11 @@ function setHands(g, hands) {
   g.act(o1.id, { type: 'exchangeOther', discard: true }); // styrspelaren slängde 0 → alla sex
   assert.strictEqual(g.exchange.offers[o1.id].length, 6);
   g.act(o1.id, { type: 'exchangeReplace', keep: false });
-  // extra byte: o2 frågar om ett kort, alla säger ja
+  // extra byten testas för sig nedan (nya regler, Alfred 2026-11-08)
   assert.strictEqual(g.exchange.step, 'extra');
-  g.act(o2.id, { type: 'exchangePropose', count: 1 });
-  throwsGame(() => g.act(L.id, { type: 'exchangePropose', count: 2 }), 'ett förslag i taget');
-  g.act(L.id, { type: 'exchangeVote', yes: true });
-  g.act(o1.id, { type: 'exchangeVote', yes: true });
-  assert.strictEqual(g.exchange.step, 'extraDiscard');
-  for (const p of g.players) g.act(p.id, { type: 'exchangeExtraDiscard', cardIds: [p.hand[5].id] });
-  while (g.exchange.step === 'replace') g.act(Object.keys(g.exchange.offers)[0], { type: 'exchangeReplace', keep: Math.random() < 0.5 });
-  assert.strictEqual(g.exchange.step, 'extra');
-  // den som redan har frågat får inte fråga igen (ingen spam) och räknas som nöjd
-  throwsGame(() => g.act(o2.id, { type: 'exchangePropose', count: 1 }), 'bara en fråga per spelare');
-  assert.ok(g.exchange.satisfied[o2.id]);
-  assert.ok(g.viewFor(o1.id).players.find((p) => p.id === o2.id).asked);
-  // nytt förslag, o1 säger nej men kontrar med en egen fråga
-  g.act(L.id, { type: 'exchangePropose', count: 3 });
-  throwsGame(() => g.act(o1.id, { type: 'exchangeVote', yes: false, counter: 9 }), 'ogiltig kontring');
-  assert.strictEqual(g.exchange.proposal.by, L.id, 'ogiltig kontring ändrar inget');
-  g.act(o1.id, { type: 'exchangeVote', yes: false, counter: 2 });
-  assert.strictEqual(g.phase, 'exchange');
-  assert.strictEqual(g.exchange.proposal.by, o1.id);
-  assert.strictEqual(g.exchange.proposal.count, 2);
-  // L har redan frågat och kan inte kontra, så nej → spelet börjar
-  throwsGame(() => g.act(L.id, { type: 'exchangeVote', yes: false, counter: 1 }), 'redan frågat');
-  g.act(L.id, { type: 'exchangeVote', yes: false });
+  g.act(o2.id, { type: 'exchangeGo' });
   assert.strictEqual(g.phase, 'play');
   g.players.forEach((p) => assert.strictEqual(p.hand.length, 6));
-  // när alla har frågat en gång börjar spelet av sig självt
-  {
-    const h = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
-    h.asked.add('a'); h.asked.add('b');
-    h.phase = 'exchange'; h.startExtra(3);
-    assert.strictEqual(h.phase, 'play');
-  }
   console.log('OK: bytesregler');
 }
 
@@ -211,9 +182,12 @@ async function bot(s) {
     if (ex.step === 'others' && ex.waitingFor.includes(me)) return act({ type: 'exchangeOther', discard: Math.random() < 0.5, cardIds: hand.slice(0, ex.leaderCount).map((c) => c.id) });
     if (ex.step === 'replace' && ex.offers[me]) return act({ type: 'exchangeReplace', keep: Math.random() < 0.5 });
     if (ex.step === 'extra' && ex.waitingFor.includes(me)) {
-      if (ex.proposal) return act({ type: 'exchangeVote', yes: Math.random() < 0.7 });
-      if (Math.random() < 0.15 && !G.players.find((p) => p.id === me).asked) return act({ type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 3) });
-      return act({ type: 'exchangeSatisfied' });
+      const P = ex.proposal;
+      if (P && P.votes[me] === null) return act({ type: 'exchangeVote', yes: Math.random() < 0.7 });
+      if (P && P.votes[me] === false) return act({ type: Math.random() < 0.5 ? 'exchangeChangeMind' : 'exchangeInsist' });
+      if (P) return false;
+      if (Math.random() < 0.15) return act({ type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 3) });
+      return act({ type: 'exchangeGo' });
     }
     if (ex.step === 'extraDiscard' && ex.waitingFor.includes(me)) return act({ type: 'exchangeExtraDiscard', cardIds: hand.slice(0, ex.leaderCount).map((c) => c.id) });
   } else if (pl && pl.turnId === me) {
@@ -338,6 +312,139 @@ async function runWithBots() {
   console.log('OK: multiplikator från högsta och näst högsta kortet');
 }
 
+// ---- extra byten (Alfred 2026-11-08): fråga, alla svarar, övertalningsfrist, "Vi kör" ----
+function toExtra(n = 3) {
+  const g = new Game(Array.from({ length: n }, (_, k) => ({ id: 'abcdef'[k], name: 'ABCDEF'[k] })));
+  for (let r = 0; r < 2; r++) {
+    g.act(g.players[g.leader].id, { type: 'exchangeLeader', cardIds: [] });
+    for (const pid of Object.keys(g.exchange.decisions)) g.act(pid, { type: 'exchangeOther', discard: false });
+  }
+  assert.strictEqual(g.exchange.step, 'extra');
+  return g;
+}
+function extraDiscard(g) {
+  assert.strictEqual(g.exchange.step, 'extraDiscard');
+  for (const p of g.players) g.act(p.id, { type: 'exchangeExtraDiscard', cardIds: p.hand.slice(0, g.exchange.leaderCount).map((c) => c.id) });
+  while (g.exchange && g.exchange.step === 'replace') g.act(Object.keys(g.exchange.offers)[0], { type: 'exchangeReplace', keep: true });
+}
+{ // alla ja → nytt byte, och man får fråga igen (hur många gånger som helst, även samma person)
+  const g = toExtra(3);
+  throwsGame(() => g.act('a', { type: 'exchangeVote', yes: true }), 'ingen fråga ute');
+  throwsGame(() => g.act('a', { type: 'exchangePropose', count: 7 }), 'högst 6 kort');
+  for (let k = 1; k <= 3; k++) {
+    g.act('b', { type: 'exchangePropose', count: k });
+    throwsGame(() => g.act('c', { type: 'exchangePropose', count: 2 }), 'en fråga i taget');
+    throwsGame(() => g.act('a', { type: 'exchangeGo' }), 'Vi kör bara när ingen fråga är ute');
+    throwsGame(() => g.act('b', { type: 'exchangeVote', yes: true }), 'den som frågar har redan sagt ja');
+    g.act('a', { type: 'exchangeVote', yes: true });
+    assert.strictEqual(g.exchange.step, 'extra', 'väntar på c');
+    g.act('c', { type: 'exchangeVote', yes: true });
+    const before = g.players.map((p) => p.hand.map((c) => c.id).join());
+    extraDiscard(g);
+    assert.ok(g.players.every((p, j) => p.hand.map((c) => c.id).join() !== before[j]), 'alla slängde och fick nya kort');
+    assert.strictEqual(g.phase, 'exchange');
+    assert.strictEqual(g.exchange.step, 'extra', 'tillbaka till steg 1');
+    assert.strictEqual(g.exchange.round, 3 + k);
+    g.players.forEach((p) => assert.strictEqual(p.hand.length, 6));
+  }
+  g.act('c', { type: 'exchangeGo' });
+  assert.strictEqual(g.phase, 'play');
+  console.log('OK: extra byte – alla ja ger nytt byte och man kan fråga igen');
+}
+{ // leken tar slut under många extra byten → slänghögen blandas som vanligt
+  const g = toExtra(6);
+  for (let k = 0; k < 12; k++) {
+    g.act(g.players[k % 6].id, { type: 'exchangePropose', count: 6 });
+    const votes = g.exchange.proposal.votes;
+    for (const p of g.players) if (votes[p.id] === null) g.act(p.id, { type: 'exchangeVote', yes: true });
+    extraDiscard(g);
+    g.checkInvariant();
+  }
+  console.log('OK: extra byte – slänghögen blandas när leken tar slut');
+}
+{ // ett nej utan ändring → övertalningsfrist → spelet börjar när tiden är ute
+  const g = toExtra(3);
+  g.act('a', { type: 'exchangePropose', count: 2 });
+  g.act('b', { type: 'exchangeVote', yes: false });
+  assert.strictEqual(g.phase, 'exchange', 'frist, inte direkt spel');
+  assert.ok(g.exchange.proposal.persuading);
+  assert.ok(g.events.some((e) => e.type === 'holdout' && e.playerId === 'b'));
+  const v = g.viewFor('c').exchange;
+  assert.strictEqual(v.persuadeSeconds, 10);
+  assert.ok(v.proposal.persuading && v.proposal.votes.b === false);
+  throwsGame(() => g.act('a', { type: 'exchangeChangeMind' }), 'bara den som sa nej kan ändra sig');
+  throwsGame(() => g.act('c', { type: 'exchangeInsist' }), 'bara den som sa nej kan avsluta');
+  g.act('c', { type: 'exchangeVote', yes: true }); // de andra kan fortfarande svara
+  assert.strictEqual(g.persuadeExpired(999), false, 'gammal timer ignoreras');
+  assert.strictEqual(g.phase, 'exchange');
+  assert.strictEqual(g.persuadeExpired(g.exchange.proposal.id), true);
+  assert.strictEqual(g.phase, 'play');
+  g.players.forEach((p) => assert.strictEqual(p.hand.length, 6));
+  // "Nej, vi kör" avslutar fristen direkt
+  const h = toExtra(2);
+  h.act('a', { type: 'exchangePropose', count: 1 });
+  h.act('b', { type: 'exchangeVote', yes: false });
+  h.act('b', { type: 'exchangeInsist' });
+  assert.strictEqual(h.phase, 'play');
+  console.log('OK: extra byte – nej utan ändring, spelet börjar efter fristen');
+}
+{ // nej som ändras till ja → bytet blir av, och omröstningen fortsätter
+  const g = toExtra(4);
+  g.act('a', { type: 'exchangePropose', count: 3 });
+  g.act('b', { type: 'exchangeVote', yes: false });
+  g.act('b', { type: 'exchangeChangeMind' });
+  assert.ok(!g.exchange.proposal.persuading, 'fristen är över när ingen säger nej');
+  assert.strictEqual(g.persuadeExpired(), false, 'en sen timer gör inget');
+  g.act('c', { type: 'exchangeVote', yes: true });
+  g.act('d', { type: 'exchangeVote', yes: false }); // ny frist
+  assert.ok(g.exchange.proposal.persuading);
+  g.act('d', { type: 'exchangeChangeMind' });
+  assert.strictEqual(g.exchange.step, 'extraDiscard');
+  assert.strictEqual(g.exchange.leaderCount, 3);
+  extraDiscard(g);
+  assert.strictEqual(g.exchange.step, 'extra');
+  console.log('OK: extra byte – nej som ändras till ja ger bytet');
+}
+{ // "Vi kör" → spelet börjar direkt utan frist; avstängda extra byten → direkt till spel
+  const g = toExtra(3);
+  g.act('b', { type: 'exchangeGo' });
+  assert.strictEqual(g.phase, 'play');
+  throwsGame(() => g.act('a', { type: 'exchangeGo' }), 'redan igång');
+  const h = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], { extraExchanges: false });
+  for (let r = 0; r < 2 && h.exchange; r++) {
+    h.act(h.players[h.leader].id, { type: 'exchangeLeader', cardIds: [] });
+    if (h.exchange) for (const pid of Object.keys(h.exchange.decisions)) h.act(pid, { type: 'exchangeOther', discard: false });
+  }
+  assert.strictEqual(h.phase, 'play');
+  console.log('OK: extra byte – "Vi kör" startar spelet direkt');
+}
+{ // bottar: svarar ja/nej, mer nej ju fler byten, och låter sig övertalas enligt personlighet
+  const { botMove } = require('../src/bots');
+  const g = toExtra(3);
+  const P = g.players.find((p) => p.id === 'b');
+  P.hand.forEach((c) => { c.rank = 14; }); // låtsas att b har bara ess (bara rank, ingen kortrörelse)
+  g.act('a', { type: 'exchangePropose', count: 2 });
+  assert.deepStrictEqual(botMove(g, 'b', 'normal', () => 0), { type: 'exchangeVote', yes: true }, 'höga kort → ja');
+  g.players.find((p) => p.id === 'c').hand.forEach((c) => { c.rank = 2; });
+  assert.deepStrictEqual(botMove(g, 'c', 'normal', () => 0), { type: 'exchangeVote', yes: false }, 'låga kort → nej');
+  g.exchange.round = 9; // många byten redan → nästan alltid nej
+  assert.deepStrictEqual(botMove(g, 'b', 'gambler', () => 0.05), { type: 'exchangeVote', yes: false });
+  g.exchange.round = 3;
+  g.act('b', { type: 'exchangeVote', yes: false });
+  let gambler = 0, cautious = 0;
+  for (let k = 0; k < 400; k++) {
+    g.exchange.proposal = { ...g.exchange.proposal }; // ny fråga → nytt beslut
+    const m1 = botMove(g, 'b', 'gambler'); if (m1 && m1.type === 'exchangeChangeMind') gambler++;
+    g.exchange.proposal = { ...g.exchange.proposal };
+    const m2 = botMove(g, 'b', 'cautious'); if (m2 && m2.type === 'exchangeChangeMind') cautious++;
+  }
+  assert.ok(gambler > 240 && cautious < 40, `Bertil övertalas ofta (${gambler}), Astrid nästan aldrig (${cautious})`);
+  // samma fråga → samma beslut (boten slår inte om vid varje uppdatering)
+  const same = botMove(g, 'b', 'novice', Math.random);
+  for (let k = 0; k < 20; k++) assert.deepStrictEqual(botMove(g, 'b', 'novice', Math.random), same);
+  console.log('OK: extra byte – bottarnas svar och övertalning');
+}
+
 { // standarddrag när tiden går ut: nöjd/behåll under bytet
   const { timeoutMove } = require('../src/turntimer');
   const g = new Game([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]);
@@ -346,6 +453,14 @@ async function runWithBots() {
   assert.strictEqual(timeoutMove(g, O), null, 'inte motståndarens tur');
   g.act(L, timeoutMove(g, L));
   assert.deepStrictEqual(timeoutMove(g, O), { type: 'exchangeOther', discard: false });
+  // extra byte: den som inte svarar i tid räknas som nej (och då startar fristen)
+  const x = toExtra(3);
+  assert.deepStrictEqual(timeoutMove(x, 'a'), { type: 'exchangeGo' }, 'ingen fråga ute → Vi kör');
+  x.act('a', { type: 'exchangePropose', count: 1 });
+  assert.strictEqual(timeoutMove(x, 'a'), null, 'den som frågat väntar');
+  x.act('b', timeoutMove(x, 'b'));
+  assert.ok(x.exchange.proposal.persuading && x.exchange.proposal.votes.b === false, 'tiden ute = nej → frist');
+  assert.strictEqual(timeoutMove(x, 'b'), null, 'den som sa nej har ingen turtimer under fristen');
   console.log('OK: standarddrag vid timeout');
 }
 
@@ -405,6 +520,31 @@ async function runReactions() {
 }
 
 // Öppna rum: listan uppdateras live och visar bara kod, värdnamn och antal.
+// Värden kickar en spelare från lobbyn.
+async function runKick() {
+  const host = client('Värd'); await new Promise((r) => host.on('connect', r));
+  const res = await emit(host, 'create', { name: 'Värd' });
+  const friend = client('Vän'); await new Promise((r) => friend.on('connect', r));
+  const third = client('Tredje'); await new Promise((r) => third.on('connect', r));
+  await emit(friend, 'join', { code: res.code, name: 'Vän' });
+  await emit(third, 'join', { code: res.code, name: 'Tredje' });
+  await wait(30);
+  const friendId = friend.state.you, hostId = host.state.you;
+  assert.ok(!(await emit(third, 'kick', friendId)).ok, 'bara värden får kicka');
+  assert.ok(!(await emit(host, 'kick', hostId)).ok, 'värden kan inte kicka sig själv');
+  let kicked = false; friend.on('kicked', () => { kicked = true; });
+  assert.ok((await emit(host, 'kick', friendId)).ok);
+  await wait(50);
+  assert.ok(kicked, 'den kickade får besked');
+  assert.deepStrictEqual(host.state.lobby.players.map((p) => p.name), ['Värd', 'Tredje']);
+  assert.ok(!(await emit(friend, 'action', { type: 'exchangeGo' })).ok, 'den kickade är inte kvar i rummet');
+  third.emit('ready', true); await wait(20);
+  assert.ok((await emit(host, 'start')).ok);
+  assert.ok(!(await emit(host, 'kick', third.state.you)).ok, 'ingen kick under spelet');
+  [host, friend, third].forEach((c) => c.close());
+  console.log('OK: värden kan kicka spelare från lobbyn');
+}
+
 async function runOpenRooms() {
   const watcher = client('Tittare'); let list = null;
   watcher.on('openRooms', (l) => { list = l; });
@@ -432,6 +572,6 @@ async function runOpenRooms() {
 }
 
 server.listen(PORT, async () => {
-  try { await runReactions(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
+  try { await runReactions(); await runKick(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
   catch (e) { console.error(e); process.exit(1); }
 });

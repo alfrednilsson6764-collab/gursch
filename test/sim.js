@@ -16,10 +16,10 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)];
 
 function randomize(g, pid, move) {
   const ex = g.exchange;
-  // ibland föreslår någon ett extra byte, och ibland säger någon ja trots allt
-  if (ex && ex.step === 'extra' && !ex.proposal && !g.asked.has(pid) && Math.random() < 0.2) return { type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 6) };
+  // ibland frågar någon om ett extra byte, ibland säger någon ja trots allt, och den som sa nej står ibland fast
+  if (ex && ex.step === 'extra' && !ex.proposal && Math.random() < 0.2) return { type: 'exchangePropose', count: 1 + Math.floor(Math.random() * 6) };
   if (move && move.type === 'exchangeVote' && Math.random() < 0.5) return { type: 'exchangeVote', yes: true };
-  if (move && move.type === 'exchangeVote' && !move.yes && !g.asked.has(pid) && Math.random() < 0.5) return { ...move, counter: 1 + Math.floor(Math.random() * 6) };
+  if (move && move.type === 'exchangeChangeMind' && Math.random() < 0.3) return { type: 'exchangeInsist' };
   if (move && move.type === 'exchangeReplace') return { ...move, keep: Math.random() < 0.5 };
   return move;
 }
@@ -30,6 +30,7 @@ function playOne(nPlayers) {
   while (g.phase !== 'finished') {
     if (++steps > 20000) throw new Error('Spelet tar aldrig slut');
     const movers = g.players.map((p) => [p.id, botMove(g, p.id)]).filter(([, m]) => m);
+    if (!movers.length && g.persuadeExpired()) continue; // ingen ändrade sig under övertalningsfristen
     if (!movers.length) throw new Error('Ingen kan göra något drag i läget ' + g.phase + '/' + (g.exchange && g.exchange.step));
     const [pid, m0] = pick(movers);
     const m = randomize(g, pid, m0);
@@ -77,6 +78,7 @@ console.log(`OK: ${total} spel simulerade utan kortfel (${extras} extra-byten, $
     while (g.phase !== 'finished') {
       if (++steps > 5000) throw new Error('Personlighetsspel tar aldrig slut');
       const movers = g.players.map((p) => [p.id, botMove(g, p.id, p.id, rnd)]).filter(([, m]) => m);
+      if (!movers.length && g.persuadeExpired()) continue; // övertalningsfristen gick ut
       if (!movers.length) throw new Error('Ingen bot kan göra något drag');
       const [pid, m] = movers[Math.floor(rnd() * movers.length)];
       try { g.act(pid, m); } catch (e) { if (e instanceof GameError) throw new Error(`${pid} gjorde ett otillåtet drag (${JSON.stringify(m)}): ${e.message}`); throw e; }

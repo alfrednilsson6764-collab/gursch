@@ -15,15 +15,24 @@ const RULES = {
   // Om ingen slår och turen kommer tillbaka: styrspelaren behåller styret.
   // Ersättningskort (Alfred 2026-11-07): man får alla på en gång med framsidan upp,
   // och väljer att behålla alla eller ta lika många dolda.
-  // Efter de två bytesrundorna kan vem som helst föreslå fler byten; blir av bara om alla är med.
-  // Varje spelare får bara fråga en gång under hela inledningen (Alfred 2026-11-08), så att
-  // ingen kan spamma frågor; har man redan frågat återstår bara "nöjd".
-  // Säger man nej till en fråga kan man kontra med en egen fråga (om man inte redan frågat).
+  // Extra byten (Alfred 2026-11-08, som i verkligheten):
+  //  1. Efter styrspelarens två bytesrundor kan vem som helst fråga "Ska alla slänga X kort?" (X = 1–6).
+  //  2. Alla andra svarar ja eller nej.
+  //  3. Säger alla ja slänger alla X kort och får ersättningskort som vanligt. Sedan kan vem som
+  //     helst fråga igen – hur många gånger som helst. Tar leken slut blandas slänghögen som vanligt.
+  //  4. Säger någon nej börjar en övertalningsfrist (PERSUADE_SECONDS). Den som sa nej kan ändra sig
+  //     ("Okej, jag är med") och då fortsätter omröstningen, eller avsluta direkt ("Nej, vi kör").
+  //     Har ingen ändrat sig när tiden är ute blir det inga fler byten och spelet börjar.
+  //     Tiden ägs av servern (src/turntimer.js), som anropar persuadeExpired().
+  //  5. "Vi kör" (när ingen fråga är ute) räcker att en spelare trycker: spelet börjar direkt.
+  //  6. Går turtimern ut för någon som ska svara räknas det som nej (och fristen startar).
   // Motståndarnas synliga kort visas inte i efterhand – man får själv komma ihåg dem (Alfred 2026-11-08).
   // Att slå (Alfred 2026-11-07): lika många kort av samma valör, samma eller högre → tar styret.
   // Lika många kort som alla är samma eller högre men olika valör → "lägger över", tar inte styret.
   // Kan man lägga över (på något av sätten) måste man; annars läggs de lägsta korten.
 };
+
+const PERSUADE_SECONDS = 10; // övertalningsfristen när någon säger nej till extra byte
 
 function rankName(r) { return RANK_NAMES[r] || String(r); }
 function cardValue(c) { return c.rank; }
@@ -57,7 +66,7 @@ class Game {
     this.multiplier = this.multiplierMode === 'fixed' ? multiplier : null;
     this.extraExchanges = extraExchanges; // inställning: får man fråga om fler byten efter runda 2?
     this.players = players.map((p) => ({ id: p.id, name: p.name, hand: [], publicIds: new Set(), participated: [null, null] }));
-    this.asked = new Set(); // vilka som har frågat om extra byte
+    this.proposalSeq = 0; // numrerar frågorna om extra byte
     this.deck = makeDeck();
     this.discard = [];
     this.setAside = [];
@@ -138,7 +147,7 @@ class Game {
   // Bytesrunda 1 och 2 styrs av styrspelaren. Därefter kan extra bytesrundor
   // föreslås av vem som helst, men de blir bara av om alla är med.
   startExchangeRound(round) {
-    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
+    this.exchange = { round, step: 'leader', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null };
     this.log(`Bytesrunda ${round}: ${this.name(this.leader)} väljer hur många kort som ska slängas.`);
   }
 
@@ -239,70 +248,87 @@ class Game {
   }
 
   startExtra(round) {
-    this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null, satisfied: {} };
-    // Den som redan har frågat räknas som nöjd; har alla frågat börjar spelet direkt.
-    for (const p of this.players) if (this.asked.has(p.id)) this.exchange.satisfied[p.id] = true;
-    if (this.players.every((p) => this.asked.has(p.id))) {
-      this.log('Alla har redan frågat en gång – nu börjar spelet.');
-      return this.startPlay();
-    }
-    this.log(`Extra byte: vill någon slänga fler kort? Alla måste vara med. Annars börjar spelet när alla är nöjda.`);
+    this.exchange = { round, step: 'extra', leaderCount: null, decisions: {}, pending: {}, offers: {}, proposal: null };
+    this.log(round === 3 ? 'Extra byte: vem som helst kan fråga om alla ska slänga 1–6 kort. Annars – tryck "Vi kör".'
+      : 'Vill någon byta igen? Fråga, eller tryck "Vi kör".');
   }
 
-  // Föreslå att alla slänger `count` kort.
+  // Fråga om alla ska slänga `count` kort. Den som frågar räknas som ja.
   exchangePropose(pid, count) {
     const i = this.idx(pid), ex = this.exchange;
-    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att föreslå byte nu.');
-    if (ex.proposal) fail('Det finns redan ett förslag att svara på.');
-    if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
+    if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte att fråga om byte nu.');
+    if (ex.proposal) fail('Det finns redan en fråga att svara på.');
     count = Math.round(Number(count));
     if (!(count >= 1 && count <= 6)) fail('Välj 1–6 kort.');
-    this.asked.add(pid);
-    ex.proposal = { by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])) };
-    this.log(`${this.name(i)} frågar om alla vill slänga ${count} kort.`);
+    ex.proposal = { id: ++this.proposalSeq, by: pid, count, votes: Object.fromEntries(this.players.map((p) => [p.id, p.id === pid ? true : null])), persuading: false };
+    this.log(`${this.name(i)} frågar: ska alla slänga ${count} kort?`);
   }
 
-  exchangeVote(pid, yes, counter = null) {
-    const i = this.idx(pid), ex = this.exchange;
-    if (this.phase !== 'exchange' || ex.step !== 'extra' || !ex.proposal) fail('Det finns inget förslag att svara på.');
-    if (ex.proposal.votes[pid] !== null) fail('Du har redan svarat.');
-    if (counter != null) {
-      if (yes) fail('Man kan bara kontra när man säger nej.');
-      if (this.asked.has(pid)) fail('Du har redan frågat en gång.');
-      counter = Math.round(Number(counter));
-      if (!(counter >= 1 && counter <= 6)) fail('Välj 1–6 kort.');
-    }
-    ex.proposal.votes[pid] = !!yes;
+  requireProposal() {
+    const ex = this.exchange;
+    if (this.phase !== 'exchange' || !ex || ex.step !== 'extra' || !ex.proposal) fail('Det finns ingen fråga att svara på.');
+    return ex.proposal;
+  }
+
+  exchangeVote(pid, yes) {
+    const i = this.idx(pid), P = this.requireProposal();
+    if (P.votes[pid] !== null) fail('Du har redan svarat.');
+    P.votes[pid] = !!yes;
     if (!yes) {
-      // Kontra (Alfred 2026-11-08): den som säger nej får istället ställa en egen fråga,
-      // om hen inte redan har frågat. Varje spelare frågar max en gång, så det tar slut.
-      if (counter != null) {
-        this.log(`${this.name(i)} säger nej men kontrar.`);
-        ex.proposal = null;
-        return this.exchangePropose(pid, counter);
-      }
-      this.log(`${this.name(i)} vill inte slänga. Inga fler byten.`);
-      return this.startPlay();
+      this.log(`${this.name(i)} säger nej – övertala hen!`);
+      this.event('holdout', { playerId: pid });
+      P.persuading = true; // fristen startar (eller pågår redan)
+      return;
     }
     this.log(`${this.name(i)} är med.`);
-    if (Object.values(ex.proposal.votes).every((v) => v === true)) {
-      this.log(`Alla är med – alla slänger ${ex.proposal.count} kort.`);
-      ex.step = 'extraDiscard';
-      ex.leaderCount = ex.proposal.count;
-      this.players.forEach((p) => { ex.decisions[p.id] = null; });
-    }
+    this.settleVotes();
   }
 
-  exchangeSatisfied(pid) {
+  /** "Okej, jag är med": den som sa nej ändrar sig under fristen. */
+  exchangeChangeMind(pid) {
+    const i = this.idx(pid), P = this.requireProposal();
+    if (P.votes[pid] !== false) fail('Du har inte sagt nej.');
+    P.votes[pid] = true;
+    this.log(`${this.name(i)} ändrar sig – är med!`);
+    if (!Object.values(P.votes).includes(false)) P.persuading = false;
+    this.settleVotes();
+  }
+
+  /** "Nej, vi kör": den som sa nej avslutar fristen direkt. */
+  exchangeInsist(pid) {
+    const i = this.idx(pid), P = this.requireProposal();
+    if (P.votes[pid] !== false) fail('Du har inte sagt nej.');
+    this.log(`${this.name(i)} står fast vid nej. Inga fler byten.`);
+    this.startPlay();
+  }
+
+  /** Övertalningsfristen är slut (anropas av servern). proposalId skyddar mot en gammal timer. */
+  persuadeExpired(proposalId = null) {
+    const ex = this.exchange, P = ex && ex.proposal;
+    if (this.phase !== 'exchange' || !P || !P.persuading || (proposalId != null && P.id !== proposalId)) return false;
+    this.log('Ingen ändrade sig. Inga fler byten.');
+    this.startPlay();
+    this.checkInvariant();
+    return true;
+  }
+
+  /** "Vi kör": räcker att en spelare trycker – räknas som nej till fler byten, utan frist. */
+  exchangeGo(pid) {
     const i = this.idx(pid), ex = this.exchange;
     if (this.phase !== 'exchange' || ex.step !== 'extra') fail('Det går inte nu.');
-    if (ex.proposal) return this.exchangeVote(pid, false);
-    ex.satisfied[pid] = true;
-    this.log(`${this.name(i)} är nöjd.`);
-    if (this.players.every((p) => ex.satisfied[p.id])) {
-      this.log('Alla är nöjda.');
-      this.startPlay();
-    }
+    if (ex.proposal) fail('Svara på frågan först.');
+    this.log(`${this.name(i)}: Vi kör!`);
+    this.startPlay();
+  }
+
+  settleVotes() {
+    const ex = this.exchange, P = ex.proposal;
+    if (!Object.values(P.votes).every((v) => v === true)) return;
+    this.log(`Alla är med – alla slänger ${P.count} kort.`);
+    ex.step = 'extraDiscard';
+    ex.leaderCount = P.count;
+    ex.proposal = null;
+    this.players.forEach((p) => { ex.decisions[p.id] = null; });
   }
 
   exchangeExtraDiscard(pid, cardIds) {
@@ -467,8 +493,10 @@ class Game {
       case 'exchangeOther': this.exchangeOther(pid, !!a.discard, a.cardIds); break;
       case 'exchangeReplace': this.exchangeReplace(pid, !!a.keep); break;
       case 'exchangePropose': this.exchangePropose(pid, a.count); break;
-      case 'exchangeVote': this.exchangeVote(pid, !!a.yes, a.counter ?? null); break;
-      case 'exchangeSatisfied': this.exchangeSatisfied(pid); break;
+      case 'exchangeVote': this.exchangeVote(pid, !!a.yes); break;
+      case 'exchangeChangeMind': this.exchangeChangeMind(pid); break;
+      case 'exchangeInsist': this.exchangeInsist(pid); break;
+      case 'exchangeGo': this.exchangeGo(pid); break;
       case 'exchangeExtraDiscard': this.exchangeExtraDiscard(pid, a.cardIds); break;
       case 'play': this.playCards(pid, a.cardIds); break;
       case 'dump': this.dumpLowest(pid); break;
@@ -489,7 +517,6 @@ class Game {
       deckCount: this.deck.length,
       players: this.players.map((p) => ({
         id: p.id, name: p.name, handCount: p.hand.length,
-        asked: this.asked.has(p.id),
       })),
       dealReveal: this.dealReveal,
       history: this.history.slice(-60),
@@ -504,12 +531,12 @@ class Game {
         round: ex.round, step: ex.step, leaderCount: ex.leaderCount,
         waitingFor: ex.step === 'others' || ex.step === 'extraDiscard' ? Object.keys(ex.decisions).filter((k) => ex.decisions[k] === null)
           : ex.step === 'replace' ? Object.keys(ex.offers)
-            : ex.step === 'extra' ? (ex.proposal ? Object.keys(ex.proposal.votes).filter((k) => ex.proposal.votes[k] === null)
-              : this.players.map((p) => p.id).filter((k) => !ex.satisfied[k]))
+            : ex.step === 'extra' ? (ex.proposal ? Object.keys(ex.proposal.votes).filter((k) => ex.proposal.votes[k] !== true)
+              : this.players.map((p) => p.id))
               : [this.players[this.leader].id],
         proposal: ex.proposal,
         replaceQueue: ex.replaceQueue || [],
-        satisfied: ex.satisfied,
+        persuadeSeconds: PERSUADE_SECONDS,
         offers: ex.offers, // synliga ersättningskort visas för alla
         pending: ex.pending,
         eligible: ex.step === 'others' ? Object.keys(ex.decisions) : this.eligibleOthers().map((k) => this.players[k].id),
@@ -538,4 +565,4 @@ function describe(cards) {
   return n === 1 ? `en ${r}` : `${words[n]} ${r}${r.match(/\d/) ? ':or' : 'ar'}`.replace('essar', 'ess').replace('damar', 'damer').replace('kungar', 'kungar');
 }
 
-module.exports = { Game, GameError, RULES, makeDeck };
+module.exports = { Game, GameError, RULES, makeDeck, PERSUADE_SECONDS };

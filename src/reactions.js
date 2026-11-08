@@ -14,7 +14,7 @@
 
   /**
    * Bottar reagerar ibland på det som hänt sedan förra gången:
-   * 👏 eller 😤 när någon tar styret, 😂 när de vinner en omgång. Bara ibland, så att det inte blir tjatigt.
+   * 👏 eller 😤 när någon tar styret, 🙏 eller 😤 när någon säger nej till extra byte, 😂 när de vinner en omgång. Bara ibland, så att det inte blir tjatigt.
    * chattiness per bot ändrar hur ofta (Bertil är högljudd, Astrid reagerar sällan).
    * Returnerar { reactions: [{ playerId, emoji }], seq }.
    */
@@ -31,6 +31,12 @@
         if (!others.length) continue;
         const who = others[Math.floor(rnd() * others.length)];
         if (rnd() < Math.min(0.9, 0.2 * c(who))) out.push({ playerId: who, emoji: rnd() < 0.5 ? '👏' : '😤' });
+      }
+      // någon säger nej till extra byte: bottarna tjatar under övertalningsfristen
+      if (ev.type === 'holdout') {
+        for (const who of botIds.filter((id) => id !== ev.playerId)) {
+          if (rnd() < Math.min(0.9, 0.4 * c(who))) out.push({ playerId: who, emoji: rnd() < 0.6 ? '🙏' : '😤' });
+        }
       }
     }
     if (game.phase === 'finished' && !game.botsCheered) {
