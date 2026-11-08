@@ -561,6 +561,65 @@ async function runKick() {
   console.log('OK: värden kan kicka spelare från lobbyn');
 }
 
+// Åskådare: titta på pågående match utan att se dolda kort, be om att få gå med när omgången är klar.
+async function runWatch() {
+  const host = client('Värd'); await new Promise((r) => host.on('connect', r));
+  const res = await emit(host, 'create', { name: 'Värd' });
+  await emit(host, 'settings', { ...host.state.lobby.settings, turnTime: 20, visibility: 'open', maxPlayers: 3 });
+  await emit(host, 'addBot'); await emit(host, 'addBot');
+  assert.ok((await emit(host, 'start')).ok);
+  host.emit('animDone'); await wait(30);
+  const fan = client('Fan');
+  let open = []; fan.on('openRooms', (l) => { open = l; });
+  await new Promise((r) => fan.on('connect', r));
+  await wait(30);
+  const listed = open.find((r) => r.code === res.code);
+  assert.ok(listed && listed.playing, 'pågående öppet rum syns i listan som pågående');
+  const j = await emit(fan, 'join', { code: res.code, name: 'Fan' });
+  assert.ok(!j.ok && j.canWatch, 'kan inte gå med mitt i, men kan titta');
+  const w = await emit(fan, 'watch', { code: res.code, name: 'Fan' });
+  assert.ok(w.ok && w.spectator);
+  await wait(30);
+  const st = fan.state;
+  assert.ok(st.spectator && st.game && !st.game.me, 'åskådaren har ingen hand');
+  const json = JSON.stringify(st);
+  for (const p of host.state.lobby.players) assert.ok(!/"hand":\[\{/.test(json) || st.game.phase === 'finished', 'inga händer i åskådarvyn');
+  const myCards = host.state.game.me.hand.map((c) => c.id);
+  if (host.state.game.phase !== 'finished') for (const id of myCards) {
+    const publicIds = new Set([...(st.game.exchange ? Object.values(st.game.exchange.offers).flat() : []), ...(st.game.dealReveal || []).flatMap((r) => r.cards)].map((c) => c.id));
+    if (!publicIds.has(id)) assert.ok(!json.includes(`"${id}"`), 'dolt kort syns för åskådaren');
+  }
+  assert.ok(host.state.lobby.spectators.some((p) => p.name === 'Fan'), 'värden ser åskådaren');
+  assert.ok(!(await emit(fan, 'action', { type: 'exchangeGo' })).ok, 'åskådare kan inte göra drag');
+  if (host.state.game.phase !== 'finished') assert.ok(!(await emit(fan, 'askJoin')).ok, 'inte mitt i omgången');
+  const start = Date.now();
+  while (host.state.game.phase !== 'finished') { if (Date.now() - start > 60000) throw new Error('omgången blev aldrig klar'); await wait(50); }
+  await wait(30);
+  assert.strictEqual(fan.state.game.phase, 'finished', 'åskådaren ser slutet');
+  // be om att gå med → värden nekar → fråga igen → värden släpper in
+  assert.ok((await emit(fan, 'askJoin')).ok);
+  await wait(30);
+  const sid = fan.state.you;
+  assert.ok(host.state.lobby.spectators.find((p) => p.id === sid).wantsJoin);
+  let answers = []; fan.on('joinAnswer', (a) => answers.push(a.accepted));
+  assert.ok(!(await emit(fan, 'answerJoin', { id: sid, accept: true })).ok, 'bara värden kan svara');
+  assert.ok((await emit(host, 'answerJoin', { id: sid, accept: false })).ok);
+  await wait(30);
+  assert.ok(!host.state.lobby.spectators.find((p) => p.id === sid).wantsJoin);
+  assert.ok((await emit(fan, 'askJoin')).ok); await wait(30);
+  assert.ok((await emit(host, 'answerJoin', { id: sid, accept: true })).ok);
+  await wait(30);
+  assert.deepStrictEqual(answers, [false, true]);
+  assert.ok(host.state.lobby.players.some((p) => p.id === sid), 'åskådaren är nu spelare');
+  assert.strictEqual(host.state.lobby.settings.maxPlayers, 4, 'platsen utökas om rummet var fullt');
+  assert.ok(!fan.state.spectator);
+  assert.ok((await emit(host, 'start')).ok);
+  await wait(30);
+  assert.ok(fan.state.game.me && fan.state.game.me.hand.length > 0, 'med i nästa omgång');
+  [host, fan].forEach((c) => c.close());
+  console.log('OK: åskådare tittar utan dolda kort och kan gå med efter omgången');
+}
+
 async function runOpenRooms() {
   const watcher = client('Tittare'); let list = null;
   watcher.on('openRooms', (l) => { list = l; });
@@ -573,21 +632,21 @@ async function runOpenRooms() {
   await emit(host, 'settings', { ...host.state.lobby.settings, visibility: 'open', maxPlayers: 2 });
   await wait(30);
   const mine = list.find((r) => r.code === res.code);
-  assert.deepStrictEqual(mine, { code: res.code, host: 'Lisa', players: 1, max: 2 });
+  assert.deepStrictEqual(mine, { code: res.code, host: 'Lisa', players: 1, max: 2, playing: false, full: false, watchers: 0 });
   const j = await emit(watcher, 'join', { code: mine.code, name: 'Okänd' });
   assert.ok(j.ok); await wait(30);
   assert.strictEqual(watcher.state.lobby.players.length, 2, 'hamnar i lobbyn');
-  assert.ok(!list.some((r) => r.code === res.code), 'fulla rum syns inte');
+  assert.ok(list.find((r) => r.code === res.code).full, 'fulla rum syns som fulla (man kan titta)');
   await emit(host, 'settings', { ...host.state.lobby.settings, maxPlayers: 4 }); await wait(30);
   assert.strictEqual(list.find((r) => r.code === res.code).players, 2);
   watcher.emit('ready', true); await wait(20);
   await emit(host, 'start'); await wait(30);
-  assert.ok(!list.some((r) => r.code === res.code), 'startade rum syns inte');
+  assert.ok(list.find((r) => r.code === res.code).playing, 'startade rum syns som pågående (man kan titta)');
   host.close(); watcher.close();
   console.log('OK: öppna rum');
 }
 
 server.listen(PORT, async () => {
-  try { await runReactions(); await runKick(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
+  try { await runReactions(); await runKick(); await runWatch(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
   catch (e) { console.error(e); process.exit(1); }
 });

@@ -998,3 +998,19 @@ html.no-anim .logo-shine, html.no-anim .bg-cards, html.no-anim .confetti { displ
 @media (max-width: 640px) { .persuade-title { font-size: 18px; } .persuade { padding: 12px; } }
 html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .persuade.low .persuade-num { animation: none; }
 @media (prefers-reduced-motion: reduce) { .persuade, .persuade-reacts .react-opt, .persuade.low .persuade-num { animation: none; } }
+
+/* ---------- åskådare ---------- */
+#game.watching #hand, #game.watching .me-info .react-btn, #game.watching #myTimer { display: none; }
+#game.watching .me-info { opacity: .85; }
+#game.watching .me-val { display: none; }
+.badge.live { background: rgba(122,37,49,.9); color: #ffd9d2; border: 1px solid rgba(255,150,130,.4); }
+.watch-offer { margin-left: 6px; }
+.join-reqs { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 60; width: min(94vw, 420px);
+  display: flex; flex-direction: column; gap: 8px; }
+.join-req { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; color: #fbf1d8;
+  background: linear-gradient(180deg, rgba(20,40,30,.97), rgba(6,16,11,.97)); border: 1px solid #d4af5f; box-shadow: 0 12px 30px rgba(0,0,0,.6);
+  animation: joinReqIn .3s ease-out both; }
+.join-req-text { flex: 1; min-width: 0; font-size: 14px; }
+.join-req .btn { min-height: 40px; }
+@keyframes joinReqIn { from { opacity: 0; transform: translateY(-12px); } }
+html.no-anim .join-req { animation: none; }

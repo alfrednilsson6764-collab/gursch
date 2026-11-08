@@ -1010,6 +1010,22 @@ html.no-anim .logo-shine, html.no-anim .bg-cards, html.no-anim .confetti { displ
 html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .persuade.low .persuade-num { animation: none; }
 @media (prefers-reduced-motion: reduce) { .persuade, .persuade-reacts .react-opt, .persuade.low .persuade-num { animation: none; } }
 
+/* ---------- åskådare ---------- */
+#game.watching #hand, #game.watching .me-info .react-btn, #game.watching #myTimer { display: none; }
+#game.watching .me-info { opacity: .85; }
+#game.watching .me-val { display: none; }
+.badge.live { background: rgba(122,37,49,.9); color: #ffd9d2; border: 1px solid rgba(255,150,130,.4); }
+.watch-offer { margin-left: 6px; }
+.join-reqs { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 60; width: min(94vw, 420px);
+  display: flex; flex-direction: column; gap: 8px; }
+.join-req { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; color: #fbf1d8;
+  background: linear-gradient(180deg, rgba(20,40,30,.97), rgba(6,16,11,.97)); border: 1px solid #d4af5f; box-shadow: 0 12px 30px rgba(0,0,0,.6);
+  animation: joinReqIn .3s ease-out both; }
+.join-req-text { flex: 1; min-width: 0; font-size: 14px; }
+.join-req .btn { min-height: 40px; }
+@keyframes joinReqIn { from { opacity: 0; transform: translateY(-12px); } }
+html.no-anim .join-req { animation: none; }
+
 
 .invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
@@ -1113,6 +1129,7 @@ html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .
         <button id="leaveBtn" class="btn ghost">Lämna rummet</button>
       </div>
       <p id="lobbyInfo" class="muted center"></p>
+      <p id="lobbyWatch" class="muted center hidden"></p>
       <p id="lobbyError" class="error"></p>
     </div>
   </section>
@@ -1147,7 +1164,7 @@ html.no-anim .persuade, html.no-anim .persuade-reacts .react-opt, html.no-anim .
       <div id="hand" class="hand"></div>
       <div id="reactPicker" class="react-picker hidden" role="menu" aria-label="Reaktioner"></div>
       <div class="me-bar">
-        <div class="me-info"><button id="reactBtn" class="react-btn" aria-label="Skicka reaktion" title="Reaktioner">😀</button><span id="meName"></span> · Kortvärde <strong id="meValue">0</strong></div>
+        <div class="me-info"><button id="reactBtn" class="react-btn" aria-label="Skicka reaktion" title="Reaktioner">😀</button><span id="meName"></span><span class="me-val"> · Kortvärde <strong id="meValue">0</strong></span></div>
         <div id="actions" class="actions"></div>
       </div>
     </div>
@@ -2509,7 +2526,16 @@ const urlCode = new URLSearchParams(location.search).get('rum');
 if (urlCode) $('code').value = urlCode.toUpperCase();
 
 function enter(res) {
-  if (!res.ok) { $('homeError').textContent = res.error; store.set('code', null); show('home'); return; }
+  if (!res.ok) {
+    $('homeError').textContent = res.error; store.set('code', null); show('home');
+    if (res.canWatch) {
+      const b = document.createElement('button');
+      b.className = 'btn small watch-offer'; b.textContent = '👀 Titta på matchen';
+      b.onclick = () => watch($('code').value.trim().toUpperCase());
+      $('homeError').append(' ', b);
+    }
+    return;
+  }
   store.set('code', res.code); store.set('token', res.token);
   setUrl('?rum=' + res.code);
 }
@@ -2528,6 +2554,11 @@ $('botsBtn').onclick = () => {
     for (let k = 0; k < 3; k++) socket.emit('addBot');
   });
 };
+// Titta på ett rum som åskådare (pågående match eller fullt rum).
+function watch(code) {
+  const name = needName(); if (!name || !code) return;
+  socket.emit('watch', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
+}
 $('joinBtn').onclick = () => {
   const name = needName(); const code = $('code').value.trim().toUpperCase();
   if (!name) return;
@@ -2540,11 +2571,12 @@ socket.on('openRooms', (list) => {
   box.innerHTML = list.length ? list.map((r) => `<li>
       <span class="avatar">${esc((r.host || '?').slice(0, 1).toUpperCase())}</span>
       <span class="pname">${esc(r.host)}s rum</span>
-      <span class="muted">${r.players}/${r.max}</span>
-      <button class="btn small" data-join="${esc(r.code)}">Gå med</button>
+      <span class="muted">${r.playing ? '<span class="badge live">Pågår</span> ' : ''}${r.players}/${r.max}${r.watchers ? ` · 👀 ${r.watchers}` : ''}</span>
+      ${r.playing || r.full ? `<button class="btn small" data-watch="${esc(r.code)}">👀 Titta</button>` : `<button class="btn small" data-join="${esc(r.code)}">Gå med</button>`}
     </li>`).join('') : '<li class="empty">Inga öppna rum just nu – skapa ett!</li>';
 });
 $('openRooms').addEventListener('click', (e) => {
+  const w = e.target.closest('[data-watch]'); if (w) { $('code').value = w.dataset.watch; return watch(w.dataset.watch); }
   const b = e.target.closest('[data-join]'); if (!b) return;
   $('code').value = b.dataset.join; $('joinBtn').click();
 });
@@ -2654,7 +2686,14 @@ function renderLobby() {
   setSeg('speedSeg', L.settings.botSpeed || 'normal', !isHost);
   $('settingsNote').textContent = isHost ? '' : '· värden väljer';
   const me = L.players.find((p) => p.id === S.you);
-  $('readyBtn').classList.toggle('hidden', isHost);
+  $('readyBtn').classList.toggle('hidden', isHost || !!S.spectator);
+  $('lobbyWatch').classList.toggle('hidden', !S.spectator);
+  if (S.spectator) {
+    const mine = (L.spectators || []).find((p) => p.id === S.you);
+    $('lobbyWatch').innerHTML = mine && mine.wantsJoin ? '👀 Du tittar. Du har frågat om att få gå med – väntar på värden…'
+      : '👀 Du tittar på rummet. <button class="btn small primary" id="lobbyAskJoin">Be om att få gå med</button>';
+    const b = $('lobbyAskJoin'); if (b) b.onclick = askJoin;
+  }
   $('readyBtn').textContent = me && me.ready ? 'Inte redo' : 'Jag är redo';
   $('readyBtn').classList.toggle('primary', !(me && me.ready));
   $('startBtn').classList.toggle('hidden', !isHost);
@@ -2698,7 +2737,8 @@ function renderGame() {
   for (const id of [...selected]) if (!G.me.hand.some((c) => c.id === id)) selected.delete(id);
   const me = S.you, ex = G.exchange, pl = G.play;
   const myIdx = G.players.findIndex((p) => p.id === me);
-  const order = G.players.slice(myIdx).concat(G.players.slice(0, myIdx));
+  // åskådaren sitter "längst ner" på en tom plats, alla spelare runt bordet
+  const order = myIdx < 0 ? [null, ...G.players] : G.players.slice(myIdx).concat(G.players.slice(0, myIdx));
   const others = order.slice(1);
   const pos = seatPositions(order.length);
   const lobbyPlayers = Object.fromEntries(S.lobby.players.map((p) => [p.id, p]));
@@ -2745,7 +2785,8 @@ function renderGame() {
       : ex ? `Styrspelare: <strong>${esc(nameOf(G.leaderId))}</strong>` : '');
 
   // min hand
-  $('meName').innerHTML = `${G.leaderId === me ? '<span class="crown">♛</span> ' : ''}${esc(nameOf(me))}`;
+  $('meName').innerHTML = S.watching ? (S.spectator ? '👀 Åskådare' : esc((S.lobby.players.find((p) => p.id === me) || {}).name || ''))
+    : `${G.leaderId === me ? '<span class="crown">♛</span> ' : ''}${esc(nameOf(me))}`;
   $('meValue').textContent = G.me.value;
   $('hand').innerHTML = G.me.hand.map((c) => cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '' })).join('');
   $('history').querySelector('ol').innerHTML = G.history.map((h) => `<li class="${h.type}">${esc(h.text)}</li>`).reverse().join('');
@@ -2776,7 +2817,14 @@ function btn(label, onclick, cls = '', disabled = false) { return { label, oncli
 function renderActions(G) {
   const me = S.you, ex = G.exchange, pl = G.play, sel = selectionInfo(G);
   let status = '', acts = [], offerHTML = '';
-  if (ex) {
+  if (S.watching) {
+    const mine = S.spectator && S.lobby.spectators.find((p) => p.id === me);
+    if (!S.spectator) status = 'Du är med från nästa omgång. Väntar på att värden startar den…';
+    else if (G.phase !== 'finished') status = '👀 Du tittar på matchen. Du ser inga dolda kort. När omgången är klar kan du be om att få gå med.';
+    else if (mine && mine.wantsJoin) { status = 'Du har frågat om du får gå med. Väntar på värden…'; acts.push(btn('Ångra', () => socket.emit('cancelJoin'))); }
+    else { status = 'Omgången är klar! Vill du vara med i nästa?'; acts.push(btn('Be om att få gå med', askJoin, 'primary')); }
+    acts.push(btn('Sluta titta', () => $('leaveBtn').click()));
+  } else if (ex) {
     if (ex.step === 'leader') {
       if (G.leaderId === me) {
         status = `Du är styrspelare. Välj de kort du vill slänga (0–6) i bytesrunda ${ex.round}.`;
@@ -2887,7 +2935,7 @@ function renderActions(G) {
 let dealShownFor = null;
 function renderDeal(G) {
   const key = G.dealReveal.map((r) => r.cards.map((c) => c.id).join()).join('|');
-  if (G.phase !== 'exchange' || dealShownFor === key || dealing) return;
+  if (G.phase !== 'exchange' || dealShownFor === key || dealing || S.watching) return; // åskådare hoppar över utdelningsrutan
   dealShownFor = key;
   const leader = G.leaderId;
   const rounds = Math.max(...G.dealReveal.map((r) => r.cards.length));
@@ -2916,8 +2964,31 @@ function renderResults(G) {
   const isHost = S.lobby.hostId === S.you;
   $('againBtn').classList.toggle('hidden', !isHost);
   $('endBtn').classList.toggle('hidden', !isHost);
-  $('resultsInfo').textContent = isHost ? '' : 'Väntar på att värden startar en ny omgång…';
+  const mine = S.spectator && S.lobby.spectators.find((p) => p.id === S.you);
+  $('resultsInfo').innerHTML = isHost ? '' : !S.spectator ? 'Väntar på att värden startar en ny omgång…'
+    : mine && mine.wantsJoin ? 'Du har frågat om att få gå med – väntar på värden…'
+      : '👀 Du tittar. <button class="btn small primary" id="askJoinBtn">Be om att få gå med</button>';
+  const ab = $('askJoinBtn'); if (ab) ab.onclick = askJoin;
 }
+// ---------- åskådare ber om att få gå med; värden svarar ----------
+function askJoin() { socket.emit('askJoin', null, (r) => { if (r && !r.ok) toast(r.error, 'bad'); else toast('Frågan är skickad till värden'); }); }
+function renderJoinRequests() {
+  let box = $('joinReqs');
+  const L = S && S.lobby;
+  const reqs = L && L.hostId === S.you ? (L.spectators || []).filter((p) => p.wantsJoin) : [];
+  if (!reqs.length) { if (box) box.remove(); return; }
+  if (!box) { box = document.createElement('div'); box.id = 'joinReqs'; box.className = 'join-reqs'; document.body.appendChild(box); }
+  box.innerHTML = reqs.map((p) => `<div class="join-req"><span class="avatar" style="--av:${avColor(p.id)}">${esc(p.name.slice(0, 1).toUpperCase())}</span>
+    <span class="join-req-text"><b>${esc(p.name)}</b> vill vara med</span>
+    <button class="btn small primary" data-accept="${p.id}">Släpp in</button><button class="btn small" data-decline="${p.id}">Neka</button></div>`).join('');
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('[data-accept]'), d = e.target.closest('[data-decline]');
+  if (!a && !d) return;
+  socket.emit('answerJoin', { id: (a || d).dataset[a ? 'accept' : 'decline'], accept: !!a }, (r) => { if (r && !r.ok) toast(r.error, 'bad'); });
+});
+socket.on('joinAnswer', ({ accepted }) => toast(accepted ? 'Värden släppte in dig – du är med i nästa omgång! 🎉' : 'Värden sa nej den här gången.', accepted ? '' : 'bad'));
+
 $('againBtn').onclick = () => socket.emit('start', null, (r) => !r.ok && toast(r.error, 'bad'));
 $('endBtn').onclick = () => socket.emit('endSession');
 $('closeEndBtn').onclick = () => socket.emit('closeSession');
@@ -3007,12 +3078,17 @@ socket.on('state', (state) => {
   const newGame = state.game && (!S || !S.game || S.game.history.length > state.game.history.length);
   if (newGame) { selected.clear(); seenSeq = Math.max(0, ...state.game.events.map((e) => e.seq)); lastPileKey = ''; resetAnim(); }
   S = state;
+  // åskådare (eller nyss godkänd spelare som väntar på nästa omgång) har ingen hand i det här spelet
+  S.watching = !!(state.game && !state.game.players.some((p) => p.id === state.you));
+  if (S.watching) state.game.me = { hand: [], value: 0 };
+  $('game').classList.toggle('watching', S.watching);
+  renderJoinRequests();
   renderEnd();
   if (S.game) {
     show('game');
     const G = S.game;
     const fresh = newGame && G.phase === 'exchange' && G.exchange.round === 1 && G.exchange.step === 'leader';
-    if (fresh && !noMotion()) startDealAnim();
+    if (fresh && !noMotion() && !S.watching) startDealAnim();
     renderGame();
     renderTimers(); renderPersuade();
   }

@@ -45,6 +45,7 @@ function lobbyView(room) {
     timers: room.timers ? room.timers.remaining() : {},
     persuadeLeft: room.persuade ? room.persuade.remaining() : null,
     players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: !!p.bot || p.sockets.size > 0 })),
+    spectators: (room.spectators || []).map((p) => ({ id: p.id, name: p.name, wantsJoin: !!p.wantsJoin, connected: p.sockets.size > 0 })),
   };
 }
 
@@ -54,6 +55,14 @@ function broadcast(room) {
   for (const p of room.players) {
     const state = { lobby, you: p.id, game: room.game ? room.game.viewFor(p.id) : null };
     for (const sid of p.sockets) io.to(sid).emit('state', state);
+  }
+  // Åskådare får samma vy som någon utanför spelet: inga dolda kort, ingen egen hand.
+  if (room.spectators && room.spectators.length) {
+    const game = room.game ? room.game.viewFor(null) : null;
+    for (const p of room.spectators) {
+      const state = { lobby, you: p.id, spectator: true, game };
+      for (const sid of p.sockets) io.to(sid).emit('state', state);
+    }
   }
   scheduleBots(room);
   pushOpenRooms();
@@ -88,8 +97,9 @@ function syncTimers(room) {
 let lastOpen = '';
 function openRoomsList() {
   return [...rooms.values()]
-    .filter((r) => r.settings.visibility === 'open' && !r.game && r.players.length < r.settings.maxPlayers && humans(r).some((p) => p.sockets.size > 0))
-    .map((r) => ({ code: r.code, host: (r.players.find((p) => p.id === r.hostId) || {}).name || '', players: r.players.length, max: r.settings.maxPlayers }));
+    .filter((r) => r.settings.visibility === 'open' && humans(r).some((p) => p.sockets.size > 0))
+    .map((r) => ({ code: r.code, host: (r.players.find((p) => p.id === r.hostId) || {}).name || '', players: r.players.length, max: r.settings.maxPlayers,
+      playing: !!r.game, full: r.players.length >= r.settings.maxPlayers, watchers: (r.spectators || []).length }));
 }
 function pushOpenRooms() {
   const list = openRoomsList(), json = JSON.stringify(list);
@@ -148,6 +158,7 @@ function scheduleBots(room) {
     return;
   }
 }
+const MAX_SPECTATORS = 20;
 const humans = (room) => room.players.filter((p) => !p.bot);
 // Vanlig paus mellan botdrag; vissa drag (t.ex. att låta sig övertalas) väntar längre så att man hinner tjata.
 function botDelay(room, move) {
@@ -169,12 +180,13 @@ io.on('connection', (socket) => {
   const ctx = () => {
     const room = rooms.get(socket.data.room);
     const player = room && room.players.find((p) => p.id === socket.data.pid);
-    return { room, player };
+    // åskådare räknas inte som spelare: de kan inte göra drag, ändra inställningar osv.
+    return player ? { room, player } : { room: null, player: null };
   };
 
   socket.on('create', ({ name, token } = {}, cb) => {
     const code = newCode();
-    const room = { code, hostId: null, settings: DEFAULT_SETTINGS(), players: [], game: null, tally: Tally.create(), ended: false };
+    const room = { code, hostId: null, settings: DEFAULT_SETTINGS(), players: [], spectators: [], game: null, tally: Tally.create(), ended: false };
     rooms.set(code, room);
     const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: cleanName(name), ready: false, sockets: new Set() };
     room.players.push(player);
@@ -188,14 +200,78 @@ io.on('connection', (socket) => {
     const room = rooms.get(String(code || '').toUpperCase().trim());
     if (!room) return reply(cb, { ok: false, error: 'Hittar inget rum med den koden.' });
     let player = token && room.players.find((p) => p.token === String(token));
+    // återanslutning som åskådare
+    const spec = !player && token && room.spectators.find((p) => p.token === String(token));
+    if (spec) {
+      attach(socket, room, spec);
+      reply(cb, { ok: true, code: room.code, token: spec.token, spectator: true });
+      return broadcast(room);
+    }
     if (!player) {
-      if (room.game) return reply(cb, { ok: false, error: 'Spelet har redan börjat i det rummet.' });
-      if (room.players.length >= room.settings.maxPlayers) return reply(cb, { ok: false, error: 'Rummet är fullt.' });
+      if (room.game) return reply(cb, { ok: false, canWatch: true, error: 'Spelet har redan börjat i det rummet – du kan titta på.' });
+      if (room.players.length >= room.settings.maxPlayers) return reply(cb, { ok: false, canWatch: true, error: 'Rummet är fullt – du kan titta på.' });
       player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: cleanName(name), ready: false, sockets: new Set() };
       room.players.push(player);
     } else if (name && !room.game) player.name = cleanName(name);
     attach(socket, room, player);
     reply(cb, { ok: true, code: room.code, token: player.token });
+    broadcast(room);
+  });
+
+  // ---------- åskådare ----------
+  // Titta på ett rum (pågående match eller fullt rum). Åskådare ser inga dolda kort.
+  socket.on('watch', ({ code, name, token } = {}, cb) => {
+    const room = rooms.get(String(code || '').toUpperCase().trim());
+    if (!room) return reply(cb, { ok: false, error: 'Hittar inget rum med den koden.' });
+    if (token && room.players.some((p) => p.token === String(token))) return reply(cb, { ok: false, error: 'Du är redan med i rummet.' });
+    let spec = token && room.spectators.find((p) => p.token === String(token));
+    if (!spec) {
+      if (room.spectators.length >= MAX_SPECTATORS) return reply(cb, { ok: false, error: 'Det är fullt med åskådare.' });
+      spec = { id: 'spec-' + crypto.randomUUID(), token: crypto.randomUUID(), name: cleanName(name), wantsJoin: false, sockets: new Set() };
+      room.spectators.push(spec);
+    }
+    attach(socket, room, spec);
+    reply(cb, { ok: true, code: room.code, token: spec.token, spectator: true });
+    broadcast(room);
+  });
+  const specCtx = () => {
+    const room = rooms.get(socket.data.room);
+    return { room, spec: room && room.spectators.find((p) => p.id === socket.data.pid) };
+  };
+  // När omgången är klar (eller innan spelet börjat) kan en åskådare be om att få gå med.
+  socket.on('askJoin', (_, cb) => {
+    const { room, spec } = specCtx();
+    if (!spec) return reply(cb, { ok: false, error: 'Du tittar inte på något rum.' });
+    if (room.game && room.game.phase !== 'finished') return reply(cb, { ok: false, error: 'Vänta tills omgången är klar.' });
+    spec.wantsJoin = true;
+    reply(cb, { ok: true });
+    broadcast(room);
+  });
+  socket.on('cancelJoin', () => {
+    const { room, spec } = specCtx();
+    if (!spec) return;
+    spec.wantsJoin = false;
+    broadcast(room);
+  });
+  // Värden svarar på en förfrågan. Ja: åskådaren blir spelare i nästa omgång.
+  socket.on('answerJoin', ({ id, accept } = {}, cb) => {
+    const { room, player } = ctx();
+    if (!room || !player || room.hostId !== player.id) return reply(cb, { ok: false, error: 'Endast värden kan svara.' });
+    const spec = room.spectators.find((p) => p.id === id && p.wantsJoin);
+    if (!spec) return reply(cb, { ok: false, error: 'Förfrågan finns inte längre.' });
+    if (!accept) {
+      spec.wantsJoin = false;
+      for (const sid of spec.sockets) io.to(sid).emit('joinAnswer', { accepted: false });
+      reply(cb, { ok: true });
+      return broadcast(room);
+    }
+    if (room.game && room.game.phase !== 'finished') return reply(cb, { ok: false, error: 'Vänta tills omgången är klar.' });
+    if (room.players.length >= 6) return reply(cb, { ok: false, error: 'Rummet är fullt (högst 6 spelare).' });
+    room.settings.maxPlayers = Math.max(room.settings.maxPlayers, room.players.length + 1);
+    room.spectators = room.spectators.filter((p) => p !== spec);
+    room.players.push({ id: spec.id, token: spec.token, name: spec.name, ready: true, sockets: spec.sockets });
+    for (const sid of spec.sockets) io.to(sid).emit('joinAnswer', { accepted: true });
+    reply(cb, { ok: true });
     broadcast(room);
   });
 
@@ -318,8 +394,15 @@ io.on('connection', (socket) => {
 
 
   socket.on('leave', () => {
+    const { room: sroom, spec } = specCtx();
+    if (spec) {
+      socket.leave(sroom.code);
+      socket.data.room = null;
+      sroom.spectators = sroom.spectators.filter((p) => p !== spec);
+      return broadcast(sroom);
+    }
     const { room, player } = ctx();
-    if (!room) return;
+    if (!room || !player) return;
     socket.leave(room.code);
     player.sockets.delete(socket.id);
     socket.data.room = null;
@@ -346,6 +429,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    const { room: sroom, spec } = specCtx();
+    if (spec) { spec.sockets.delete(socket.id); return broadcast(sroom); }
     const { room, player } = ctx();
     if (!room || !player) return;
     player.sockets.delete(socket.id);
