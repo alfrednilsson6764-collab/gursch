@@ -14,6 +14,13 @@
 
   // Tillbaka från e-postlänken eller Google: token ligger i adressens #-del.
   let hashError = null;
+  // fel kan komma i #-delen eller i ?-delen (t.ex. utgången länk)
+  const q = new URLSearchParams(location.search);
+  if (q.get('error_description') || (q.get('error') && !location.hash)) {
+    hashError = (q.get('error_description') || q.get('error')).replace(/\+/g, ' ');
+    ['error', 'error_code', 'error_description'].forEach((k) => q.delete(k));
+    try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch {}
+  }
   if (location.hash.length > 1) {
     const h = new URLSearchParams(location.hash.slice(1));
     if (h.get('access_token')) {
@@ -51,12 +58,15 @@
     token: () => (session ? session.access_token : null),
     loggedIn: () => !!session,
     enabled: () => !!(cfg && cfg.auth),
+    googleEnabled: () => !!(cfg && cfg.auth && cfg.google !== false),
     onChange: (f) => listeners.push(f),
     /** Hämtar /config. Returnerar true om inloggning finns på servern. */
     async init() {
       try { cfg = await (await fetch('/config')).json(); } catch { cfg = { auth: false }; }
       if (!cfg.auth) { if (session) { save(null); changed(); } return false; }
       if (session && expired() && await refresh()) changed();
+      // vilka inloggningssätt som är påslagna i Supabase (Google-knappen döljs om Google inte är påslaget)
+      try { const st = await (await api('/auth/v1/settings')).json(); cfg.google = !!(st.external && st.external.google); } catch { cfg.google = true; }
       return true;
     },
     /** Servern sa att token inte gick att verifiera: försök förnya en gång, annars logga ut lokalt. */

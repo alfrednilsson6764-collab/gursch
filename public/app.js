@@ -1051,7 +1051,9 @@ if (Auth && !window.GURSCH_LOCAL) {
   if (Auth.hashError()) setTimeout(() => toast('Inloggningen misslyckades: ' + Auth.hashError(), 'bad'), 300);
 }
 
-$('loginBtn').onclick = () => { $('magicInfo').textContent = ''; openModal('loginModal'); setTimeout(() => $('loginEmail').focus(), 50); };
+$('loginBtn').onclick = () => {
+  const g = Auth.googleEnabled(); $('googleBtn').classList.toggle('hidden', !g); document.querySelector('#loginModal .divider').classList.toggle('hidden', !g);
+  $('magicInfo').textContent = ''; openModal('loginModal'); setTimeout(() => $('loginEmail').focus(), 50); };
 $('magicForm').onsubmit = async (e) => {
   e.preventDefault();
   const email = $('loginEmail').value.trim();
