@@ -1,7 +1,9 @@
 'use strict';
 /* Gursch klient. All spellogik finns på servern – klienten visar bara läget och skickar drag. */
 const $ = (id) => document.getElementById(id);
-const socket = window.GURSCH_LOCAL ? window.GURSCH_LOCAL() : io();
+// Inloggade skickar sin access-token när de ansluter (servern verifierar den); gäster skickar ingen.
+const socket = window.GURSCH_LOCAL ? window.GURSCH_LOCAL()
+  : io({ auth: (cb) => cb({ token: window.GurschAuth ? window.GurschAuth.token() : null }) });
 const store = {
   get: (k) => { try { return localStorage.getItem('gursch.' + k); } catch { return null; } },
   set: (k, v) => { try { v == null ? localStorage.removeItem('gursch.' + k) : localStorage.setItem('gursch.' + k, v); } catch {} },
@@ -1006,3 +1008,102 @@ function celebrate(G) {
   winnerBanner(G);
   if (!G.isDraw) confetti();
 }
+
+// ---------- konto (inloggning är valfri – man kan alltid spela som gäst) ----------
+const Auth = window.GurschAuth;
+let account = { enabled: false, loggedIn: false };
+const openModal = (id) => $(id).classList.remove('hidden');
+const closeModal = (id) => $(id).classList.add('hidden');
+document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('.overlay').classList.add('hidden')));
+const DECKS = { classic: { name: 'Klassisk', desc: 'Vinröd baksida med guldmönster – alla får den.' } };
+
+function renderAccount() {
+  const on = !!(Auth && Auth.enabled());
+  $('authBox').classList.toggle('hidden', !on);
+  const p = account.loggedIn ? account.profile : null;
+  $('loginBtn').classList.toggle('hidden', !!account.loggedIn);
+  $('userChip').classList.toggle('hidden', !account.loggedIn);
+  if (account.loggedIn) {
+    const n = p ? p.username : 'Konto';
+    $('userName').textContent = n;
+    $('userAvatar').textContent = n.slice(0, 1).toUpperCase();
+    $('userAvatar').style.setProperty('--av', avColor(p ? p.id : n));
+  }
+  // inloggad: namnet är användarnamnet, och det är det de andra ser vid bordet
+  if (p) { $('name').value = p.username; $('name').disabled = true; $('nameLabel').textContent = 'Inloggad som'; }
+  else if ($('name').disabled) { $('name').disabled = false; $('name').value = store.get('name') || ''; $('nameLabel').textContent = 'Ditt namn'; }
+  if (on && account.needsUsername) { openModal('usernameModal'); setTimeout(() => $('usernameInput').focus(), 50); }
+  else closeModal('usernameModal');
+}
+socket.on('account', async (st) => {
+  account = st || { enabled: false, loggedIn: false };
+  // token gick inte att verifiera: förnya en gång (då ansluter vi igen), annars fortsätter man som gäst
+  if (account.badToken && Auth && Auth.loggedIn()) { await Auth.rejected(); return; }
+  renderAccount();
+});
+if (Auth && !window.GURSCH_LOCAL) {
+  Auth.onChange(() => { socket.disconnect(); socket.connect(); });
+  Auth.init().then(renderAccount);
+  if (Auth.hashError()) setTimeout(() => toast('Inloggningen misslyckades: ' + Auth.hashError(), 'bad'), 300);
+}
+
+$('loginBtn').onclick = () => { $('magicInfo').textContent = ''; openModal('loginModal'); setTimeout(() => $('loginEmail').focus(), 50); };
+$('magicForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const email = $('loginEmail').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('magicInfo').textContent = 'Skriv en giltig e-postadress.'; return; }
+  $('magicBtn').disabled = true; $('magicInfo').textContent = 'Skickar…';
+  try { await Auth.sendMagicLink(email); $('magicInfo').innerHTML = `📬 Kolla din e-post (<b>${esc(email)}</b>) och klicka på länken för att logga in.`; }
+  catch (err) { $('magicInfo').textContent = err.message; }
+  finally { $('magicBtn').disabled = false; }
+};
+$('googleBtn').onclick = () => Auth.google();
+
+$('usernameForm').onsubmit = (e) => {
+  e.preventDefault();
+  const v = window.GurschUsernames ? window.GurschUsernames.validateUsername($('usernameInput').value) : { ok: true, username: $('usernameInput').value.trim() };
+  if (!v.ok) { $('usernameError').textContent = v.error; return; }
+  $('usernameError').textContent = '';
+  socket.emit('setUsername', v.username, (res) => {
+    if (!res || !res.ok) { $('usernameError').textContent = (res && res.error) || 'Något gick fel.'; return; }
+    account = res.account; renderAccount(); toast(`Välkommen, ${account.profile.username}! 🎉`);
+  });
+};
+$('usernameLater').onclick = () => { closeModal('usernameModal'); Auth.logout(); };
+
+$('userBtn').onclick = (e) => { e.stopPropagation(); const m = $('userMenu'); m.classList.toggle('hidden'); $('userBtn').setAttribute('aria-expanded', String(!m.classList.contains('hidden'))); };
+document.addEventListener('click', (e) => { if (!e.target.closest('#userChip')) $('userMenu').classList.add('hidden'); });
+$('userMenu').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-menu]'); if (!b) return;
+  $('userMenu').classList.add('hidden');
+  if (b.dataset.menu === 'logout') { Auth.logout(); toast('Du är utloggad.'); return; }
+  socket.emit('getProfile', null, (res) => {
+    if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte hämta profilen.', 'bad'); return; }
+    const p = res.profile;
+    if (b.dataset.menu === 'profile') {
+      $('profTitle').textContent = p.username;
+      $('profEmail').textContent = res.email || '';
+      $('profAvatar').textContent = p.username.slice(0, 1).toUpperCase(); $('profAvatar').style.setProperty('--av', avColor(p.id));
+      const pct = p.games_played ? Math.round((100 * p.wins) / p.games_played) : 0;
+      const since = p.created_at ? new Date(p.created_at).toLocaleDateString('sv-SE', { month: 'short', year: 'numeric' }) : '–';
+      $('profStats').innerHTML = [['Spelade omgångar', p.games_played], ['Vinster', p.wins], ['Vinstandel', pct + ' %'], ['Mynt', p.coins], ['Medlem sedan', since]]
+        .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+      openModal('profileModal');
+    } else {
+      $('collectionBody').innerHTML = `<div class="collection-grid">${res.decks.map((d) => {
+        const D = DECKS[d.deck_id] || { name: d.deck_id, desc: '' };
+        return `<div class="deck-item ${p.selected_deck === d.deck_id ? 'selected' : ''}">${cardHTML(null, { back: true })}<b>${esc(D.name)}</b><span class="tiny muted">${esc(D.desc)}</span>${p.selected_deck === d.deck_id ? '<span class="badge ok">Vald</span>' : ''}</div>`;
+      }).join('') || '<p class="muted">Inga kortlekar än.</p>'}</div>
+        <p class="muted center tiny">Mynt: <b>${esc(p.coins)}</b> · Öppnade kistor: <b>${esc(p.chests_opened)}</b> · Fler kortlekar kommer snart.</p>`;
+      openModal('collectionModal');
+    }
+  });
+});
+$('deleteAccountBtn').onclick = () => {
+  const n = (account.profile && account.profile.username) || 'ditt konto';
+  if (!confirm(`Radera ${n}?\n\nDitt användarnamn, din statistik, din samling och din inloggning (e-postadressen) tas bort för alltid. Det går inte att ångra.`)) return;
+  socket.emit('deleteAccount', null, (res) => {
+    if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte radera kontot.', 'bad'); return; }
+    closeModal('profileModal'); Auth.forget(); toast('Ditt konto är raderat.');
+  });
+};

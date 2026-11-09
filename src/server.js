@@ -9,12 +9,30 @@ const { botMove, BOT_PROFILES, CHATTINESS } = require('./bots');
 const { timeoutMove, createTurnTimers, createPersuadeTimer } = require('./turntimer');
 const Reactions = require('./reactions');
 const Tally = require('./tally');
+const { createAccounts, AccountError } = require('./accounts');
+
+// Inloggning (valfritt): sätt de här tre i Render → Environment. Saknas de spelar alla som gäster.
+const accounts = createAccounts({
+  url: process.env.SUPABASE_URL,
+  publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+  secretKey: process.env.SUPABASE_SECRET_KEY,
+});
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_, res) => res.send('ok'));
+// Klienten hämtar Supabase-adress och publik nyckel här (den hemliga nyckeln lämnar aldrig servern).
+app.get('/config', (_, res) => res.json(accounts.config()));
+app.get('/integritet', (_, res) => res.sendFile(path.join(__dirname, '..', 'public', 'integritet.html')));
+app.get('/usernames.js', (_, res) => res.sendFile(path.join(__dirname, 'usernames.js')));
+// Håll Supabase-projektet vaket: en enkel fråga en gång per dygn (gratisprojekt pausas annars efter en vecka).
+if (accounts.enabled && require.main === module) {
+  const ping = () => accounts.keepAlive().then((ok) => console.log('Supabase keepalive', ok ? 'ok' : 'misslyckades')).catch((e) => console.error('Supabase keepalive', e.message));
+  setTimeout(ping, 60 * 1000).unref();
+  setInterval(ping, 24 * 60 * 60 * 1000).unref();
+}
 app.get('/tally.js', (_, res) => res.sendFile(path.join(__dirname, 'tally.js')));
 app.get('/bots.js', (_, res) => res.sendFile(path.join(__dirname, 'bots.js')));
 
@@ -32,6 +50,8 @@ const BOT_NAMES = BOT_PROFILES.map((b) => b.name); // Astrid, Bertil, Cissi, Dav
 const BOT_DELAY = { slow: 1600, normal: 900, fast: 400 };
 const TURN_TIMES = [0, 20, 30, 60]; // sekunder per drag, 0 = av
 const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0, visibility: 'private' });
+// Inloggade spelare heter alltid sitt användarnamn; gäster väljer namn själva.
+const nameFor = (socket, n) => (socket.data.profile ? socket.data.profile.username : cleanName(n));
 const cleanName = (n) => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 20) || 'Spelare';
 
 function lobbyView(room) {
@@ -118,7 +138,15 @@ function closeRoom(room) {
 // Kör ett drag (från en människa eller en bot) och för in resultatet i poängtavlan.
 function applyAction(room, pid, a) {
   room.game.act(pid, a);
-  if (room.game.phase === 'finished' && !room.game.tallied) { room.game.tallied = true; Tally.addRound(room.tally, room.game.results); }
+  if (room.game.phase === 'finished' && !room.game.tallied) {
+    room.game.tallied = true;
+    Tally.addRound(room.tally, room.game.results);
+    // statistik för inloggade spelare (gäster och bottar räknas inte)
+    for (const r of room.game.results) {
+      const p = room.players.find((x) => x.id === r.playerId);
+      if (p && p.userId) accounts.recordGame(p.userId, !!r.winner).catch((e) => console.error('Statistik', e.message));
+    }
+  }
   botsReact(room);
 }
 
@@ -174,8 +202,31 @@ function attach(socket, room, player) {
   clearTimeout(room.cleanup);
 }
 
+// Inloggning: klienten skickar sin access-token när den ansluter; servern verifierar den hos Supabase.
+// Ogiltig eller utgången token → man ansluter som gäst (klienten förnyar token och ansluter igen).
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth && socket.handshake.auth.token;
+  if (token && accounts.enabled) {
+    try {
+      const user = await accounts.verify(String(token));
+      if (user) { socket.data.user = user; socket.data.profile = await accounts.getProfile(user.id); }
+      else socket.data.badToken = true;
+    } catch (e) { console.error('Inloggning', e.message); socket.data.badToken = true; }
+  }
+  next();
+});
+const accountState = (socket) => ({
+  enabled: accounts.enabled,
+  loggedIn: !!socket.data.user,
+  badToken: !!socket.data.badToken,
+  email: socket.data.user ? socket.data.user.email : null,
+  profile: socket.data.profile || null,
+  needsUsername: !!socket.data.user && !socket.data.profile,
+});
+
 io.on('connection', (socket) => {
   socket.emit('openRooms', openRoomsList());
+  socket.emit('account', accountState(socket));
   const reply = (cb, data) => typeof cb === 'function' && cb(data);
   const ctx = () => {
     const room = rooms.get(socket.data.room);
@@ -188,7 +239,7 @@ io.on('connection', (socket) => {
     const code = newCode();
     const room = { code, hostId: null, settings: DEFAULT_SETTINGS(), players: [], spectators: [], game: null, tally: Tally.create(), ended: false };
     rooms.set(code, room);
-    const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: cleanName(name), ready: false, sockets: new Set() };
+    const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, ready: false, sockets: new Set() };
     room.players.push(player);
     room.hostId = player.id;
     attach(socket, room, player);
@@ -210,12 +261,46 @@ io.on('connection', (socket) => {
     if (!player) {
       if (room.game) return reply(cb, { ok: false, canWatch: true, error: 'Spelet har redan börjat i det rummet – du kan titta på.' });
       if (room.players.length >= room.settings.maxPlayers) return reply(cb, { ok: false, canWatch: true, error: 'Rummet är fullt – du kan titta på.' });
-      player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: cleanName(name), ready: false, sockets: new Set() };
+      player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, ready: false, sockets: new Set() };
       room.players.push(player);
-    } else if (name && !room.game) player.name = cleanName(name);
+    } else if ((name || socket.data.profile) && !room.game) player.name = nameFor(socket, name);
     attach(socket, room, player);
     reply(cb, { ok: true, code: room.code, token: player.token });
     broadcast(room);
+  });
+
+  // ---------- konto ----------
+  // Första inloggningen: välj ett unikt användarnamn.
+  socket.on('setUsername', async (username, cb) => {
+    if (!socket.data.user) return reply(cb, { ok: false, error: 'Du är inte inloggad.' });
+    if (socket.data.profile) return reply(cb, { ok: false, error: 'Du har redan ett användarnamn.' });
+    try {
+      socket.data.profile = await accounts.createProfile(socket.data.user.id, username);
+      reply(cb, { ok: true, account: accountState(socket) });
+    } catch (e) {
+      if (!(e instanceof AccountError)) console.error(e);
+      reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' });
+    }
+  });
+  socket.on('getProfile', async (_, cb) => {
+    if (!socket.data.profile) return reply(cb, { ok: false, error: 'Du är inte inloggad.' });
+    try {
+      socket.data.profile = await accounts.getProfile(socket.data.user.id) || socket.data.profile;
+      const decks = await accounts.getCollection(socket.data.user.id);
+      reply(cb, { ok: true, profile: socket.data.profile, decks, email: socket.data.user.email });
+    } catch (e) { reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' }); }
+  });
+  // Radera mitt konto: profil, samling och inloggning tas bort hos Supabase.
+  socket.on('deleteAccount', async (_, cb) => {
+    if (!socket.data.user) return reply(cb, { ok: false, error: 'Du är inte inloggad.' });
+    try {
+      await accounts.deleteAccount(socket.data.user.id);
+      socket.data.user = null; socket.data.profile = null;
+      reply(cb, { ok: true });
+    } catch (e) {
+      if (!(e instanceof AccountError)) console.error(e);
+      reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' });
+    }
   });
 
   // ---------- åskådare ----------
@@ -227,7 +312,7 @@ io.on('connection', (socket) => {
     let spec = token && room.spectators.find((p) => p.token === String(token));
     if (!spec) {
       if (room.spectators.length >= MAX_SPECTATORS) return reply(cb, { ok: false, error: 'Det är fullt med åskådare.' });
-      spec = { id: 'spec-' + crypto.randomUUID(), token: crypto.randomUUID(), name: cleanName(name), wantsJoin: false, sockets: new Set() };
+      spec = { id: 'spec-' + crypto.randomUUID(), token: crypto.randomUUID(), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, wantsJoin: false, sockets: new Set() };
       room.spectators.push(spec);
     }
     attach(socket, room, spec);
@@ -269,7 +354,7 @@ io.on('connection', (socket) => {
     if (room.players.length >= 6) return reply(cb, { ok: false, error: 'Rummet är fullt (högst 6 spelare).' });
     room.settings.maxPlayers = Math.max(room.settings.maxPlayers, room.players.length + 1);
     room.spectators = room.spectators.filter((p) => p !== spec);
-    room.players.push({ id: spec.id, token: spec.token, name: spec.name, ready: true, sockets: spec.sockets });
+    room.players.push({ id: spec.id, token: spec.token, name: spec.name, userId: spec.userId || null, ready: true, sockets: spec.sockets });
     for (const sid of spec.sockets) io.to(sid).emit('joinAnswer', { accepted: true });
     reply(cb, { ok: true });
     broadcast(room);
@@ -443,4 +528,4 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 if (require.main === module) server.listen(PORT, () => console.log(`Gursch körs på http://localhost:${PORT}`));
-module.exports = { server, rooms };
+module.exports = { server, rooms, accounts };

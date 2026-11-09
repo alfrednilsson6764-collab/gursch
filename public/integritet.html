@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Integritet – GURSCH</title>
+  <meta name="theme-color" content="#06140e">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    html, body { height: auto; min-height: 100%; overflow: auto; background-attachment: fixed; }
+    .privacy { max-width: 680px; margin: 24px auto; padding: 24px 22px; line-height: 1.6; }
+    .privacy h1 { font-size: 30px; margin: 0 0 6px; color: var(--gold); }
+    .privacy h2 { font-size: 19px; margin: 26px 0 6px; color: var(--gold); }
+    .privacy ul { padding-left: 20px; margin: 6px 0; }
+    .privacy a { color: var(--gold); }
+    .privacy .back { display: inline-block; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <main class="home-card privacy">
+    <a class="back" href="/">← Tillbaka till spelet</a>
+    <h1>Integritet</h1>
+    <p class="muted">Senast uppdaterad 9 november 2026</p>
+
+    <p>Du kan spela Gursch helt utan konto, som gäst. Då sparas ingenting om dig: namnet du skriver finns bara i rummet medan ni spelar och i din egen webbläsare.</p>
+
+    <h2>Vad vi sparar om du loggar in</h2>
+    <ul>
+      <li><b>Din e-postadress</b> – för att du ska kunna logga in. Den sköts av inloggningstjänsten Supabase Auth och visas aldrig för andra spelare.</li>
+      <li><b>Ditt användarnamn</b> – det andra spelare ser vid bordet.</li>
+      <li><b>Spelstatistik och samling</b> – hur många omgångar du spelat och vunnit, mynt, vilka kortlekar du har och vilken du valt. Det knyts till ditt konto och inget annat.</li>
+    </ul>
+    <p>Loggar du in med Google får vi bara din e-postadress därifrån. Vi sparar inte ditt namn, din bild eller något annat från Google.</p>
+    <p>Vi sparar inga chattar, inga IP-adresser i databasen, använder inga annonser och ingen spårning eller analys. I din webbläsare sparas din inloggning (localStorage) och ditt senaste namn, så att du slipper logga in eller skriva in det igen.</p>
+
+    <h2>Var datan finns</h2>
+    <p>Kontodatan ligger hos <a href="https://supabase.com/privacy" rel="noopener">Supabase</a>, som är personuppgiftsbiträde och bara lagrar den åt oss. Spelservern körs hos <a href="https://render.com/privacy" rel="noopener">Render</a>. Typsnitten på startsidan hämtas från Google Fonts. Bara spelservern kan ändra i databasen – du kan bara läsa din egen data.</p>
+
+    <h2>Radera ditt konto</h2>
+    <p>Logga in, klicka på ditt användarnamn uppe till höger och välj <b>Min profil → Radera mitt konto</b>. Då tas ditt användarnamn, din statistik, din samling och din inloggning (e-postadressen) bort direkt och för alltid. Du kan fortsätta spela som gäst efteråt.</p>
+
+    <h2>Dina rättigheter</h2>
+    <p>Du har rätt att se, rätta och radera det vi sparar om dig. Det mesta ser du själv under Min profil. Har du frågor, eller vill du ha ut din data, kontakta den som driver spelet (Alfred Nilsson) via projektets sida på <a href="https://github.com/alfrednilsson6764-collab/gursch" rel="noopener">GitHub</a>.</p>
+  </main>
+</body>
+</html>

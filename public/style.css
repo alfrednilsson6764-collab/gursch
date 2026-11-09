@@ -1122,3 +1122,49 @@ html.no-anim .join-req { animation: none; }
   .seat { padding-right: 6px; gap: 2px 4px; } .seat-name { font-size: 11px; }
   .seat-cards span::before { display: none; }
 }
+
+/* ---------- konto: Logga in / användarmeny uppe till höger ---------- */
+.auth-box { position: absolute; top: 14px; right: 16px; z-index: 5; }
+.user-chip { position: relative; }
+.user-btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; color: #fff; cursor: pointer;
+  background: rgba(8,22,16,.82); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 4px 12px 4px 4px; max-width: 220px; }
+.user-btn:hover { background: rgba(20,44,32,.92); }
+.user-btn #userName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-btn .caret { opacity: .7; font-size: 12px; }
+.user-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 170px; display: flex; flex-direction: column; padding: 6px;
+  background: rgba(8,22,16,.97); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.user-menu button { font: inherit; text-align: left; color: #fff; background: transparent; border: 0; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.user-menu button:hover, .user-menu button:focus-visible { background: rgba(255,255,255,.1); }
+.user-menu button[data-menu="logout"] { border-top: 1px solid rgba(255,255,255,.08); border-radius: 0 0 8px 8px; }
+.auth-card { position: relative; width: 100%; max-width: 420px; max-height: 92vh; overflow: auto; }
+.auth-card h2 { margin-top: 4px; }
+.auth-form input { width: 100%; }
+.auth-card .btn.ghost { display: block; margin: 10px auto 0; }
+.modal-close { position: absolute; top: 12px; right: 12px; }
+#magicInfo { min-height: 1.2em; font-size: 14px; margin: 10px 0 0; }
+.google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff !important; color: #1f1f1f !important; border-color: #dadce0 !important; }
+.google-btn:hover:not(:disabled) { background: #f1f3f4 !important; }
+.g-logo { font-weight: 800; font-size: 18px; font-family: Arial, sans-serif;
+  background: conic-gradient(from -45deg, #ea4335 0 25%, #4285f4 0 50%, #34a853 0 75%, #fbbc05 0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.btn.danger { display: block; width: 100%; margin-top: 8px; background: rgba(198,40,40,.18); border-color: rgba(255,82,82,.45); color: #ffb4b4; }
+.btn.danger:hover:not(:disabled) { background: rgba(198,40,40,.4); color: #fff; }
+.profile-head { display: flex; align-items: center; gap: 14px; margin: 4px 30px 16px 0; }
+.profile-head h2 { margin: 0; text-align: left; overflow-wrap: anywhere; }
+.big-avatar { width: 56px; height: 56px; font-size: 26px; }
+.profile-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.profile-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; background: rgba(255,255,255,.05); }
+.profile-stats .stat b { font-size: 20px; color: var(--gold); }
+.profile-stats .stat span { font-size: 12px; opacity: .75; text-align: center; }
+.collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.deck-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 12px; text-align: center;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.deck-item.selected { border-color: var(--gold); }
+.home-foot { text-align: center; margin: 16px 0 0; font-size: 13px; opacity: .7; }
+.home-foot a, .auth-card a { color: inherit; }
+#name:disabled { opacity: 1; cursor: default; background: rgba(242,193,78,.08); border-color: rgba(242,193,78,.35); font-weight: 600; }
+@media (max-width: 640px) {
+  /* på mobil ligger kontoknappen i flödet ovanför kortet så den aldrig täcker loggan */
+  #home { flex-direction: column; }
+  .auth-box { position: static; align-self: flex-end; margin: 0 0 8px; }
+  .user-btn { max-width: 180px; }
+}

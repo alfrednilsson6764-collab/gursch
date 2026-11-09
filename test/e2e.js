@@ -647,6 +647,10 @@ async function runOpenRooms() {
 }
 
 server.listen(PORT, async () => {
-  try { await runReactions(); await runKick(); await runWatch(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
+  try {
+    // utan Supabase-variabler är inloggning avstängd och alla är gäster
+    assert.deepStrictEqual(await (await fetch(URL + '/config')).json(), { auth: false });
+    console.log('OK: /config utan Supabase ger bara gäster');
+    await runReactions(); await runKick(); await runWatch(); await runOpenRooms(); await runTimer(); await runWithBots(); for (let n = 2; n <= 6; n++) await run(n); process.exit(0); }
   catch (e) { console.error(e); process.exit(1); }
 });

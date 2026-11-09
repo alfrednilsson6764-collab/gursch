@@ -24,11 +24,60 @@ npm test           # 2000 simulerade spel + regeltester + hela spel över nätve
 2. På https://render.com: **New → Web Service**, välj repot.
 3. Build command `npm install`, start command `npm start`. Klart – dela adressen.
 
+## Inloggning och konton (Supabase, valfritt)
+
+Utan inställningar fungerar allt som förut: alla spelar som gäst och knappen Logga in syns inte. Med Supabase kan man logga in med e-postlänk eller Google, välja ett unikt användarnamn och få sin statistik sparad. Gäster kan alltid spela.
+
+### 1. Skapa databasen
+
+1. Skapa ett projekt på https://supabase.com (Free räcker).
+2. Öppna **SQL Editor → New query**, klistra in hela `db/schema.sql` och tryck **Run**. Det skapar tabellerna `profiles` och `owned_decks` med Row Level Security påslaget: inloggade får bara läsa sin egen rad och ingen kan skriva direkt – bara servern skriver, med secret key.
+3. Skriptet går att köra igen utan att något försvinner.
+
+### 2. Miljövariabler i Render
+
+I Render: din tjänst → **Environment → Add Environment Variable**. Värdena finns i Supabase under **Project Settings → API Keys** (och **Data API** för URL:en).
+
+| Variabel | Värde |
+| --- | --- |
+| `SUPABASE_URL` | `https://<projekt>.supabase.co` |
+| `SUPABASE_PUBLISHABLE_KEY` | publishable key (`sb_publishable_…`, eller den gamla `anon`-nyckeln) |
+| `SUPABASE_SECRET_KEY` | secret key (`sb_secret_…`, eller den gamla `service_role`-nyckeln) |
+
+Secret key får aldrig hamna i klienten eller i GitHub – den finns bara som miljövariabel på servern. Klienten hämtar URL och publishable key från `/config`.
+
+Servern gör en liten fråga mot databasen en gång per dygn så att Supabase-projektet inte pausas.
+
+### 3. Inloggningsadresser
+
+I Supabase: **Authentication → URL Configuration**
+
+- **Site URL**: din Render-adress, t.ex. `https://gursch.onrender.com`
+- **Redirect URLs**: lägg till `https://gursch.onrender.com/**` (och `http://localhost:3000/**` om du testar lokalt)
+
+E-postlänk (magic link) fungerar direkt. Supabase gratismejl har en låg gräns per timme; för fler mejl kan man lägga in egen SMTP under **Authentication → Emails**.
+
+### 4. Slå på Google-inloggning
+
+1. Gå till https://console.cloud.google.com → skapa (eller välj) ett projekt.
+2. **APIs & Services → OAuth consent screen**: välj External, fyll i appnamn (Gursch) och din e-post, spara och publicera.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**, typ **Web application**.
+   - Authorized JavaScript origins: `https://gursch.onrender.com`
+   - Authorized redirect URIs: `https://<projekt>.supabase.co/auth/v1/callback` (står också i Supabase under Google-providern)
+4. Kopiera Client ID och Client secret.
+5. I Supabase: **Authentication → Sign In / Providers → Google**, slå på, klistra in Client ID och Client secret, spara.
+
+### Integritet
+
+Vi sparar bara e-post (sköts av Supabase Auth), användarnamn och spelstatistik/samling. `/integritet` beskriver det för spelarna. Under **Min profil → Radera mitt konto** tas profil, samling och själva inloggningen bort.
+
 ## Struktur
 
 - `src/game.js` – regelmotorn (utdelning, bytesrundor, spel, poäng). Oklara regler samlas i `RULES` överst.
 - `src/server.js` – rum, rumskoder, lobby, återanslutning och dragkontroll.
-- `public/` – klienten (HTML/CSS/JS utan byggsteg).
+- `src/accounts.js` – konton mot Supabase (verifierar token, profiler, statistik, radering). `src/usernames.js` – regler och filter för användarnamn.
+- `db/schema.sql` – databasschemat med RLS.
+- `public/` – klienten (HTML/CSS/JS utan byggsteg). `public/auth.js` sköter inloggningen.
 
 ## Regler som Alfred har bekräftat (2026-11-07)
 

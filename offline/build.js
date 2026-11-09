@@ -14,11 +14,13 @@ ${gameJs}
 
 let html = R('public/index.html');
 const extraCss = `
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting, #authBox, .home-foot { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }`;
 html = html
   .replace('  <script src="tally.js"></script>\n', '')
   .replace('  <script src="bots.js"></script>\n', '')
+  .replace('  <script src="usernames.js"></script>\n', '') // ingen inloggning i testversionen
+  .replace('  <script src="auth.js"></script>\n', '')
   .replace('<title>GURSCH</title>', '<title>GURSCH – testa mot bottar</title>')
   .replace('<link rel="stylesheet" href="style.css">', () => `<style>\n${R('public/style.css')}\n${extraCss}\n</style>`)
   .replace('<p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>',
@@ -34,7 +36,7 @@ html = html
       '<script>', R('public/app.js'), '</script>'].join('\n'))
 ;
 
-if (html.includes('socket.io.js') || html.includes('href="style.css"')) throw new Error('Byggfel: något ersattes inte');
+if (html.includes('auth.js') || html.includes('socket.io.js') || html.includes('href="style.css"')) throw new Error('Byggfel: något ersattes inte');
 fs.mkdirSync(path.join(__dirname, '..', 'dist'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'dist', 'gursch-test.html'), html);
 console.log('Skrev dist/gursch-test.html', (html.length / 1024).toFixed(0), 'kB');

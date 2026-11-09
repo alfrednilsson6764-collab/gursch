@@ -1134,8 +1134,54 @@ html.no-anim .join-req { animation: none; }
   .seat-cards span::before { display: none; }
 }
 
+/* ---------- konto: Logga in / användarmeny uppe till höger ---------- */
+.auth-box { position: absolute; top: 14px; right: 16px; z-index: 5; }
+.user-chip { position: relative; }
+.user-btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; color: #fff; cursor: pointer;
+  background: rgba(8,22,16,.82); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 4px 12px 4px 4px; max-width: 220px; }
+.user-btn:hover { background: rgba(20,44,32,.92); }
+.user-btn #userName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-btn .caret { opacity: .7; font-size: 12px; }
+.user-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 170px; display: flex; flex-direction: column; padding: 6px;
+  background: rgba(8,22,16,.97); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.user-menu button { font: inherit; text-align: left; color: #fff; background: transparent; border: 0; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.user-menu button:hover, .user-menu button:focus-visible { background: rgba(255,255,255,.1); }
+.user-menu button[data-menu="logout"] { border-top: 1px solid rgba(255,255,255,.08); border-radius: 0 0 8px 8px; }
+.auth-card { position: relative; width: 100%; max-width: 420px; max-height: 92vh; overflow: auto; }
+.auth-card h2 { margin-top: 4px; }
+.auth-form input { width: 100%; }
+.auth-card .btn.ghost { display: block; margin: 10px auto 0; }
+.modal-close { position: absolute; top: 12px; right: 12px; }
+#magicInfo { min-height: 1.2em; font-size: 14px; margin: 10px 0 0; }
+.google-btn { display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff !important; color: #1f1f1f !important; border-color: #dadce0 !important; }
+.google-btn:hover:not(:disabled) { background: #f1f3f4 !important; }
+.g-logo { font-weight: 800; font-size: 18px; font-family: Arial, sans-serif;
+  background: conic-gradient(from -45deg, #ea4335 0 25%, #4285f4 0 50%, #34a853 0 75%, #fbbc05 0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.btn.danger { display: block; width: 100%; margin-top: 8px; background: rgba(198,40,40,.18); border-color: rgba(255,82,82,.45); color: #ffb4b4; }
+.btn.danger:hover:not(:disabled) { background: rgba(198,40,40,.4); color: #fff; }
+.profile-head { display: flex; align-items: center; gap: 14px; margin: 4px 30px 16px 0; }
+.profile-head h2 { margin: 0; text-align: left; overflow-wrap: anywhere; }
+.big-avatar { width: 56px; height: 56px; font-size: 26px; }
+.profile-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.profile-stats .stat { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; background: rgba(255,255,255,.05); }
+.profile-stats .stat b { font-size: 20px; color: var(--gold); }
+.profile-stats .stat span { font-size: 12px; opacity: .75; text-align: center; }
+.collection-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.deck-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 8px; border-radius: 12px; text-align: center;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.deck-item.selected { border-color: var(--gold); }
+.home-foot { text-align: center; margin: 16px 0 0; font-size: 13px; opacity: .7; }
+.home-foot a, .auth-card a { color: inherit; }
+#name:disabled { opacity: 1; cursor: default; background: rgba(242,193,78,.08); border-color: rgba(242,193,78,.35); font-weight: 600; }
+@media (max-width: 640px) {
+  /* på mobil ligger kontoknappen i flödet ovanför kortet så den aldrig täcker loggan */
+  #home { flex-direction: column; }
+  .auth-box { position: static; align-self: flex-end; margin: 0 0 8px; }
+  .user-btn { max-width: 180px; }
+}
 
-.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting { display: none !important; }
+
+.invite, #readyBtn, .room-code, #copyBtn, .divider, .join-row, #botsBtn, #addBotBtn, #botPicker, #openRoomsBox, #visSetting, #authBox, .home-foot { display: none !important; }
 .test-badge { display: inline-block; background: #c62828; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 99px; letter-spacing: .08em; }
 </style>
 </head>
@@ -1145,10 +1191,22 @@ html.no-anim .join-req { animation: none; }
 
   <!-- Startsida -->
   <section id="home" class="screen">
+    <!-- konto uppe till höger: Logga in, eller användarnamn med meny -->
+    <div id="authBox" class="auth-box hidden">
+      <button id="loginBtn" class="btn small">Logga in</button>
+      <div id="userChip" class="user-chip hidden">
+        <button id="userBtn" class="user-btn" aria-haspopup="menu" aria-expanded="false"><span id="userAvatar" class="avatar"></span><span id="userName"></span><span class="caret">▾</span></button>
+        <div id="userMenu" class="user-menu hidden" role="menu">
+          <button role="menuitem" data-menu="profile">Min profil</button>
+          <button role="menuitem" data-menu="collection">Samling</button>
+          <button role="menuitem" data-menu="logout">Logga ut</button>
+        </div>
+      </div>
+    </div>
     <div class="home-card">
       <h1 class="logo"><span class="logo-text">GURSCH</span><span class="logo-shine" aria-hidden="true"><span>GURSCH</span></span></h1>
       <p class="tagline"><span class="test-badge">TESTVERSION</span><br>Spela mot bottar · välj antal spelare i rummet</p>
-      <label class="field">Ditt namn
+      <label class="field"><span id="nameLabel">Ditt namn</span>
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
       </label>
       <button id="createBtn" class="btn primary big">Spela mot bottar</button>
@@ -1163,8 +1221,61 @@ html.no-anim .join-req { animation: none; }
         <div class="panel-head">Öppna rum</div>
         <ul id="openRooms" class="open-list"></ul>
       </div>
+      <p class="home-foot"><a href="/integritet" id="privacyLink">Integritet</a></p>
     </div>
   </section>
+
+  <!-- Logga in -->
+  <div id="loginModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="home-card auth-card">
+      <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
+      <h2 id="loginTitle">Logga in</h2>
+      <p class="muted center">Med ett konto behåller du ditt användarnamn och din statistik. Du kan fortfarande spela som gäst.</p>
+      <form id="magicForm" class="auth-form">
+        <label class="field">E-post<input id="loginEmail" type="email" autocomplete="email" placeholder="namn@exempel.se" required></label>
+        <button class="btn primary big" type="submit" id="magicBtn">Skicka inloggningslänk</button>
+      </form>
+      <p id="magicInfo" class="center"></p>
+      <div class="divider"><span>eller</span></div>
+      <button id="googleBtn" class="btn big google-btn"><span class="g-logo" aria-hidden="true">G</span> Fortsätt med Google</button>
+      <button class="btn ghost" data-close>Spela som gäst</button>
+      <p class="tiny muted center">Vi sparar bara din e-post och ditt användarnamn. <a href="/integritet">Läs mer</a></p>
+    </div>
+  </div>
+
+  <!-- Välj användarnamn (första inloggningen) -->
+  <div id="usernameModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="unTitle">
+    <div class="home-card auth-card">
+      <h2 id="unTitle">Välj användarnamn</h2>
+      <p class="muted center">Det här är namnet de andra ser vid bordet. 3–16 tecken: bokstäver, siffror, _ och -.</p>
+      <form id="usernameForm" class="auth-form">
+        <input id="usernameInput" maxlength="16" autocomplete="username" placeholder="Användarnamn" required>
+        <p id="usernameError" class="error"></p>
+        <button class="btn primary big" type="submit">Spara</button>
+      </form>
+      <button class="btn ghost" id="usernameLater">Logga ut</button>
+    </div>
+  </div>
+
+  <!-- Min profil -->
+  <div id="profileModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="profTitle">
+    <div class="home-card auth-card">
+      <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
+      <div class="profile-head"><span id="profAvatar" class="avatar big-avatar"></span><div><h2 id="profTitle"></h2><div id="profEmail" class="muted tiny"></div></div></div>
+      <div id="profStats" class="profile-stats"></div>
+      <p class="tiny muted center"><a href="/integritet">Integritet – vad vi sparar</a></p>
+      <button id="deleteAccountBtn" class="btn danger">Radera mitt konto</button>
+    </div>
+  </div>
+
+  <!-- Samling -->
+  <div id="collectionModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="colTitle">
+    <div class="home-card auth-card">
+      <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
+      <h2 id="colTitle">Samling</h2>
+      <div id="collectionBody"></div>
+    </div>
+  </div>
 
   <!-- Lobby -->
   <section id="lobby" class="screen hidden">
@@ -2540,7 +2651,9 @@ window.GURSCH_LOCAL = function () {
 'use strict';
 /* Gursch klient. All spellogik finns på servern – klienten visar bara läget och skickar drag. */
 const $ = (id) => document.getElementById(id);
-const socket = window.GURSCH_LOCAL ? window.GURSCH_LOCAL() : io();
+// Inloggade skickar sin access-token när de ansluter (servern verifierar den); gäster skickar ingen.
+const socket = window.GURSCH_LOCAL ? window.GURSCH_LOCAL()
+  : io({ auth: (cb) => cb({ token: window.GurschAuth ? window.GurschAuth.token() : null }) });
 const store = {
   get: (k) => { try { return localStorage.getItem('gursch.' + k); } catch { return null; } },
   set: (k, v) => { try { v == null ? localStorage.removeItem('gursch.' + k) : localStorage.setItem('gursch.' + k, v); } catch {} },
@@ -3545,6 +3658,105 @@ function celebrate(G) {
   winnerBanner(G);
   if (!G.isDraw) confetti();
 }
+
+// ---------- konto (inloggning är valfri – man kan alltid spela som gäst) ----------
+const Auth = window.GurschAuth;
+let account = { enabled: false, loggedIn: false };
+const openModal = (id) => $(id).classList.remove('hidden');
+const closeModal = (id) => $(id).classList.add('hidden');
+document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('.overlay').classList.add('hidden')));
+const DECKS = { classic: { name: 'Klassisk', desc: 'Vinröd baksida med guldmönster – alla får den.' } };
+
+function renderAccount() {
+  const on = !!(Auth && Auth.enabled());
+  $('authBox').classList.toggle('hidden', !on);
+  const p = account.loggedIn ? account.profile : null;
+  $('loginBtn').classList.toggle('hidden', !!account.loggedIn);
+  $('userChip').classList.toggle('hidden', !account.loggedIn);
+  if (account.loggedIn) {
+    const n = p ? p.username : 'Konto';
+    $('userName').textContent = n;
+    $('userAvatar').textContent = n.slice(0, 1).toUpperCase();
+    $('userAvatar').style.setProperty('--av', avColor(p ? p.id : n));
+  }
+  // inloggad: namnet är användarnamnet, och det är det de andra ser vid bordet
+  if (p) { $('name').value = p.username; $('name').disabled = true; $('nameLabel').textContent = 'Inloggad som'; }
+  else if ($('name').disabled) { $('name').disabled = false; $('name').value = store.get('name') || ''; $('nameLabel').textContent = 'Ditt namn'; }
+  if (on && account.needsUsername) { openModal('usernameModal'); setTimeout(() => $('usernameInput').focus(), 50); }
+  else closeModal('usernameModal');
+}
+socket.on('account', async (st) => {
+  account = st || { enabled: false, loggedIn: false };
+  // token gick inte att verifiera: förnya en gång (då ansluter vi igen), annars fortsätter man som gäst
+  if (account.badToken && Auth && Auth.loggedIn()) { await Auth.rejected(); return; }
+  renderAccount();
+});
+if (Auth && !window.GURSCH_LOCAL) {
+  Auth.onChange(() => { socket.disconnect(); socket.connect(); });
+  Auth.init().then(renderAccount);
+  if (Auth.hashError()) setTimeout(() => toast('Inloggningen misslyckades: ' + Auth.hashError(), 'bad'), 300);
+}
+
+$('loginBtn').onclick = () => { $('magicInfo').textContent = ''; openModal('loginModal'); setTimeout(() => $('loginEmail').focus(), 50); };
+$('magicForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const email = $('loginEmail').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('magicInfo').textContent = 'Skriv en giltig e-postadress.'; return; }
+  $('magicBtn').disabled = true; $('magicInfo').textContent = 'Skickar…';
+  try { await Auth.sendMagicLink(email); $('magicInfo').innerHTML = `📬 Kolla din e-post (<b>${esc(email)}</b>) och klicka på länken för att logga in.`; }
+  catch (err) { $('magicInfo').textContent = err.message; }
+  finally { $('magicBtn').disabled = false; }
+};
+$('googleBtn').onclick = () => Auth.google();
+
+$('usernameForm').onsubmit = (e) => {
+  e.preventDefault();
+  const v = window.GurschUsernames ? window.GurschUsernames.validateUsername($('usernameInput').value) : { ok: true, username: $('usernameInput').value.trim() };
+  if (!v.ok) { $('usernameError').textContent = v.error; return; }
+  $('usernameError').textContent = '';
+  socket.emit('setUsername', v.username, (res) => {
+    if (!res || !res.ok) { $('usernameError').textContent = (res && res.error) || 'Något gick fel.'; return; }
+    account = res.account; renderAccount(); toast(`Välkommen, ${account.profile.username}! 🎉`);
+  });
+};
+$('usernameLater').onclick = () => { closeModal('usernameModal'); Auth.logout(); };
+
+$('userBtn').onclick = (e) => { e.stopPropagation(); const m = $('userMenu'); m.classList.toggle('hidden'); $('userBtn').setAttribute('aria-expanded', String(!m.classList.contains('hidden'))); };
+document.addEventListener('click', (e) => { if (!e.target.closest('#userChip')) $('userMenu').classList.add('hidden'); });
+$('userMenu').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-menu]'); if (!b) return;
+  $('userMenu').classList.add('hidden');
+  if (b.dataset.menu === 'logout') { Auth.logout(); toast('Du är utloggad.'); return; }
+  socket.emit('getProfile', null, (res) => {
+    if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte hämta profilen.', 'bad'); return; }
+    const p = res.profile;
+    if (b.dataset.menu === 'profile') {
+      $('profTitle').textContent = p.username;
+      $('profEmail').textContent = res.email || '';
+      $('profAvatar').textContent = p.username.slice(0, 1).toUpperCase(); $('profAvatar').style.setProperty('--av', avColor(p.id));
+      const pct = p.games_played ? Math.round((100 * p.wins) / p.games_played) : 0;
+      const since = p.created_at ? new Date(p.created_at).toLocaleDateString('sv-SE', { month: 'short', year: 'numeric' }) : '–';
+      $('profStats').innerHTML = [['Spelade omgångar', p.games_played], ['Vinster', p.wins], ['Vinstandel', pct + ' %'], ['Mynt', p.coins], ['Medlem sedan', since]]
+        .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+      openModal('profileModal');
+    } else {
+      $('collectionBody').innerHTML = `<div class="collection-grid">${res.decks.map((d) => {
+        const D = DECKS[d.deck_id] || { name: d.deck_id, desc: '' };
+        return `<div class="deck-item ${p.selected_deck === d.deck_id ? 'selected' : ''}">${cardHTML(null, { back: true })}<b>${esc(D.name)}</b><span class="tiny muted">${esc(D.desc)}</span>${p.selected_deck === d.deck_id ? '<span class="badge ok">Vald</span>' : ''}</div>`;
+      }).join('') || '<p class="muted">Inga kortlekar än.</p>'}</div>
+        <p class="muted center tiny">Mynt: <b>${esc(p.coins)}</b> · Öppnade kistor: <b>${esc(p.chests_opened)}</b> · Fler kortlekar kommer snart.</p>`;
+      openModal('collectionModal');
+    }
+  });
+});
+$('deleteAccountBtn').onclick = () => {
+  const n = (account.profile && account.profile.username) || 'ditt konto';
+  if (!confirm(`Radera ${n}?\n\nDitt användarnamn, din statistik, din samling och din inloggning (e-postadressen) tas bort för alltid. Det går inte att ångra.`)) return;
+  socket.emit('deleteAccount', null, (res) => {
+    if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte radera kontot.', 'bad'); return; }
+    closeModal('profileModal'); Auth.forget(); toast('Ditt konto är raderat.');
+  });
+};
 
 </script>
 </body>

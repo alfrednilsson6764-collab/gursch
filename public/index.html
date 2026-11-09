@@ -16,10 +16,22 @@
 
   <!-- Startsida -->
   <section id="home" class="screen">
+    <!-- konto uppe till höger: Logga in, eller användarnamn med meny -->
+    <div id="authBox" class="auth-box hidden">
+      <button id="loginBtn" class="btn small">Logga in</button>
+      <div id="userChip" class="user-chip hidden">
+        <button id="userBtn" class="user-btn" aria-haspopup="menu" aria-expanded="false"><span id="userAvatar" class="avatar"></span><span id="userName"></span><span class="caret">▾</span></button>
+        <div id="userMenu" class="user-menu hidden" role="menu">
+          <button role="menuitem" data-menu="profile">Min profil</button>
+          <button role="menuitem" data-menu="collection">Samling</button>
+          <button role="menuitem" data-menu="logout">Logga ut</button>
+        </div>
+      </div>
+    </div>
     <div class="home-card">
       <h1 class="logo"><span class="logo-text">GURSCH</span><span class="logo-shine" aria-hidden="true"><span>GURSCH</span></span></h1>
       <p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>
-      <label class="field">Ditt namn
+      <label class="field"><span id="nameLabel">Ditt namn</span>
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
       </label>
       <button id="createBtn" class="btn primary big">Skapa spel med vänner</button>
@@ -34,8 +46,61 @@
         <div class="panel-head">Öppna rum</div>
         <ul id="openRooms" class="open-list"></ul>
       </div>
+      <p class="home-foot"><a href="/integritet" id="privacyLink">Integritet</a></p>
     </div>
   </section>
+
+  <!-- Logga in -->
+  <div id="loginModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="home-card auth-card">
+      <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
+      <h2 id="loginTitle">Logga in</h2>
+      <p class="muted center">Med ett konto behåller du ditt användarnamn och din statistik. Du kan fortfarande spela som gäst.</p>
+      <form id="magicForm" class="auth-form">
+        <label class="field">E-post<input id="loginEmail" type="email" autocomplete="email" placeholder="namn@exempel.se" required></label>
+        <button class="btn primary big" type="submit" id="magicBtn">Skicka inloggningslänk</button>
+      </form>
+      <p id="magicInfo" class="center"></p>
+      <div class="divider"><span>eller</span></div>
+      <button id="googleBtn" class="btn big google-btn"><span class="g-logo" aria-hidden="true">G</span> Fortsätt med Google</button>
+      <button class="btn ghost" data-close>Spela som gäst</button>
+      <p class="tiny muted center">Vi sparar bara din e-post och ditt användarnamn. <a href="/integritet">Läs mer</a></p>
+    </div>
+  </div>
+
+  <!-- Välj användarnamn (första inloggningen) -->
+  <div id="usernameModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="unTitle">
+    <div class="home-card auth-card">
+      <h2 id="unTitle">Välj användarnamn</h2>
+      <p class="muted center">Det här är namnet de andra ser vid bordet. 3–16 tecken: bokstäver, siffror, _ och -.</p>
+      <form id="usernameForm" class="auth-form">
+        <input id="usernameInput" maxlength="16" autocomplete="username" placeholder="Användarnamn" required>
+        <p id="usernameError" class="error"></p>
+        <button class="btn primary big" type="submit">Spara</button>
+      </form>
+      <button class="btn ghost" id="usernameLater">Logga ut</button>
+    </div>
+  </div>
+
+  <!-- Min profil -->
+  <div id="profileModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="profTitle">
+    <div class="home-card auth-card">
+      <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
+      <div class="profile-head"><span id="profAvatar" class="avatar big-avatar"></span><div><h2 id="profTitle"></h2><div id="profEmail" class="muted tiny"></div></div></div>
+      <div id="profStats" class="profile-stats"></div>
+      <p class="tiny muted center"><a href="/integritet">Integritet – vad vi sparar</a></p>
+      <button id="deleteAccountBtn" class="btn danger">Radera mitt konto</button>
+    </div>
+  </div>
+
+  <!-- Samling -->
+  <div id="collectionModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="colTitle">
+    <div class="home-card auth-card">
+      <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
+      <h2 id="colTitle">Samling</h2>
+      <div id="collectionBody"></div>
+    </div>
+  </div>
 
   <!-- Lobby -->
   <section id="lobby" class="screen hidden">
@@ -200,6 +265,8 @@
 
   <script src="tally.js"></script>
   <script src="bots.js"></script>
+  <script src="usernames.js"></script>
+  <script src="auth.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
 </body>
