@@ -12,11 +12,17 @@ const Tally = require('./tally');
 const { createAccounts, AccountError } = require('./accounts');
 
 // Inloggning (valfritt): sätt de här tre i Render → Environment. Saknas de spelar alla som gäster.
+// Äldre namn (anon/service_role) godtas också. Värdena trimmas så att ett mellanslag vid inklistring inte stoppar inloggningen.
+const env = (...names) => { for (const n of names) { const v = (process.env[n] || '').trim(); if (v) return v; } return ''; };
 const accounts = createAccounts({
-  url: process.env.SUPABASE_URL,
-  publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
-  secretKey: process.env.SUPABASE_SECRET_KEY,
+  url: env('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'),
+  publishableKey: env('SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_ANON_KEY', 'SUPABASE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
+  secretKey: env('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_KEY'),
 });
+if (require.main === module) {
+  const missing = [['SUPABASE_URL', env('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL')], ['SUPABASE_PUBLISHABLE_KEY', accounts.config().publishableKey || env('SUPABASE_PUBLISHABLE_KEY', 'SUPABASE_ANON_KEY', 'SUPABASE_KEY')], ['SUPABASE_SECRET_KEY', env('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_KEY')]].filter(([, v]) => !v).map(([n]) => n);
+  console.log(accounts.enabled ? 'Inloggning: PÅ (Supabase)' : `Inloggning: AV – saknar ${missing.join(', ')}. Alla spelar som gäster.`);
+}
 
 const app = express();
 const server = http.createServer(app);
