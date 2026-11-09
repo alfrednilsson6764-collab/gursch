@@ -19,6 +19,8 @@ const extraCss = `
 html = html
   .replace('  <script src="tally.js"></script>\n', '')
   .replace('  <script src="bots.js"></script>\n', '')
+  .replace('  <script src="economy.js"></script>\n', () => `  <script>\n${R('src/economy.js')}\n</script>\n`)
+  .replace('  <script src="decks.js"></script>\n', () => `  <script>\n${R('public/decks.js')}\n</script>\n`)
   .replace('  <script src="usernames.js"></script>\n', '') // ingen inloggning i testversionen
   .replace('  <script src="auth.js"></script>\n', '')
   .replace('<title>GURSCH</title>', '<title>GURSCH – testa mot bottar</title>')
@@ -36,7 +38,7 @@ html = html
       '<script>', R('public/app.js'), '</script>'].join('\n'))
 ;
 
-if (html.includes('auth.js') || html.includes('socket.io.js') || html.includes('href="style.css"')) throw new Error('Byggfel: något ersattes inte');
+if (html.includes('auth.js') || html.includes('src="economy.js"') || html.includes('src="decks.js"') || html.includes('socket.io.js') || html.includes('href="style.css"')) throw new Error('Byggfel: något ersattes inte');
 fs.mkdirSync(path.join(__dirname, '..', 'dist'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, '..', 'dist', 'gursch-test.html'), html);
 console.log('Skrev dist/gursch-test.html', (html.length / 1024).toFixed(0), 'kB');

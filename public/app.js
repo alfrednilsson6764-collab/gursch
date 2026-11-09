@@ -64,8 +64,9 @@ function faceArt(rank, suit) {
   </svg>`;
   return faceCache[key];
 }
-function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
-  if (back || !c) return `<div class="card back ${cls}"><span class="shine"></span></div>`;
+function cardHTML(c, { cls = '', back = false, style = '', deck = '' } = {}) {
+  if (deck) cls += ' dk-' + deck;
+  if (back || !c) return `<div class="card back ${cls}"${style ? ` style="${style}"` : ''}><span class="shine"></span></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
   const kind = c.rank >= 11 && c.rank <= 13 ? 'face' : c.rank === 14 ? 'ace' : 'num';
   const corner = (pos) => `<span class="corner ${pos}"><b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i></span>`;
@@ -117,11 +118,11 @@ function needName() {
   if (!n) { $('homeError').textContent = 'Skriv ditt namn först.'; $('name').focus(); return null; }
   store.set('name', n); return n;
 }
-$('createBtn').onclick = () => { const name = needName(); if (name) socket.emit('create', { name }, enter); };
+$('createBtn').onclick = () => { const name = needName(); if (name) socket.emit('create', { name, deck: myDeck() }, enter); };
 // Snabbstart mot bottar: skapa ett rum och fyll på med tre bottar (fler kan läggas till i rummet).
 $('botsBtn').onclick = () => {
   const name = needName(); if (!name) return;
-  socket.emit('create', { name }, (res) => {
+  socket.emit('create', { name, deck: myDeck() }, (res) => {
     enter(res); if (!res.ok) return;
     socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false });
     for (let k = 0; k < 3; k++) socket.emit('addBot');
@@ -130,13 +131,13 @@ $('botsBtn').onclick = () => {
 // Titta på ett rum som åskådare (pågående match eller fullt rum).
 function watch(code) {
   const name = needName(); if (!name || !code) return;
-  socket.emit('watch', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
+  socket.emit('watch', { name, code, deck: myDeck(), token: store.get('code') === code ? store.get('token') : null }, enter);
 }
 $('joinBtn').onclick = () => {
   const name = needName(); const code = $('code').value.trim().toUpperCase();
   if (!name) return;
   if (!code) { $('homeError').textContent = 'Skriv in en rumskod.'; return; }
-  socket.emit('join', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
+  socket.emit('join', { name, code, deck: myDeck(), token: store.get('code') === code ? store.get('token') : null }, enter);
 };
 // Öppna rum: listan skickas live från servern.
 socket.on('openRooms', (list) => {
@@ -159,7 +160,7 @@ $('code').addEventListener('keydown', (e) => e.key === 'Enter' && $('joinBtn').c
 socket.on('connect', () => {
   $('conn').classList.add('hidden');
   const code = store.get('code'), token = store.get('token');
-  if (code && token) socket.emit('join', { code, token }, (res) => { if (!res.ok) { store.set('code', null); S = null; show('home'); } });
+  if (code && token) socket.emit('join', { code, token, deck: myDeck() }, (res) => { if (!res.ok) { store.set('code', null); S = null; show('home'); } });
 });
 socket.on('disconnect', () => { $('conn').textContent = 'Anslutningen bröts – försöker igen…'; $('conn').classList.remove('hidden'); });
 
@@ -321,6 +322,7 @@ function renderGame() {
   const waiting = ex ? ex.waitingFor : [];
 
   $('gCode').textContent = S.lobby.code;
+  $('deckPile').querySelectorAll('.card').forEach((c) => (c.className = 'card back dk-' + deckOf(S.you)));
   $('seats').innerHTML = others.map((p, k) => {
     const lp = lobbyPlayers[p.id] || {};
     const isTurn = turnId === p.id || waiting.includes(p.id);
@@ -330,8 +332,8 @@ function renderGame() {
       <div class="seat-avatar ${lp.bot ? 'bot' : ''}" style="--av:${avColor(p.id)}" ${lp.bot ? `title="${persona(lp.personality).label}: ${persona(lp.personality).desc}"` : ''}>${lp.bot ? persona(lp.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
       <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}${lp.bot ? `<small class="persona">${persona(lp.personality).label}</small>` : ''}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
-      <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
-      ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
+      <div class="seat-cards">${Array.from({ length: p.handCount }, () => `<i class="card back dk-${deckOf(p.id)}"></i>`).join('')}<span>${p.handCount}</span></div>
+      ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini', deck: deckOf(p.id) })).join('')}</div>` : ''}
       ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : vote === false ? '<div class="seat-turn no">Säger nej ✗</div>' : ''}
       ${isTurn ? `<div class="seat-turn">${pl ? 'Spelar…' : 'Väljer…'}</div>` : ''}
     </div>`;
@@ -347,7 +349,7 @@ function renderGame() {
     const key = tbl.map((t) => t.cards.map((c) => c.id).join()).join('|');
     lastPileKey = key;
     pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type}" data-by="${t.by}" data-key="${t.cards.map((c) => c.id).join()}">
-      <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small' })).join('')}</div>
+      <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small', deck: deckOf(t.by) })).join('')}</div>
       <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : t.type === 'out' ? ' · gick ut' : ' · lägsta'}</div>
     </div>`).join('')}</div>`;
   }
@@ -368,7 +370,7 @@ function renderGame() {
   $('hand').style.setProperty('--n', Math.max(nh, 1));
   $('hand').innerHTML = G.me.hand.map((c, k) => {
     const off = nh > 1 ? (k - mid) / mid : 0; // -1 … 1
-    return cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '', style: `--rot:${(off * Math.min(8, nh)).toFixed(1)}deg;--dy:${(off * off * Math.min(7, nh)).toFixed(1)}px;z-index:${k + 1}` });
+    return cardHTML(c, { deck: deckOf(S.you), cls: selected.has(c.id) ? 'selected' : '', style: `--rot:${(off * Math.min(8, nh)).toFixed(1)}deg;--dy:${(off * off * Math.min(7, nh)).toFixed(1)}px;z-index:${k + 1}` });
   }).join('');
   renderLastMove(G);
   $('history').querySelector('ol').innerHTML = G.history.map((h) => `<li class="${h.type}">${esc(h.text)}</li>`).reverse().join('');
@@ -434,7 +436,7 @@ function renderActions(G) {
         const n = offer.length;
         status = n === 1 ? 'Ditt ersättningskort. Behåll det synliga kortet eller ta ett dolt istället.'
           : `Dina ${n} ersättningskort. Behåll alla synliga eller ta ${n} dolda istället.`;
-        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c)).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
+        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c, { deck: deckOf(S.you) })).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
         acts.push(btn(n === 1 ? 'Behåll kortet' : `Behåll alla ${n}`, () => send('exchangeReplace', { keep: true }), 'primary'));
         acts.push(btn(n === 1 ? 'Ta ett dolt kort' : `Ta ${n} dolda kort`, () => send('exchangeReplace', { keep: false })));
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
@@ -525,7 +527,7 @@ function renderDeal(G) {
   const rounds = Math.max(...G.dealReveal.map((r) => r.cards.length));
   $('dealBody').innerHTML = G.dealReveal.map((r) => `<div class="deal-row ${r.playerId === leader ? 'win' : ''}">
       <span class="deal-name">${r.playerId === leader ? '♛ ' : ''}${esc(nameOf(r.playerId))}${r.playerId === S.you ? ' (du)' : ''}</span>
-      <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
+      <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { deck: deckOf(r.playerId), cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
     </div>`).join('');
   $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`
     + (G.multiplierMode && G.multiplierMode !== 'fixed' ? `<br>Multiplikatorn blir <strong>×${G.multiplier}</strong> (${G.multiplierMode === 'highest' ? 'högsta' : 'näst högsta'} synliga kortet).` : '');
@@ -536,10 +538,10 @@ $('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('an
 function renderResults(G) {
   const show = G.phase === 'finished' && !showdownRunning;
   $('results').classList.toggle('hidden', !show);
-  if (!show) return;
+  if (!show) { $('coinGain').classList.add('hidden'); return; }
   $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : r.loser ? 'loser' : ''}">
     <td>${r.winner ? '🏆' : r.loser ? '👎' : ''}</td><td>${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}${r.wentOut ? ' <span class="badge">gick ut</span>' : ''}</td>
-    <td class="res-cards"><div>${r.hand.map((c) => cardHTML(c, { cls: 'mini' })).join('') || '–'}</div></td>
+    <td class="res-cards"><div>${r.hand.map((c) => cardHTML(c, { cls: 'mini', deck: deckOf(r.playerId) })).join('') || '–'}</div></td>
     <td>${r.value}</td><td><strong>${r.score}</strong></td></tr>`).join('');
   const winners = G.results.filter((r) => r.winner).map((r) => r.name);
   const losers = G.results.filter((r) => r.loser).map((r) => r.name);
@@ -708,10 +710,10 @@ function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
   }));
   if (!linger) setTimeout(() => el.remove(), delay + dur + 360);
 }
-const BACK = '<div class="card back small"></div>';
+const BACK = (pid) => `<div class="card back small dk-${deckOf(pid || (S && S.you))}"></div>`;
 function flyBacks(fromPid, toPid, n, delay = 0) {
   const from = fromPid ? seatEl(fromPid) : $('deckPile'), to = toPid ? seatEl(toPid) : $('deckPile');
-  for (let k = 0; k < n; k++) fly(from, to, BACK, delay + k * 110);
+  for (let k = 0; k < n; k++) fly(from, to, BACK(fromPid || toPid), delay + k * 110);
 }
 /** Ger ett element en start-förskjutning så att det "kommer från" ett annat element. */
 function arriveFrom(el, fromEl, delay = 0) {
@@ -770,17 +772,17 @@ function startDealAnim() {
     deck.classList.add('shuffling');
     setTimeout(() => deck.classList.remove('shuffling'), 1500);
     let t = 1700;
-    for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK, t, 450); t += 170; }
+    for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK(p.id), t, 450); t += 170; }
     t += 600;
     banner('Det sjätte kortet delas ut med framsidan upp – högst kort styr', t);
     t += 900;
-    for (const p of G.players) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][0], { cls: 'small' }), t, 650, true); t += 900; }
+    for (const p of G.players) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][0], { cls: 'small', deck: deckOf(p.id) }), t, 650, true); t += 900; }
     const extra = Math.max(...G.dealReveal.map((r) => r.cards.length));
     for (let e = 1; e < extra; e++) {
       t += 600;
       banner('Lika högsta kort – ett nytt kort läggs ut', t);
       t += 900;
-      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 650, true); t += 1000; }
+      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small', deck: deckOf(p.id) }), t, 650, true); t += 1000; }
     }
     t += 300;
     banner(`${G.leaderId === S.you ? 'Du' : nameOf(G.leaderId)} har högst kort och styr! ♛`, t, 1600);
@@ -821,7 +823,7 @@ function renderLastMove(G) {
     if (t) {
       const who = t.by === S.you ? 'Du' : esc(nameOf(t.by).replace(' (bot)', ''));
       html = `<span class="lm-text"><span class="lm-label">Senast:</span> <b>${who}</b> lade ${describePlay(t)}${MOVE_TXT[t.type] ? ` – ${MOVE_TXT[t.type]}` : ''}</span>
-        <span class="lm-cards">${t.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</span>`;
+        <span class="lm-cards">${t.cards.map((c) => cardHTML(c, { cls: 'mini', deck: deckOf(t.by) })).join('')}</span>`;
     }
   }
   el.innerHTML = html;
@@ -894,8 +896,8 @@ function stopShowdown() {
   if (showdownRunning) { showdownRunning = false; if (S && S.game) { renderResults(S.game); celebrate(S.game); } }
 }
 /** Ett kort som ligger med baksidan upp och vänds (flip) efter `delay` ms. */
-function flipCard(c, delay) {
-  return `<span class="flip3d" style="--d:${delay}ms"><span class="flip-inner">${cardHTML(null, { back: true, cls: 'sd-card flip-back' })}${cardHTML(c, { cls: 'sd-card flip-front' })}</span></span>`;
+function flipCard(c, delay, deck) {
+  return `<span class="flip3d" style="--d:${delay}ms"><span class="flip-inner">${cardHTML(null, { back: true, deck, cls: 'sd-card flip-back' })}${cardHTML(c, { deck, cls: 'sd-card flip-front' })}</span></span>`;
 }
 function turnFlips(root) { requestAnimationFrame(() => requestAnimationFrame(() => root.querySelectorAll('.flip3d').forEach((f) => f.classList.add('turned')))); }
 function startShowdown(G) {
@@ -911,13 +913,13 @@ function startShowdown(G) {
     <div class="sd-title">Uppgörelse</div>
     <div class="sd-out">
       <div class="sd-out-name">🔥 ${who(out)} gick ut</div>
-      <div class="sd-cards">${out.hand.map((c, k) => flipCard(c, 500 + k * 260)).join('')}</div>
+      <div class="sd-cards">${out.hand.map((c, k) => flipCard(c, 500 + k * 260, deckOf(out.playerId))).join('')}</div>
       <div class="sd-value">Kortvärde <b>${out.value}</b></div>
     </div>
     <div class="sd-vs">VS</div>
     <div class="sd-rows">${rest.map((r) => `<div class="sd-row" data-pid="${r.playerId}">
       <span class="sd-name">${who(r)}</span>
-      <span class="sd-cards">${r.hand.map(() => cardHTML(null, { back: true, cls: 'sd-card' })).join('')}</span>
+      <span class="sd-cards">${r.hand.map(() => cardHTML(null, { back: true, deck: deckOf(r.playerId), cls: 'sd-card' })).join('')}</span>
       <span class="sd-sum">?</span><span class="sd-mark"></span></div>`).join('')}</div>
     <div class="sd-actions"><button class="btn" id="sdSkip">Hoppa över</button></div>
   </div>`;
@@ -931,7 +933,7 @@ function startShowdown(G) {
     t += 900;
     later(() => {
       row.classList.remove('next'); row.classList.add('shown');
-      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => flipCard(c, k * 220)).join('') || '–';
+      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => flipCard(c, k * 220, deckOf(r.playerId))).join('') || '–';
       turnFlips(row);
       const sum = row.querySelector('.sd-sum'), steps = 12;
       for (let k = 1; k <= steps; k++) later(() => { sum.textContent = Math.round(r.value * k / steps); }, k * 45);
@@ -1015,7 +1017,6 @@ let account = { enabled: false, loggedIn: false };
 const openModal = (id) => $(id).classList.remove('hidden');
 const closeModal = (id) => $(id).classList.add('hidden');
 document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('.overlay').classList.add('hidden')));
-const DECKS = { classic: { name: 'Klassisk', desc: 'Vinröd baksida med guldmönster – alla får den.' } };
 
 function renderAccount() {
   const on = !!(Auth && Auth.enabled());
@@ -1040,6 +1041,9 @@ socket.on('account', async (st) => {
   // token gick inte att verifiera: förnya en gång (då ansluter vi igen), annars fortsätter man som gäst
   if (account.badToken && Auth && Auth.loggedIn()) { await Auth.rejected(); return; }
   renderAccount();
+  accountDecks = null;
+  renderWallet();
+  if (account.profile) socket.emit('getProfile', null, (res) => { if (res && res.ok) setAccountData(res.profile, res.decks); });
 });
 if (Auth && !window.GURSCH_LOCAL) {
   Auth.onChange(() => { socket.disconnect(); socket.connect(); });
@@ -1067,6 +1071,7 @@ $('usernameForm').onsubmit = (e) => {
   socket.emit('setUsername', v.username, (res) => {
     if (!res || !res.ok) { $('usernameError').textContent = (res && res.error) || 'Något gick fel.'; return; }
     account = res.account; renderAccount(); toast(`Välkommen, ${account.profile.username}! 🎉`);
+    accountDecks = [Eco.STARTER]; renderWallet(); offerGuestImport();
   });
 };
 $('usernameLater').onclick = () => { closeModal('usernameModal'); Auth.logout(); };
@@ -1077,26 +1082,19 @@ $('userMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-menu]'); if (!b) return;
   $('userMenu').classList.add('hidden');
   if (b.dataset.menu === 'logout') { Auth.logout(); toast('Du är utloggad.'); return; }
+  if (b.dataset.menu === 'collection') { openCollection(); return; }
   socket.emit('getProfile', null, (res) => {
     if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte hämta profilen.', 'bad'); return; }
     const p = res.profile;
-    if (b.dataset.menu === 'profile') {
-      $('profTitle').textContent = p.username;
-      $('profEmail').textContent = res.email || '';
-      $('profAvatar').textContent = p.username.slice(0, 1).toUpperCase(); $('profAvatar').style.setProperty('--av', avColor(p.id));
-      const pct = p.games_played ? Math.round((100 * p.wins) / p.games_played) : 0;
-      const since = p.created_at ? new Date(p.created_at).toLocaleDateString('sv-SE', { month: 'short', year: 'numeric' }) : '–';
-      $('profStats').innerHTML = [['Spelade omgångar', p.games_played], ['Vinster', p.wins], ['Vinstandel', pct + ' %'], ['Mynt', p.coins], ['Medlem sedan', since]]
-        .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join('');
-      openModal('profileModal');
-    } else {
-      $('collectionBody').innerHTML = `<div class="collection-grid">${res.decks.map((d) => {
-        const D = DECKS[d.deck_id] || { name: d.deck_id, desc: '' };
-        return `<div class="deck-item ${p.selected_deck === d.deck_id ? 'selected' : ''}">${cardHTML(null, { back: true })}<b>${esc(D.name)}</b><span class="tiny muted">${esc(D.desc)}</span>${p.selected_deck === d.deck_id ? '<span class="badge ok">Vald</span>' : ''}</div>`;
-      }).join('') || '<p class="muted">Inga kortlekar än.</p>'}</div>
-        <p class="muted center tiny">Mynt: <b>${esc(p.coins)}</b> · Öppnade kistor: <b>${esc(p.chests_opened)}</b> · Fler kortlekar kommer snart.</p>`;
-      openModal('collectionModal');
-    }
+    setAccountData(p, res.decks);
+    $('profTitle').textContent = p.username;
+    $('profEmail').textContent = res.email || '';
+    $('profAvatar').textContent = p.username.slice(0, 1).toUpperCase(); $('profAvatar').style.setProperty('--av', avColor(p.id));
+    const pct = p.games_played ? Math.round((100 * p.wins) / p.games_played) : 0;
+    const since = p.created_at ? new Date(p.created_at).toLocaleDateString('sv-SE', { month: 'short', year: 'numeric' }) : '–';
+    $('profStats').innerHTML = [['Spelade omgångar', p.games_played], ['Vinster', p.wins], ['Vinstandel', pct + ' %'], ['Mynt', p.coins], ['Öppnade kistor', p.chests_opened], ['Kortlekar', `${res.decks.length}/${Eco.DECKS.length}`], ['Medlem sedan', since]]
+      .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+    openModal('profileModal');
   });
 });
 $('deleteAccountBtn').onclick = () => {
@@ -1105,5 +1103,217 @@ $('deleteAccountBtn').onclick = () => {
   socket.emit('deleteAccount', null, (res) => {
     if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte radera kontot.', 'bad'); return; }
     closeModal('profileModal'); Auth.forget(); toast('Ditt konto är raderat.');
+  });
+};
+
+// ---------- guldmynt, kistor och kortlekar ----------
+// Inloggade: servern räknar mynten och öppnar kistorna (klienten visar bara resultatet).
+// Gäster (och testversionen): samma regler, men sparat här i webbläsaren.
+const Eco = window.GurschEconomy;
+const WALLET_KEY = 'gursch.wallet';
+let accountDecks = null; // inloggad: id:n på mina lekar (null = inte hämtat än)
+function loadWallet() {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem(WALLET_KEY) || 'null'); } catch {}
+  w = w && typeof w === 'object' ? w : {};
+  const decks = Array.isArray(w.decks) ? w.decks.filter(Eco.isDeck) : [];
+  if (!decks.includes(Eco.STARTER)) decks.unshift(Eco.STARTER);
+  return { coins: Math.max(0, Math.floor(Number(w.coins) || 0)), decks, selected: decks.includes(w.selected) ? w.selected : Eco.STARTER,
+    pity: Math.max(0, Math.floor(Number(w.pity) || 0)), chests: Math.max(0, Math.floor(Number(w.chests) || 0)) };
+}
+let wallet = loadWallet();
+const saveWallet = () => { try { localStorage.setItem(WALLET_KEY, JSON.stringify(wallet)); } catch {} };
+const isAccount = () => !!(account.loggedIn && account.profile);
+const balance = () => (isAccount() ? account.profile.coins : wallet.coins);
+const ownedDecks = () => (isAccount() ? accountDecks || [Eco.STARTER] : wallet.decks);
+function myDeck() { return isAccount() ? account.profile.selected_deck || Eco.STARTER : wallet.selected; }
+/** Kortleken för en spelare vid bordet (min egen om jag inte är med i något rum). */
+function deckOf(pid) {
+  const p = S && S.lobby && S.lobby.players.find((x) => x.id === pid);
+  if (p && p.deck) return p.deck;
+  return pid === (S && S.you) || !S ? myDeck() : Eco.STARTER;
+}
+function setAccountData(profile, decks) {
+  if (profile) account.profile = profile;
+  if (decks) accountDecks = decks.map((d) => d.deck_id || d);
+  renderWallet();
+}
+
+function renderWallet() {
+  const bal = balance(), cost = Eco.CHEST_COST, ready = bal >= cost;
+  $('coinBal').textContent = bal;
+  document.querySelector('#gameCoins b').textContent = bal;
+  $('chestProg').textContent = `${Math.min(bal, cost)}/${cost} 🪙`;
+  $('chestFill').style.width = Math.min(100, (100 * bal) / cost) + '%';
+  $('chestBtn').classList.toggle('ready', ready);
+  $('chestCta').textContent = ready ? 'Öppna!' : `${cost - bal} kvar`;
+  $('guestSave').classList.toggle('hidden', !(Auth && Auth.enabled() && !account.loggedIn && !window.GURSCH_LOCAL));
+}
+renderWallet();
+$('guestSave').onclick = () => $('loginBtn').click();
+$('walletPill').onclick = () => openCollection();
+$('collectionBtn').onclick = () => openCollection();
+
+// Mynt efter en omgång. Servern skickar dem; gäster sparar dem lokalt.
+let pendingGain = null;
+socket.on('coins', (d) => {
+  if (!d || !(d.earned > 0)) return;
+  if (d.guest) { wallet.coins += d.earned; saveWallet(); }
+  else if (account.profile && typeof d.balance === 'number') account.profile.coins = d.balance;
+  pendingGain = d;
+  showCoinGain();
+});
+function showCoinGain() {
+  const d = pendingGain; if (!d) return;
+  const box = $('coinGain');
+  // vänta tills resultatrutan syns (efter uppgörelsen)
+  if ($('results').classList.contains('hidden')) { clearTimeout(showCoinGain.t); showCoinGain.t = setTimeout(showCoinGain, 400); return; }
+  pendingGain = null;
+  const shown = balance() - d.earned;
+  document.querySelector('#gameCoins b').textContent = shown;
+  box.innerHTML = `<span class="cg-row"><span class="cg-amount">+${d.earned} <span class="coin">🪙</span></span><span class="coin-pill small" id="cgBal"><span class="coin">🪙</span><b>${shown}</b></span></span>`
+    + `<span class="cg-note">${d.botsOnly ? 'Halva mynten – alla motståndare var bottar.' : 'För omgången'}</span>`
+    + (d.guest && Auth && Auth.enabled() && !window.GURSCH_LOCAL ? '<button class="link-btn tiny" id="cgLogin">Logga in för att spara dina mynt</button>' : '');
+  box.classList.remove('hidden');
+  const lb = $('cgLogin'); if (lb) lb.onclick = () => { $('results').classList.add('hidden'); show('home'); $('loginBtn').click(); };
+  // mynten flyger till saldot, som sedan räknas upp
+  coinShower(box.querySelector('.cg-amount'), $('cgBal'), Math.min(10, Math.max(4, Math.round(d.earned / 2))), () => {
+    renderWallet();
+    const bal = $('cgBal'); if (!bal) return;
+    const end = balance(), t0 = performance.now();
+    const step = (t) => { const k = Math.min(1, (t - t0) / 500); bal.querySelector('b').textContent = Math.round(shown + (end - shown) * k); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+    bal.classList.remove('bump'); void bal.offsetWidth; bal.classList.add('bump');
+  });
+}
+/** Mynt som flyger från ett element till ett annat (t.ex. från resultatet upp till saldot). */
+function coinShower(fromEl, toEl, n, done) {
+  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+  if (document.documentElement.classList.contains('no-anim') || !b.width) { done(); return; }
+  for (let k = 0; k < n; k++) {
+    const c = document.createElement('span');
+    c.className = 'flying-coin'; c.textContent = '🪙';
+    c.style.left = (a.left + a.width / 2 + (Math.random() - 0.5) * 40) + 'px';
+    c.style.top = (a.top + a.height / 2) + 'px';
+    document.body.appendChild(c);
+    const dx = b.left + b.width / 2 - parseFloat(c.style.left), dy = b.top + b.height / 2 - parseFloat(c.style.top);
+    setTimeout(() => { c.style.transform = `translate(${dx}px, ${dy}px) scale(.6)`; c.style.opacity = '.2'; }, 300 + k * 90);
+    setTimeout(() => { c.remove(); if (k === n - 1) done(); }, 1200 + k * 90);
+  }
+}
+
+// ---------- kistan ----------
+let chestBusy = false;
+$('chestBtn').onclick = () => {
+  if (chestBusy) return;
+  if (balance() < Eco.CHEST_COST) { toast(`Kistan kostar ${Eco.CHEST_COST} 🪙 – spela fler omgångar så fylls mätaren.`); return; }
+  chestBusy = true;
+  const anim = startChestAnim();
+  const finish = (roll) => { chestBusy = false; renderWallet(); anim.reveal(roll); };
+  if (isAccount()) {
+    socket.emit('openChest', null, (res) => {
+      if (!res || !res.ok) { chestBusy = false; anim.abort(); toast((res && res.error) || 'Kunde inte öppna kistan.', 'bad'); return; }
+      setAccountData(res.profile, res.decks);
+      finish(res.roll);
+    });
+  } else {
+    const roll = Eco.rollChest(wallet.decks, wallet.pity);
+    wallet.coins = wallet.coins - Eco.CHEST_COST + roll.refund;
+    wallet.pity = roll.pity; wallet.chests += 1;
+    if (!roll.duplicate) wallet.decks.push(roll.deckId);
+    saveWallet();
+    setTimeout(() => finish(roll), 50);
+  }
+};
+function startChestAnim() {
+  const m = $('chestModal'), t0 = Date.now();
+  m.className = 'overlay chest-overlay shaking';
+  $('chestReveal').innerHTML = ''; $('chestActions').innerHTML = '';
+  const reduce = document.documentElement.classList.contains('no-anim');
+  return {
+    abort() { m.classList.add('hidden'); },
+    reveal(roll) {
+      const wait = Math.max(0, (reduce ? 200 : 1400) - (Date.now() - t0));
+      setTimeout(() => {
+        const R = Eco.RARITIES[roll.rarity], D = Eco.deckById(roll.deckId);
+        m.style.setProperty('--ray', R.color);
+        m.className = `overlay chest-overlay open r-${roll.rarity}`;
+        $('chestReveal').innerHTML = `<div class="cr-cards">${cardHTML(null, { back: true, deck: D.id, cls: 'big cr-back' })}${cardHTML({ id: 'cr', rank: 14, suit: 'H' }, { deck: D.id, cls: 'big cr-face' })}</div>
+          <div class="cr-rarity" style="color:${R.color}">${R.name}</div><div class="cr-name">${esc(D.name)}</div>
+          <div class="cr-note">${roll.duplicate ? `Dubblett – du har redan den här leken. Du får ${roll.refund} 🪙 tillbaka.` : 'Ny kortlek! 🎉'}</div>`;
+        const acts = [];
+        if (myDeck() !== D.id) acts.push(`<button class="btn primary" id="crUse">Spela med ${esc(D.name)}</button>`);
+        if (balance() >= Eco.CHEST_COST) acts.push(`<button class="btn" id="crAgain">Öppna en till (${Eco.CHEST_COST} 🪙)</button>`);
+        acts.push('<button class="btn ghost" id="crClose">Stäng</button>');
+        $('chestActions').innerHTML = acts.join('');
+        const close = () => m.classList.add('hidden');
+        $('crClose').onclick = close;
+        if ($('crUse')) $('crUse').onclick = () => { selectDeck(D.id); close(); };
+        if ($('crAgain')) $('crAgain').onclick = () => $('chestBtn').click();
+      }, wait);
+    },
+  };
+}
+
+// ---------- samlingen ----------
+function openCollection() {
+  const owned = new Set(ownedDecks()), sel = myDeck();
+  const order = Object.keys(Eco.RARITIES);
+  const pity = isAccount() ? account.profile.pity_counter || 0 : wallet.pity;
+  const left = Math.max(1, Eco.PITY - pity + 1);
+  $('collectionBody').innerHTML = `
+    <div class="col-head"><span class="coin-pill small"><span class="coin">🪙</span><b>${balance()}</b></span>
+      <span class="muted tiny">${owned.size}/${Eco.DECKS.length} lekar · ${left === 1 ? 'nästa kista är minst Episk' : `minst Episk inom ${left} kistor`}</span></div>
+    ${order.map((r) => {
+      const R = Eco.RARITIES[r];
+      return `<div class="col-group"><div class="col-rarity" style="--rc:${R.color}">${R.name} <span class="muted tiny">${Math.round(R.chance * 100)} %</span></div>
+        <div class="collection-grid">${Eco.DECKS.filter((d) => d.rarity === r).map((d) => {
+          const has = owned.has(d.id);
+          return `<button class="deck-item ${has ? '' : 'locked'} ${sel === d.id ? 'selected' : ''}" style="--rc:${R.color}" data-deck="${d.id}" ${has ? '' : 'aria-disabled="true"'}>
+            <span class="deck-cards">${cardHTML(null, { back: true, deck: d.id })}${has ? cardHTML({ id: 'p' + d.id, rank: 13, suit: 'S' }, { deck: d.id, cls: 'deck-face' }) : '<span class="lock">🔒</span>'}</span>
+            <b>${has ? esc(d.name) : '???'}</b><span class="rar" style="color:${R.color}">${R.name}</span>
+            ${sel === d.id ? '<span class="badge ok">Vald</span>' : has ? '<span class="tiny muted">Tryck för att välja</span>' : '<span class="tiny muted">Låst</span>'}</button>`;
+        }).join('')}</div></div>`;
+    }).join('')}
+    <p class="muted center tiny">En kista kostar ${Eco.CHEST_COST} 🪙. Dubbletter ger ${Eco.DUPLICATE_REFUND} 🪙 tillbaka. Mynt får du bara genom att spela – de kan aldrig köpas.</p>`;
+  openModal('collectionModal');
+}
+$('collectionBody').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-deck]'); if (!b) return;
+  if (b.classList.contains('locked')) { toast('Den leken är låst – öppna kistor för att hitta den.'); return; }
+  selectDeck(b.dataset.deck, () => openCollection());
+});
+function selectDeck(id, after) {
+  if (!ownedDecks().includes(id)) return;
+  const done = () => { renderWallet(); if (S && S.game) renderGame(); if (after) after(); toast(`Du spelar med ${Eco.deckById(id).name}`); };
+  if (isAccount()) {
+    socket.emit('selectDeck', id, (res) => {
+      if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte välja leken.', 'bad'); return; }
+      setAccountData(res.profile); done();
+    });
+  } else {
+    wallet.selected = id; saveWallet();
+    socket.emit('selectDeck', id, () => {}); // så att de andra vid bordet ser den
+    done();
+  }
+}
+
+// ---------- gäst blir konto: flytta mynt och lekar ----------
+function offerGuestImport() {
+  const want = Eco.guestImport(wallet);
+  if (!want.coins && !want.decks.length) return;
+  const parts = [];
+  if (want.coins) parts.push(`<b>${want.coins} 🪙</b>`);
+  if (want.decks.length) parts.push(`<b>${want.decks.length} ${want.decks.length === 1 ? 'kortlek' : 'kortlekar'}</b> (${want.decks.map((d) => esc(Eco.deckById(d).name)).join(', ')})`);
+  $('importText').innerHTML = `Du har ${parts.join(' och ')} sparade som gäst på den här enheten. Vill du flytta dem till ditt nya konto?`;
+  openModal('importModal');
+}
+$('importYes').onclick = () => {
+  socket.emit('importGuest', { coins: wallet.coins, decks: wallet.decks }, (res) => {
+    closeModal('importModal');
+    if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte flytta mynten.', 'bad'); return; }
+    wallet = loadWallet.call(null); wallet.coins = 0; wallet.decks = [Eco.STARTER]; wallet.selected = Eco.STARTER; wallet.pity = 0; saveWallet();
+    setAccountData(res.profile, res.decks);
+    toast(`Flyttat till ditt konto: ${res.imported.coins} 🪙${res.imported.decks.length ? ` och ${res.imported.decks.length} lekar` : ''}`);
   });
 };

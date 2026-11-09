@@ -16,6 +16,9 @@
 
   <!-- Startsida -->
   <section id="home" class="screen">
+    <div class="home-top">
+    <!-- saldo uppe till vänster -->
+    <button id="walletPill" class="coin-pill" type="button" title="Dina guldmynt – tryck för att se din samling"><span class="coin" aria-hidden="true">🪙</span><b id="coinBal">0</b></button>
     <!-- konto uppe till höger: Logga in, eller användarnamn med meny -->
     <div id="authBox" class="auth-box hidden">
       <button id="loginBtn" class="btn small">Logga in</button>
@@ -28,9 +31,19 @@
         </div>
       </div>
     </div>
+    </div>
     <div class="home-card">
       <h1 class="logo"><span class="logo-text">GURSCH</span><span class="logo-shine" aria-hidden="true"><span>GURSCH</span></span></h1>
       <p class="tagline">Kortspelet där lägst vinner · 2–6 spelare</p>
+      <button id="chestBtn" class="chest-meter" type="button" aria-describedby="chestProg">
+        <span class="mini-chest" aria-hidden="true"><i class="mc-lid"></i><i class="mc-body"></i></span>
+        <span class="chest-text"><span class="chest-line"><b>Kista:</b> <span id="chestProg">0/100 🪙</span></span><span class="chest-bar"><i id="chestFill"></i></span></span>
+        <span id="chestCta" class="chest-cta">Spela för mynt</span>
+      </button>
+      <div class="wallet-links">
+        <button id="collectionBtn" class="link-btn" type="button">🃏 Samling</button>
+        <button id="guestSave" class="link-btn tiny hidden" type="button">Logga in för att spara dina mynt</button>
+      </div>
       <label class="field"><span id="nameLabel">Ditt namn</span>
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
       </label>
@@ -95,10 +108,31 @@
 
   <!-- Samling -->
   <div id="collectionModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="colTitle">
-    <div class="home-card auth-card">
+    <div class="home-card auth-card collection-card">
       <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
       <h2 id="colTitle">Samling</h2>
       <div id="collectionBody"></div>
+    </div>
+  </div>
+
+  <!-- Kistan öppnas -->
+  <div id="chestModal" class="overlay hidden chest-overlay" role="dialog" aria-modal="true" aria-label="Kista">
+    <div class="chest-stage">
+      <div class="chest-rays"></div>
+      <div class="big-chest"><div class="bc-lid"><i></i></div><div class="bc-body"><span class="bc-lock"></span></div></div>
+      <div id="chestReveal" class="chest-reveal"></div>
+      <div id="chestActions" class="chest-actions"></div>
+    </div>
+  </div>
+
+  <!-- Gäst blir konto -->
+  <div id="importModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <div class="home-card auth-card">
+      <h2 id="importTitle">Ta med dina mynt?</h2>
+      <p id="importText" class="center"></p>
+      <p class="tiny muted center">Högst 300 mynt och bara Vanliga och Sällsynta lekar kan flyttas till kontot.</p>
+      <button id="importYes" class="btn primary big">Flytta till mitt konto</button>
+      <button class="btn ghost" data-close>Nej tack</button>
     </div>
   </div>
 
@@ -183,6 +217,7 @@
     <header class="topbar">
       <div class="brand">GURSCH <span id="gCode" class="muted"></span></div>
       <div id="roundInfo" class="round-info"></div>
+      <span id="gameCoins" class="coin-pill small" title="Dina guldmynt"><span class="coin" aria-hidden="true">🪙</span><b>0</b></span>
       <button id="tallyBtn" class="btn small tally-btn hidden" aria-label="Visa ställningen">Ställning</button>
       <button id="historyBtn" class="btn small">Historik</button>
     </header>
@@ -238,6 +273,7 @@
         <tbody id="resultsBody"></tbody>
       </table>
       <p id="resultsMult" class="muted center"></p>
+      <div id="coinGain" class="coin-gain hidden" aria-live="polite"></div>
       <div class="lobby-actions">
         <button id="againBtn" class="btn primary">Ny omgång med samma spelare</button>
         <button id="endBtn" class="btn">Avsluta</button>
@@ -265,6 +301,8 @@
 
   <script src="tally.js"></script>
   <script src="bots.js"></script>
+  <script src="economy.js"></script>
+  <script src="decks.js"></script>
   <script src="usernames.js"></script>
   <script src="auth.js"></script>
   <script src="/socket.io/socket.io.js"></script>

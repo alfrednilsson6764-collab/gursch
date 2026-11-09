@@ -780,16 +780,16 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
 
 /* ---------- korten ---------- */
 .card { width: var(--card-w); height: calc(var(--card-w) * 1.42); border-radius: calc(var(--card-w) * .1);
-  overflow: hidden; isolation: isolate; color: #17171a;
+  overflow: hidden; isolation: isolate; color: var(--f-ink, #17171a);
   background: radial-gradient(120% 90% at 30% 15%, #fffefa 0%, #fbf5e6 55%, #efe4ca 100%);
   border: 1px solid rgba(60,40,10,.22);
   box-shadow: 0 1px 1px rgba(0,0,0,.25), 0 4px 10px rgba(0,0,0,.3), 0 14px 26px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255,255,255,.8), inset 0 0 0 3px rgba(212,175,95,.18); }
-.card.red { color: #a8162a; }
+.card.red { color: var(--f-red, #a8162a); }
 .card.small { --card-w: 46px; width: var(--card-w); height: calc(var(--card-w) * 1.42); }
 .card.mini { --card-w: 28px; width: var(--card-w); height: calc(var(--card-w) * 1.42); border-radius: 4px; }
 .card.big { --card-w: 84px; width: var(--card-w); height: calc(var(--card-w) * 1.42); }
 .card::before, .card.face::before { display: none; }
-.card .corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 0; line-height: .82; font-family: var(--serif); z-index: 2; }
+.card .corner { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 0; line-height: .82; font-family: var(--f-font, var(--serif)); z-index: 2; }
 .card .corner b { font-weight: 700; font-size: calc(var(--card-w) * .26); letter-spacing: -.04em; font-variant-numeric: lining-nums; }
 .card .corner i { font-style: normal; font-size: calc(var(--card-w) * .2); line-height: 1; margin-top: 1px; }
 .card .tl { top: 5%; left: 6%; } .card .br { bottom: 5%; right: 6%; transform: rotate(180deg); }
@@ -802,13 +802,13 @@ input:focus, select:focus { outline: none; border-color: var(--gold); box-shadow
 .card .ace-art::after { width: 58%; aspect-ratio: 1; border: 1px dashed rgba(184,142,60,.45); }
 .card .ace-art i { position: relative; font-style: normal; line-height: 1; font-size: calc(var(--card-w) * .58); filter: drop-shadow(0 2px 1px rgba(0,0,0,.15)); }
 .card .face-art { position: absolute; left: 15%; top: 11%; width: 70%; height: 78%; z-index: 1; overflow: visible; }
-.face-art .fr { fill: #fbf1d8; stroke: #b88e3c; stroke-width: .9; }
-.face-art .g { fill: #d9b45f; stroke: #8c6a2a; stroke-width: .5; }
+.face-art .fr { fill: var(--f-frame, #fbf1d8); stroke: var(--f-line, #b88e3c); stroke-width: .9; }
+.face-art .g { fill: var(--f-gold, #d9b45f); stroke: #8c6a2a; stroke-width: .5; }
 .face-art .s { fill: currentColor; }
 .face-art .r { fill: currentColor; opacity: .88; }
-.face-art .l { fill: none; stroke: #b88e3c; stroke-width: .6; }
-.face-art .sym { fill: #fff6dc; font-size: 9px; text-anchor: middle; font-family: Georgia, serif; }
-.face-art .big { fill: currentColor; font-family: var(--serif); font-weight: 900; font-size: 17px; text-anchor: middle; paint-order: stroke; stroke: #fbf1d8; stroke-width: 3px; }
+.face-art .l { fill: none; stroke: var(--f-line, #b88e3c); stroke-width: .6; }
+.face-art .sym { fill: var(--f-frame, #fff6dc); font-size: 9px; text-anchor: middle; font-family: Georgia, serif; }
+.face-art .big { fill: currentColor; font-family: var(--serif); font-weight: 900; font-size: 17px; text-anchor: middle; paint-order: stroke; stroke: var(--f-frame, #fbf1d8); stroke-width: 3px; }
 .card.face { background: radial-gradient(120% 90% at 30% 15%, #fffdf5 0%, #f9efd6 60%, #ecdcb2 100%); }
 .card.mini .pips, .card.mini .ace-art, .card.mini .face-art, .card.mini .br, .card.mini .shine { display: none; }
 .card.mini .corner b { font-size: 12px; } .card.mini .corner i { font-size: 10px; } .card.mini .tl { top: 3px; left: 3px; }
@@ -1135,7 +1135,9 @@ html.no-anim .join-req { animation: none; }
 }
 
 /* ---------- konto: Logga in / användarmeny uppe till höger ---------- */
-.auth-box { position: absolute; top: 14px; right: 16px; z-index: 5; }
+.home-top { position: absolute; top: 14px; left: 16px; right: 16px; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; pointer-events: none; }
+.home-top > * { pointer-events: auto; }
+.auth-box { margin-left: auto; }
 .user-chip { position: relative; }
 .user-btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; color: #fff; cursor: pointer;
   background: rgba(8,22,16,.82); border: 1px solid rgba(255,255,255,.14); border-radius: 99px; padding: 4px 12px 4px 4px; max-width: 220px; }
@@ -1176,8 +1178,115 @@ html.no-anim .join-req { animation: none; }
 @media (max-width: 640px) {
   /* på mobil ligger kontoknappen i flödet ovanför kortet så den aldrig täcker loggan */
   #home { flex-direction: column; }
-  .auth-box { position: static; align-self: flex-end; margin: 0 0 8px; }
+  .home-top { position: static; width: 100%; margin: 0 0 10px; }
   .user-btn { max-width: 180px; }
+}
+
+/* ---------- guldmynt, kistor och kortlekar ---------- */
+.coin-pill { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-weight: 700; color: #ffe7a3; cursor: pointer;
+  background: linear-gradient(180deg, rgba(40,30,8,.85), rgba(20,14,4,.9)); border: 1px solid rgba(242,193,78,.45); border-radius: 99px; padding: 6px 14px 6px 8px;
+  box-shadow: inset 0 1px 0 rgba(255,240,190,.15), 0 4px 12px rgba(0,0,0,.35); font-variant-numeric: tabular-nums; }
+.coin-pill .coin { font-size: 18px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.4)); }
+.coin-pill.small { padding: 3px 10px 3px 6px; font-size: 13px; cursor: default; } .coin-pill.small .coin { font-size: 14px; }
+.coin-pill.bump { animation: coin-bump .5s ease-out; }
+@keyframes coin-bump { 30% { transform: scale(1.25); box-shadow: 0 0 22px rgba(242,193,78,.8); } }
+#gameCoins { margin-left: auto; flex: none; }
+
+.chest-meter { display: flex; align-items: center; gap: 12px; width: 100%; margin: 4px 0 6px; padding: 10px 14px; font: inherit; color: #fff; text-align: left; cursor: pointer;
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); border: 1px solid rgba(242,193,78,.25); border-radius: 14px; transition: border-color .2s, box-shadow .2s; }
+.chest-meter:hover { border-color: rgba(242,193,78,.55); }
+.chest-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.chest-line b { color: var(--gold); }
+.chest-bar { display: block; height: 8px; border-radius: 99px; background: rgba(0,0,0,.45); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.5); }
+.chest-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #b8861b, #ffd76b); transition: width .6s cubic-bezier(.2,.8,.2,1); }
+.chest-cta { flex: none; font-size: 12px; font-weight: 700; opacity: .7; white-space: nowrap; }
+.chest-meter.ready { border-color: var(--gold); animation: chest-glow 1.8s ease-in-out infinite; }
+.chest-meter.ready .chest-cta { opacity: 1; color: #2a1a00; background: var(--gold); padding: 4px 10px; border-radius: 99px; }
+.chest-meter.ready .mini-chest { animation: chest-wiggle 1.8s ease-in-out infinite; }
+@keyframes chest-glow { 50% { box-shadow: 0 0 22px rgba(242,193,78,.55), inset 0 0 12px rgba(242,193,78,.15); } }
+@keyframes chest-wiggle { 0%, 70%, 100% { transform: none; } 76% { transform: rotate(-7deg); } 84% { transform: rotate(6deg); } 92% { transform: rotate(-3deg); } }
+.mini-chest { position: relative; flex: none; width: 34px; height: 28px; }
+.mini-chest i { position: absolute; left: 0; right: 0; border: 1.5px solid #f2c14e; background: linear-gradient(180deg, #8a4f1f, #5a3011); }
+.mini-chest .mc-lid { top: 0; height: 11px; border-radius: 8px 8px 2px 2px; }
+.mini-chest .mc-body { bottom: 0; height: 16px; border-radius: 2px 2px 4px 4px; }
+.mini-chest .mc-body::after { content: ''; position: absolute; left: 50%; top: -3px; width: 6px; height: 7px; transform: translateX(-50%); background: #f2c14e; border-radius: 1px; }
+.wallet-links { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.link-btn { font: inherit; font-size: 14px; color: var(--gold); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(242,193,78,.4); }
+.link-btn.tiny { font-size: 12px; color: #fff; opacity: .7; }
+
+/* kistan öppnas */
+.chest-overlay { flex-direction: column; --ray: #f2c14e; }
+.chest-stage { position: relative; width: min(360px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.chest-rays { position: absolute; left: 50%; top: 120px; width: 520px; height: 520px; margin: -260px 0 0 -260px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, var(--ray) 0deg 8deg, transparent 8deg 22deg); mask: radial-gradient(circle, #000 0 20%, transparent 65%); -webkit-mask: radial-gradient(circle, #000 0 20%, transparent 65%); }
+.big-chest { position: relative; width: 150px; height: 128px; margin-top: 50px; }
+.bc-body, .bc-lid { position: absolute; left: 0; right: 0; border: 3px solid #f2c14e; background: linear-gradient(180deg, #9a5a24, #5a3011);
+  box-shadow: inset 0 0 0 6px rgba(0,0,0,.18), 0 10px 30px rgba(0,0,0,.5); }
+.bc-body { bottom: 0; height: 78px; border-radius: 4px 4px 12px 12px; }
+.bc-body::before { content: ''; position: absolute; inset: 0 32px; border-left: 5px solid #d9a93a; border-right: 5px solid #d9a93a; }
+.bc-lid { top: 0; height: 54px; border-radius: 60px 60px 4px 4px; transform-origin: 50% 100%; z-index: 2; transition: transform .5s cubic-bezier(.3,1.6,.5,1); }
+.bc-lid i { position: absolute; inset: 0 32px; border-left: 5px solid #d9a93a; border-right: 5px solid #d9a93a; }
+.bc-lock { position: absolute; left: 50%; top: -6px; width: 22px; height: 26px; transform: translateX(-50%); background: linear-gradient(180deg, #ffe08a, #c8961a); border-radius: 4px; border: 2px solid #7a5300; z-index: 3; }
+.chest-overlay.shaking .big-chest { animation: chest-shake .5s ease-in-out infinite; }
+@keyframes chest-shake { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-6deg) translateY(-2px); } 40% { transform: rotate(5deg); } 60% { transform: rotate(-4deg) translateY(-3px); } 80% { transform: rotate(3deg); } }
+.chest-overlay.open .bc-lid { transform: translateY(-34px) rotateX(70deg) scaleY(.6); }
+.chest-overlay.open .bc-lock { opacity: 0; transition: opacity .2s; }
+.chest-overlay.open .chest-rays { opacity: .55; animation: rays-spin 14s linear infinite, rays-in .6s ease-out; }
+@keyframes rays-spin { to { transform: rotate(360deg); } }
+@keyframes rays-in { from { opacity: 0; transform: scale(.3); } }
+.chest-overlay.open .big-chest { animation: chest-pop .4s ease-out; filter: drop-shadow(0 0 30px var(--ray)); }
+@keyframes chest-pop { 40% { transform: scale(1.08); } }
+.chest-reveal { position: relative; z-index: 3; text-align: center; min-height: 0; }
+.chest-overlay.open .chest-reveal { animation: reveal-in .6s .15s both cubic-bezier(.2,1.4,.4,1); }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(40px) scale(.6); } }
+.cr-cards { display: flex; justify-content: center; margin-top: -40px; }
+.cr-cards .card { box-shadow: 0 0 0 2px var(--ray), 0 0 34px var(--ray), 0 12px 30px rgba(0,0,0,.6); }
+.cr-cards .cr-back { transform: rotate(-8deg) translateX(10px); } .cr-cards .cr-face { transform: rotate(7deg) translateX(-10px) translateY(6px); }
+.cr-rarity { margin-top: 14px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; font-size: 13px; text-shadow: 0 0 12px currentColor; }
+.cr-name { font-family: var(--serif); font-size: 28px; font-weight: 700; color: #fff; }
+.cr-note { font-size: 14px; opacity: .85; margin-top: 4px; }
+.chest-actions { position: relative; z-index: 3; display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 300px; }
+.chest-overlay.shaking .chest-actions, .chest-overlay.shaking .chest-reveal { display: none; }
+.chest-overlay.r-legendary .cr-name { background: linear-gradient(90deg, #fff3b0, #f5c542, #fff3b0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* samlingen */
+.collection-card { max-width: 560px; }
+.col-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.col-group { margin: 14px 0 6px; }
+.col-rarity { font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--rc); margin-bottom: 8px; display: flex; gap: 8px; align-items: baseline; }
+.col-rarity::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--rc), transparent); opacity: .5; }
+.collection-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.deck-item { font: inherit; color: #fff; cursor: pointer; border: 1px solid rgba(255,255,255,.1); transition: transform .15s, border-color .15s; }
+.deck-item:hover { transform: translateY(-2px); border-color: var(--rc); }
+.deck-item.selected { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 16px rgba(242,193,78,.3); }
+.deck-item b { font-size: 14px; } .deck-item .rar { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.deck-cards { position: relative; display: flex; justify-content: center; height: 76px; width: 84px; --card-w: 46px; }
+.deck-cards .card { position: absolute; top: 4px; --card-w: 46px; }
+.deck-cards .card.back { left: 6px; transform: rotate(-8deg); } .deck-cards .deck-face { left: 30px; transform: rotate(7deg); }
+.deck-item.locked { cursor: not-allowed; }
+.deck-item.locked .card.back { filter: brightness(0); opacity: .55; left: 19px; transform: none; box-shadow: 0 0 0 1px var(--rc); }
+.deck-item.locked b { opacity: .5; letter-spacing: .2em; }
+.deck-item .lock { position: absolute; left: 50%; top: 30px; transform: translateX(-50%); font-size: 18px; filter: grayscale(1); opacity: .8; }
+
+/* mynt på resultatskärmen */
+.coin-gain { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 4px 0 8px; }
+.cg-row { display: flex; align-items: center; gap: 14px; }
+.coin-gain .coin-pill.small { font-size: 15px; }
+.cg-amount { font-family: var(--serif); font-size: 30px; font-weight: 800; color: #ffd76b; text-shadow: 0 0 16px rgba(242,193,78,.6); animation: gain-pop .6s cubic-bezier(.2,1.6,.4,1); }
+.cg-note { font-size: 12px; opacity: .7; }
+@keyframes gain-pop { from { transform: scale(.3); opacity: 0; } }
+.flying-coin { position: fixed; z-index: 100; font-size: 22px; pointer-events: none; transform: translate(-50%, -50%); transition: transform .8s cubic-bezier(.5,-.3,.6,1), opacity .8s ease-in; margin: -11px 0 0 -11px; }
+
+/* min lek vid bordet: de andras dolda kort visas med deras baksida */
+.seat-cards i.card { --card-w: 12px; width: 12px; height: 17px; border-radius: 2px; border-width: 1px; box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.seat-cards i.card .shine { display: none; }
+@media (max-width: 640px), (orientation: landscape) and (max-height: 540px) {
+  .seat-cards i.card { display: none; }
+  .seat-cards i.card:first-child { display: inline-block; margin: 0 3px 0 0; --card-w: 9px; width: 9px; height: 13px; }
+  .seat-cards span::before { display: none !important; }
+  #gameCoins { padding: 2px 8px 2px 5px; font-size: 12px; }
+  .chest-meter { padding: 8px 12px; }
+  .big-chest { transform: scale(.85); margin-top: 30px; }
 }
 
 
@@ -1191,6 +1300,9 @@ html.no-anim .join-req { animation: none; }
 
   <!-- Startsida -->
   <section id="home" class="screen">
+    <div class="home-top">
+    <!-- saldo uppe till vänster -->
+    <button id="walletPill" class="coin-pill" type="button" title="Dina guldmynt – tryck för att se din samling"><span class="coin" aria-hidden="true">🪙</span><b id="coinBal">0</b></button>
     <!-- konto uppe till höger: Logga in, eller användarnamn med meny -->
     <div id="authBox" class="auth-box hidden">
       <button id="loginBtn" class="btn small">Logga in</button>
@@ -1203,9 +1315,19 @@ html.no-anim .join-req { animation: none; }
         </div>
       </div>
     </div>
+    </div>
     <div class="home-card">
       <h1 class="logo"><span class="logo-text">GURSCH</span><span class="logo-shine" aria-hidden="true"><span>GURSCH</span></span></h1>
       <p class="tagline"><span class="test-badge">TESTVERSION</span><br>Spela mot bottar · välj antal spelare i rummet</p>
+      <button id="chestBtn" class="chest-meter" type="button" aria-describedby="chestProg">
+        <span class="mini-chest" aria-hidden="true"><i class="mc-lid"></i><i class="mc-body"></i></span>
+        <span class="chest-text"><span class="chest-line"><b>Kista:</b> <span id="chestProg">0/100 🪙</span></span><span class="chest-bar"><i id="chestFill"></i></span></span>
+        <span id="chestCta" class="chest-cta">Spela för mynt</span>
+      </button>
+      <div class="wallet-links">
+        <button id="collectionBtn" class="link-btn" type="button">🃏 Samling</button>
+        <button id="guestSave" class="link-btn tiny hidden" type="button">Logga in för att spara dina mynt</button>
+      </div>
       <label class="field"><span id="nameLabel">Ditt namn</span>
         <input id="name" maxlength="20" placeholder="Skriv ditt namn" autocomplete="nickname">
       </label>
@@ -1270,10 +1392,31 @@ html.no-anim .join-req { animation: none; }
 
   <!-- Samling -->
   <div id="collectionModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="colTitle">
-    <div class="home-card auth-card">
+    <div class="home-card auth-card collection-card">
       <button class="icon-btn modal-close" data-close aria-label="Stäng">✕</button>
       <h2 id="colTitle">Samling</h2>
       <div id="collectionBody"></div>
+    </div>
+  </div>
+
+  <!-- Kistan öppnas -->
+  <div id="chestModal" class="overlay hidden chest-overlay" role="dialog" aria-modal="true" aria-label="Kista">
+    <div class="chest-stage">
+      <div class="chest-rays"></div>
+      <div class="big-chest"><div class="bc-lid"><i></i></div><div class="bc-body"><span class="bc-lock"></span></div></div>
+      <div id="chestReveal" class="chest-reveal"></div>
+      <div id="chestActions" class="chest-actions"></div>
+    </div>
+  </div>
+
+  <!-- Gäst blir konto -->
+  <div id="importModal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <div class="home-card auth-card">
+      <h2 id="importTitle">Ta med dina mynt?</h2>
+      <p id="importText" class="center"></p>
+      <p class="tiny muted center">Högst 300 mynt och bara Vanliga och Sällsynta lekar kan flyttas till kontot.</p>
+      <button id="importYes" class="btn primary big">Flytta till mitt konto</button>
+      <button class="btn ghost" data-close>Nej tack</button>
     </div>
   </div>
 
@@ -1358,6 +1501,7 @@ html.no-anim .join-req { animation: none; }
     <header class="topbar">
       <div class="brand">GURSCH <span id="gCode" class="muted"></span></div>
       <div id="roundInfo" class="round-info"></div>
+      <span id="gameCoins" class="coin-pill small" title="Dina guldmynt"><span class="coin" aria-hidden="true">🪙</span><b>0</b></span>
       <button id="tallyBtn" class="btn small tally-btn hidden" aria-label="Visa ställningen">Ställning</button>
       <button id="historyBtn" class="btn small">Historik</button>
     </header>
@@ -1413,6 +1557,7 @@ html.no-anim .join-req { animation: none; }
         <tbody id="resultsBody"></tbody>
       </table>
       <p id="resultsMult" class="muted center"></p>
+      <div id="coinGain" class="coin-gain hidden" aria-live="polite"></div>
       <div class="lobby-actions">
         <button id="againBtn" class="btn primary">Ny omgång med samma spelare</button>
         <button id="endBtn" class="btn">Avsluta</button>
@@ -1438,6 +1583,206 @@ html.no-anim .join-req { animation: none; }
     </div>
   </div>
 
+  <script>
+'use strict';
+// Mynt, kistor och kortlekar (Alfred 2026-11-09). Delas av servern, klienten (gäster) och testversionen.
+// Inloggade: servern räknar mynt och drar slumpen i kistorna. Gäster: samma regler, men sparat i localStorage.
+// Mynt kan bara tjänas genom att spela – de går aldrig att köpa för riktiga pengar.
+(function (root) {
+  const RARITIES = {
+    common: { name: 'Vanlig', color: '#a7b0b8', chance: 0.60, rank: 0 },
+    rare: { name: 'Sällsynt', color: '#3d9bff', chance: 0.30, rank: 1 },
+    epic: { name: 'Episk', color: '#b05cff', chance: 0.09, rank: 2 },
+    legendary: { name: 'Legendarisk', color: '#f5c542', chance: 0.01, rank: 3 },
+  };
+  const DECKS = [
+    { id: 'classic', name: 'Klassisk grön', rarity: 'common', starter: true },
+    { id: 'navy', name: 'Marinblå', rarity: 'common' },
+    { id: 'wine', name: 'Vinröd', rarity: 'common' },
+    { id: 'graphite', name: 'Grafit', rarity: 'common' },
+    { id: 'neon', name: 'Neon', rarity: 'rare' },
+    { id: 'ice', name: 'Is', rarity: 'rare' },
+    { id: 'wood', name: 'Trä', rarity: 'rare' },
+    { id: 'retro', name: 'Retro 80-tal', rarity: 'rare' },
+    { id: 'space', name: 'Rymd', rarity: 'epic' },
+    { id: 'lava', name: 'Lava', rarity: 'epic' },
+    { id: 'marble', name: 'Marmor', rarity: 'epic' },
+    { id: 'gold', name: 'Ren guld', rarity: 'legendary' },
+  ];
+  const STARTER = 'classic';
+  const CHEST_COST = 100;
+  const DUPLICATE_REFUND = 30;
+  const PITY = 10; // efter 10 kistor utan Episk eller bättre blir nästa minst Episk
+  const GUEST_IMPORT_MAX_COINS = 300;
+  const GUEST_IMPORT_RARITIES = ['common', 'rare'];
+
+  const deckById = (id) => DECKS.find((d) => d.id === id) || null;
+  const isDeck = (id) => !!deckById(id);
+
+  /** Mynt för en avslutad omgång: 10 för att ha spelat klart, +10 vid vinst, +5 om man inte förlorade.
+   *  Mot bara bottar blir det hälften. (Vinst ger alltså 20, mitten 15 och förlust 10.) */
+  function roundCoins(result, { botsOnly = false } = {}) {
+    let c = 10;
+    if (result.winner) c += 10;
+    else if (!result.loser) c += 5;
+    return botsOnly ? Math.round(c / 2) : c;
+  }
+
+  /** Drar en kista. owned: id:n man redan har. pity: antal kistor i rad utan Episk eller bättre.
+   *  rand: funktion som ger [0, 1). Returnerar { deckId, rarity, duplicate, refund, pity }. */
+  function rollChest(owned, pity, rand = Math.random) {
+    const has = new Set(owned || []);
+    const forced = (pity || 0) >= PITY;
+    const pool = forced ? ['epic', 'legendary'] : Object.keys(RARITIES);
+    const total = pool.reduce((s, r) => s + RARITIES[r].chance, 0);
+    let x = rand() * total, rarity = pool[pool.length - 1];
+    for (const r of pool) { if (x < RARITIES[r].chance) { rarity = r; break; } x -= RARITIES[r].chance; }
+    const decks = DECKS.filter((d) => d.rarity === rarity && !d.starter);
+    const deck = decks[Math.min(decks.length - 1, Math.floor(rand() * decks.length))];
+    const duplicate = has.has(deck.id);
+    return { deckId: deck.id, rarity, duplicate, refund: duplicate ? DUPLICATE_REFUND : 0, pity: RARITIES[rarity].rank >= 2 ? 0 : (pity || 0) + 1 };
+  }
+
+  /** Vad en gäst får ta med sig till sitt nya konto. */
+  function guestImport(wallet) {
+    const coins = Math.max(0, Math.min(GUEST_IMPORT_MAX_COINS, Math.floor(Number(wallet && wallet.coins) || 0)));
+    const decks = [...new Set((wallet && Array.isArray(wallet.decks) ? wallet.decks : []).map(String))]
+      .filter((id) => { const d = deckById(id); return d && !d.starter && GUEST_IMPORT_RARITIES.includes(d.rarity); });
+    return { coins, decks };
+  }
+
+  const api = { RARITIES, DECKS, STARTER, CHEST_COST, DUPLICATE_REFUND, PITY, GUEST_IMPORT_MAX_COINS, deckById, isDeck, roundCoins, rollChest, guestImport };
+  if (typeof module !== 'undefined') module.exports = api;
+  else root.GurschEconomy = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+  <script>
+'use strict';
+// Kortlekarnas utseende: baksidor i SVG och färger för framsidorna, allt utan bildfiler.
+// Varje lek får klassen dk-<id>. Stilen byggs här och läggs in i en <style> när sidan laddas.
+(function () {
+  const svg = (inner, defs = '') => `<svg xmlns='http://www.w3.org/2000/svg' width='60' height='90' viewBox='0 0 60 90'><defs>${defs}</defs>${inner}</svg>`;
+  const url = (s) => `url("data:image/svg+xml,${encodeURIComponent(s)}")`;
+  const grad = (id, a, b, cy = '45%') => `<radialGradient id='${id}' cx='50%' cy='${cy}' r='75%'><stop offset='0' stop-color='${a}'/><stop offset='1' stop-color='${b}'/></radialGradient>`;
+  const lin = (id, stops, x2 = 0, y2 = 1) => `<linearGradient id='${id}' x1='0' y1='0' x2='${x2}' y2='${y2}'>${stops.map(([o, c]) => `<stop offset='${o}' stop-color='${c}'/>`).join('')}</linearGradient>`;
+  const frame = (c, o = 1) => `<rect x='3.5' y='3.5' width='53' height='83' rx='3' fill='none' stroke='${c}' stroke-opacity='${o}' stroke-width='.9'/><rect x='6' y='6' width='48' height='78' rx='2' fill='none' stroke='${c}' stroke-opacity='${o * 0.5}' stroke-width='.4'/>`;
+  const emblem = (txt, fill, ring, color, size = 13, extra = '') => `<circle cx='30' cy='45' r='12' fill='${fill}' stroke='${ring}' stroke-width='1' ${extra}/><circle cx='30' cy='45' r='9.2' fill='none' stroke='${ring}' stroke-opacity='.55' stroke-width='.45'/><text x='30' y='${45 + size * 0.35}' text-anchor='middle' font-family='Georgia,serif' font-style='italic' font-weight='700' font-size='${size}' fill='${color}'>${txt}</text>`;
+  const lattice = (c, o = 0.32) => `<pattern id='p' width='7' height='7' patternUnits='userSpaceOnUse' patternTransform='rotate(45)'><path d='M0 3.5h7M3.5 0v7' stroke='${c}' stroke-opacity='${o}' stroke-width='.55'/><circle cx='3.5' cy='3.5' r='.7' fill='${c}' fill-opacity='${o + 0.13}'/></pattern>`;
+  const dots = (c, o = 0.35) => `<pattern id='p' width='5' height='5' patternUnits='userSpaceOnUse'><circle cx='2.5' cy='2.5' r='.8' fill='${c}' fill-opacity='${o}'/></pattern>`;
+  const stripes = (c, o = 0.25) => `<pattern id='p' width='4' height='4' patternUnits='userSpaceOnUse' patternTransform='rotate(45)'><rect width='2' height='4' fill='${c}' fill-opacity='${o}'/></pattern>`;
+  // enkel deterministisk slump så att stjärnorna hamnar likadant varje gång
+  const rnd = (seed) => () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+
+  const BACKS = {
+    classic: () => svg(`<rect width='60' height='90' fill='url(#v)'/><rect width='60' height='90' fill='url(#p)'/>${frame('#d4af5f')}${emblem('G', '#0d3d29', '#d4af5f', '#f3dfa2')}`,
+      grad('v', '#1f7a50', '#0a2e1f') + lattice('#d4af5f')),
+    navy: () => svg(`<rect width='60' height='90' fill='url(#v)'/><rect width='60' height='90' fill='url(#p)'/>${frame('#d6deec')}${emblem('⚓', '#0e2350', '#d6deec', '#eef3fb', 12)}`,
+      grad('v', '#24498f', '#0a1736') + dots('#d6deec', 0.4)),
+    wine: () => svg(`<rect width='60' height='90' fill='url(#v)'/><rect width='60' height='90' fill='url(#p)'/>${frame('#d4af5f')}${emblem('G', '#5c0d1a', '#d4af5f', '#f3dfa2')}`,
+      grad('v', '#861a2c', '#4a0913') + lattice('#d4af5f')),
+    graphite: () => svg(`<rect width='60' height='90' fill='url(#v)'/><rect width='60' height='90' fill='url(#p)'/>${frame('#b9c0c7', 0.9)}${emblem('◆', '#24282c', '#b9c0c7', '#dfe4e8', 11)}`,
+      grad('v', '#555b62', '#1b1e21') + stripes('#000', 0.28)),
+    neon: () => svg(`<rect width='60' height='90' fill='#08060f'/><rect width='60' height='90' fill='url(#p)'/>
+      <g filter='url(#gl)'><rect x='4' y='4' width='52' height='82' rx='4' fill='none' stroke='#ff2bd6' stroke-width='1.2'/><rect x='8' y='8' width='44' height='74' rx='3' fill='none' stroke='#22f1ff' stroke-width='.8'/>
+      <circle cx='30' cy='45' r='11' fill='none' stroke='#22f1ff' stroke-width='1.2'/><text x='30' y='50' text-anchor='middle' font-family='Arial,sans-serif' font-weight='900' font-size='15' fill='none' stroke='#ff2bd6' stroke-width='1'>G</text></g>`,
+      `<filter id='gl' x='-20%' y='-20%' width='140%' height='140%'><feGaussianBlur stdDeviation='1.2' result='b'/><feMerge><feMergeNode in='b'/><feMergeNode in='SourceGraphic'/></feMerge></filter>
+      <pattern id='p' width='6' height='6' patternUnits='userSpaceOnUse'><path d='M6 0H0V6' fill='none' stroke='#7a2cff' stroke-opacity='.35' stroke-width='.4'/></pattern>`),
+    ice: () => {
+      const flake = (x, y, s, o) => `<g transform='translate(${x} ${y}) scale(${s})' stroke='#fff' stroke-opacity='${o}' stroke-width='.6' stroke-linecap='round'>${[0, 60, 120].map((a) => `<path transform='rotate(${a})' d='M0 -5V5M-1.5 -3.5L0 -2L1.5 -3.5M-1.5 3.5L0 2L1.5 3.5'/>`).join('')}</g>`;
+      const r = rnd(7); let f = '';
+      for (let i = 0; i < 14; i++) f += flake((r() * 56 + 2).toFixed(1), (r() * 86 + 2).toFixed(1), (0.35 + r() * 0.5).toFixed(2), (0.35 + r() * 0.4).toFixed(2));
+      return svg(`<rect width='60' height='90' fill='url(#v)'/>${f}${frame('#ffffff', 0.9)}${emblem('❄', '#bfe5fb', '#ffffff', '#2f7fb8', 13)}`, lin('v', [[0, '#f1fbff'], [0.55, '#a8dcf6'], [1, '#5fb3e3']], 0.3, 1));
+    },
+    wood: () => {
+      let g = '';
+      for (let i = 0; i < 16; i++) { const y = i * 6 - 3, a = 1.2 + (i % 3) * 0.6; g += `<path d='M-2 ${y} C 12 ${y + a} 20 ${y - a} 32 ${y + a * 0.6} S 52 ${y - a} 62 ${y}' fill='none' stroke='#3b2210' stroke-opacity='${0.18 + (i % 4) * 0.06}' stroke-width='${0.5 + (i % 2) * 0.4}'/>`; }
+      return svg(`<rect width='60' height='90' fill='url(#v)'/>${g}<ellipse cx='17' cy='68' rx='4' ry='2' fill='none' stroke='#3b2210' stroke-opacity='.35' stroke-width='.6'/>
+        <rect x='5' y='5' width='50' height='80' rx='3' fill='none' stroke='#2c1709' stroke-opacity='.55' stroke-width='1.4'/>${emblem('G', '#6e4320', '#f0c98a', '#f7deb0')}`, lin('v', [[0, '#b07a42'], [0.5, '#8a5a2b'], [1, '#6b4220']], 1, 1));
+    },
+    retro: () => {
+      let grid = '';
+      for (let i = 0; i <= 10; i++) grid += `<path d='M30 58 L${-30 + i * 12} 90' stroke='#ff3fa4' stroke-opacity='.75' stroke-width='.5'/>`;
+      [62, 67, 73, 81].forEach((y) => (grid += `<path d='M0 ${y}H60' stroke='#ff3fa4' stroke-opacity='.75' stroke-width='.5'/>`));
+      return svg(`<rect width='60' height='90' fill='url(#sky)'/><circle cx='30' cy='46' r='14' fill='url(#sun)'/>
+        ${[44, 48.5, 52.5, 56].map((y, k) => `<rect x='14' y='${y}' width='32' height='${0.8 + k * 0.5}' fill='#3a0f5c'/>`).join('')}
+        <rect y='58' width='60' height='32' fill='#1d0636'/>${grid}<rect x='3.5' y='3.5' width='53' height='83' rx='3' fill='none' stroke='#22f1ff' stroke-width='.9'/>
+        <text x='30' y='20' text-anchor='middle' font-family='Arial,sans-serif' font-style='italic' font-weight='900' font-size='10' fill='#ffe36b' stroke='#ff3fa4' stroke-width='.4'>GURSCH</text>`,
+        lin('sky', [[0, '#1d0636'], [0.45, '#6a1b9a'], [0.65, '#ff3f8e']]) + lin('sun', [[0, '#ffe36b'], [1, '#ff4f8b']]));
+    },
+    space: () => {
+      const r = rnd(42); let st = '';
+      for (let i = 0; i < 46; i++) st += `<circle cx='${(r() * 60).toFixed(1)}' cy='${(r() * 90).toFixed(1)}' r='${(0.2 + r() * 0.6).toFixed(2)}' fill='#fff' fill-opacity='${(0.4 + r() * 0.6).toFixed(2)}'/>`;
+      return svg(`<rect width='60' height='90' fill='#05061a'/><rect width='60' height='90' fill='url(#neb)'/><rect width='60' height='90' fill='url(#neb2)'/>${st}
+        <circle cx='30' cy='46' r='10' fill='url(#pl)'/><ellipse cx='30' cy='46' rx='17' ry='4' fill='none' stroke='#f0d9ff' stroke-opacity='.8' stroke-width='1' transform='rotate(-18 30 46)'/>
+        ${frame('#c9b6ff', 0.8)}`,
+        `<radialGradient id='neb' cx='30%' cy='30%' r='60%'><stop offset='0' stop-color='#7b2ff7' stop-opacity='.7'/><stop offset='1' stop-color='#7b2ff7' stop-opacity='0'/></radialGradient>
+         <radialGradient id='neb2' cx='75%' cy='75%' r='55%'><stop offset='0' stop-color='#ff4fa3' stop-opacity='.45'/><stop offset='1' stop-color='#ff4fa3' stop-opacity='0'/></radialGradient>
+         <radialGradient id='pl' cx='35%' cy='35%' r='70%'><stop offset='0' stop-color='#9fe7ff'/><stop offset='.6' stop-color='#3a5bd9'/><stop offset='1' stop-color='#1a1460'/></radialGradient>`);
+    },
+    lava: () => svg(`<rect width='60' height='90' fill='#140805'/><rect width='60' height='90' fill='url(#glow)'/>
+      <g fill='none' stroke='url(#hot)' stroke-linecap='round' filter='url(#gl)'>
+        <path d='M30 0 L27 12 L33 22 L28 34 L31 45 L26 58 L32 70 L29 90' stroke-width='1.6'/>
+        <path d='M27 12 L14 18 L8 30 M33 22 L46 26 L52 40 M28 34 L16 44 L4 48 M31 45 L44 54 L56 52 M26 58 L12 66 L6 80 M32 70 L45 76 L50 88' stroke-width='.9'/>
+        <path d='M14 18 L6 10 M46 26 L55 18 M16 44 L12 56 M44 54 L48 66' stroke-width='.5'/></g>
+      ${frame('#ff7a2b', 0.7)}`,
+      `<radialGradient id='glow' cx='50%' cy='50%' r='60%'><stop offset='0' stop-color='#ff5a1f' stop-opacity='.45'/><stop offset='1' stop-color='#ff5a1f' stop-opacity='0'/></radialGradient>
+       ${lin('hot', [[0, '#ffd23f'], [0.5, '#ff7a1a'], [1, '#e8290b']])}
+       <filter id='gl' x='-20%' y='-20%' width='140%' height='140%'><feGaussianBlur stdDeviation='1' result='b'/><feMerge><feMergeNode in='b'/><feMergeNode in='SourceGraphic'/></feMerge></filter>`),
+    marble: () => svg(`<rect width='60' height='90' fill='url(#v)'/>
+      <g fill='none' stroke='#6b6f78' stroke-linecap='round'>
+        <path d='M-2 14 C 10 18 16 30 28 32 S 44 44 62 40' stroke-opacity='.35' stroke-width='.8'/><path d='M-2 52 C 8 50 18 60 26 70 S 46 78 62 74' stroke-opacity='.3' stroke-width='.6'/>
+        <path d='M10 -2 C 14 10 8 20 18 28' stroke-opacity='.25' stroke-width='.5'/><path d='M40 92 C 38 80 48 70 44 60 S 50 46 62 50' stroke-opacity='.28' stroke-width='.5'/>
+        <path d='M28 32 C 30 40 22 46 26 56' stroke-opacity='.2' stroke-width='.4'/></g>
+      ${frame('#c9a54a')}${emblem('G', '#f7f5f0', '#c9a54a', '#a8862e')}`, lin('v', [[0, '#ffffff'], [0.6, '#eceae4'], [1, '#d9d6cf']], 1, 1)),
+    gold: () => svg(`<rect width='60' height='90' fill='url(#v)'/><rect width='60' height='90' fill='url(#p)'/>
+      <rect x='3.5' y='3.5' width='53' height='83' rx='3' fill='none' stroke='#5a3d00' stroke-opacity='.6' stroke-width='1'/><rect x='6' y='6' width='48' height='78' rx='2' fill='none' stroke='#fff6c9' stroke-opacity='.8' stroke-width='.5'/>
+      <circle cx='30' cy='45' r='12' fill='url(#c)' stroke='#5a3d00' stroke-opacity='.6' stroke-width='.8'/><text x='30' y='50' text-anchor='middle' font-family='Georgia,serif' font-size='14' fill='#5a3d00'>♛</text>`,
+      lin('v', [[0, '#fff1a8'], [0.35, '#f0c53c'], [0.7, '#c8961a'], [1, '#8f6508']], 1, 1) + lin('c', [[0, '#ffe680'], [1, '#c8961a']]) + lattice('#7a5300', 0.22)),
+  };
+
+  // framsidor: bakgrund, bläck för svart och rött, ram och guldfärg i de klädda korten
+  const FACES = {
+    classic: { bg: 'radial-gradient(120% 90% at 30% 15%, #fffefa 0%, #f7f6ea 55%, #e2e8d4 100%)', ink: '#14231b', red: '#a8162a', line: '#3f7a52', gold: '#d9b45f' },
+    navy: { bg: 'radial-gradient(120% 90% at 30% 15%, #ffffff 0%, #f1f5fc 60%, #dde6f5 100%)', ink: '#13254d', red: '#c0283d', line: '#6c84b8', gold: '#c9d3e6', frame: '#f4f7fd' },
+    wine: { bg: 'radial-gradient(120% 90% at 30% 15%, #fffdf6 0%, #fbf0e4 60%, #f0dccb 100%)', ink: '#2a0d12', red: '#8d1027', line: '#a0614f', gold: '#d4af5f' },
+    graphite: { bg: 'linear-gradient(160deg, #fafafa 0%, #ececec 60%, #d9dbdd 100%)', ink: '#1d2024', red: '#b3263a', line: '#7c838b', gold: '#b9c0c7', frame: '#f4f5f6', font: "'Inter', system-ui, sans-serif" },
+    neon: { bg: 'radial-gradient(120% 90% at 30% 15%, #1a1230 0%, #0c0818 70%)', ink: '#3ff3ff', red: '#ff3fbf', line: '#7a2cff', gold: '#ff3fbf', frame: '#120c22', border: '#7a2cff', glow: true, font: "'Inter', system-ui, sans-serif" },
+    ice: { bg: 'linear-gradient(165deg, #ffffff 0%, #eaf7ff 55%, #cdeafb 100%)', ink: '#12466b', red: '#d1366a', line: '#7dbfe6', gold: '#a8dcf6', frame: '#f3fbff', border: '#9fd3f2' },
+    wood: { bg: 'repeating-linear-gradient(178deg, rgba(120,72,30,.06) 0 3px, transparent 3px 7px), linear-gradient(160deg, #f6e3bd 0%, #ebcf9b 100%)', ink: '#3b2412', red: '#9c2b17', line: '#8a5a2b', gold: '#c99a5b', frame: '#f6e6c6', border: '#a9773f' },
+    retro: { bg: 'linear-gradient(180deg, #fff8ec 0%, #ffeef6 70%, #ffd9ec 100%)', ink: '#2b1055', red: '#ff2e88', line: '#22c3d6', gold: '#ffe36b', frame: '#fff7ef', border: '#ff3fa4', font: "'Inter', system-ui, sans-serif" },
+    space: { bg: 'radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 70% 60%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 40% 85%, #ddd 50%, transparent 51%), radial-gradient(120% 90% at 30% 15%, #2a1f66 0%, #0b0b2a 75%)', ink: '#e6e9ff', red: '#ff7aa8', line: '#8f7bff', gold: '#c9b6ff', frame: '#16123f', border: '#5b4bd1' },
+    lava: { bg: 'radial-gradient(90% 60% at 50% 110%, rgba(255,90,31,.45), transparent 70%), linear-gradient(170deg, #2a1610 0%, #160a06 100%)', ink: '#ffd9b0', red: '#ff6a2b', line: '#ff7a2b', gold: '#ffb347', frame: '#24120c', border: '#ff5a1f', glow: true },
+    marble: { bg: 'linear-gradient(115deg, transparent 40%, rgba(110,110,120,.18) 42%, transparent 46%), linear-gradient(35deg, transparent 60%, rgba(110,110,120,.14) 61.5%, transparent 64%), linear-gradient(160deg, #ffffff 0%, #f1efea 60%, #e2dfd8 100%)', ink: '#26282d', red: '#9b1c31', line: '#c9a54a', gold: '#e2c46e' },
+    gold: { bg: 'linear-gradient(150deg, #fff6c7 0%, #f6d76a 40%, #e2b33a 75%, #c8961a 100%)', ink: '#3a2600', red: '#8d0f12', line: '#7a5300', gold: '#fff1a8', frame: '#fbe9a0', border: '#8f6508', shine: true },
+  };
+
+  function css() {
+    let out = '';
+    for (const id of Object.keys(BACKS)) {
+      const f = FACES[id];
+      out += `.card.dk-${id}:not(.back){--f-ink:${f.ink};--f-red:${f.red};--f-line:${f.line};--f-gold:${f.gold};--f-frame:${f.frame || '#fbf1d8'};background:${f.bg};${f.border ? `border-color:${f.border};` : ''}${f.font ? `--f-font:${f.font};` : ''}}\n`;
+      if (f.glow) out += `.card.dk-${id}:not(.back) .corner,.card.dk-${id}:not(.back) .pips,.card.dk-${id}:not(.back) .ace-art{text-shadow:0 0 6px currentColor}\n`;
+      out += `.card.back.dk-${id}{background:${url(BACKS[id]())} center / 100% 100% no-repeat;border-color:${f.border || '#f1e3bd'}}\n`;
+    }
+    // Ren guld: glans som sveper över korten hela tiden
+    out += `.card.dk-gold .shine{opacity:1;animation:gold-sweep 2.8s ease-in-out infinite;transition:none}
+@keyframes gold-sweep{0%{transform:translateX(-70%)}55%,100%{transform:translateX(70%)}}
+@media (prefers-reduced-motion: reduce){.card.dk-gold .shine{animation:none}}\n`;
+    return out;
+  }
+  function install() {
+    if (typeof document === 'undefined' || document.getElementById('deck-styles')) return;
+    const el = document.createElement('style');
+    el.id = 'deck-styles';
+    el.textContent = css();
+    document.head.appendChild(el);
+  }
+  window.GurschDeckArt = { css, install, ids: Object.keys(BACKS) };
+  install();
+})();
+
+</script>
   <script>
 (function () {
   const module = { exports: {} };
@@ -2565,9 +2910,14 @@ window.GURSCH_LOCAL = function () {
   }
   function lobbyView() {
     const g = room.game;
-    if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
+    if (g && g.phase === 'finished' && !g.tallied) {
+      g.tallied = true; Tally.addRound(room.tally, g.results);
+      // mynt som gäst: i testversionen är alla motståndare bottar, så det blir hälften
+      const mine = g.results.find((r) => r.playerId === 'me');
+      if (mine) setTimeout(() => fire('coins', { earned: window.GurschEconomy.roundCoins(mine, { botsOnly: true }), guest: true, botsOnly: true }), 0);
+    }
     return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(), persuadeLeft: persuade.remaining(),
-      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: true })) };
+      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, deck: p.deck || 'classic', connected: true })) };
   }
   function broadcast() {
     if (!room) return;
@@ -2596,7 +2946,7 @@ window.GURSCH_LOCAL = function () {
     switch (ev) {
       case 'create':
         room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
-          players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
+          players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true, deck: data && window.GurschEconomy.isDeck(data.deck) ? data.deck : 'classic' }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
         return broadcast();
@@ -2630,6 +2980,9 @@ window.GURSCH_LOCAL = function () {
       case 'react':
         if (room && Reactions.allow(me, String(data))) fire('reaction', { playerId: 'me', emoji: String(data) });
         return;
+      case 'selectDeck':
+        if (room && window.GurschEconomy.isDeck(String(data))) { room.players[0].deck = String(data); broadcast(); }
+        return reply(cb, { ok: true });
       case 'endSession':
         room.ended = true; return broadcast();
       case 'closeSession':
@@ -2714,8 +3067,9 @@ function faceArt(rank, suit) {
   </svg>`;
   return faceCache[key];
 }
-function cardHTML(c, { cls = '', back = false, style = '' } = {}) {
-  if (back || !c) return `<div class="card back ${cls}"><span class="shine"></span></div>`;
+function cardHTML(c, { cls = '', back = false, style = '', deck = '' } = {}) {
+  if (deck) cls += ' dk-' + deck;
+  if (back || !c) return `<div class="card back ${cls}"${style ? ` style="${style}"` : ''}><span class="shine"></span></div>`;
   const red = c.suit === 'H' || c.suit === 'D' ? 'red' : '';
   const kind = c.rank >= 11 && c.rank <= 13 ? 'face' : c.rank === 14 ? 'ace' : 'num';
   const corner = (pos) => `<span class="corner ${pos}"><b>${rl(c.rank)}</b><i>${SUIT[c.suit]}</i></span>`;
@@ -2767,11 +3121,11 @@ function needName() {
   if (!n) { $('homeError').textContent = 'Skriv ditt namn först.'; $('name').focus(); return null; }
   store.set('name', n); return n;
 }
-$('createBtn').onclick = () => { const name = needName(); if (name) socket.emit('create', { name }, enter); };
+$('createBtn').onclick = () => { const name = needName(); if (name) socket.emit('create', { name, deck: myDeck() }, enter); };
 // Snabbstart mot bottar: skapa ett rum och fyll på med tre bottar (fler kan läggas till i rummet).
 $('botsBtn').onclick = () => {
   const name = needName(); if (!name) return;
-  socket.emit('create', { name }, (res) => {
+  socket.emit('create', { name, deck: myDeck() }, (res) => {
     enter(res); if (!res.ok) return;
     socket.emit('settings', { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false });
     for (let k = 0; k < 3; k++) socket.emit('addBot');
@@ -2780,13 +3134,13 @@ $('botsBtn').onclick = () => {
 // Titta på ett rum som åskådare (pågående match eller fullt rum).
 function watch(code) {
   const name = needName(); if (!name || !code) return;
-  socket.emit('watch', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
+  socket.emit('watch', { name, code, deck: myDeck(), token: store.get('code') === code ? store.get('token') : null }, enter);
 }
 $('joinBtn').onclick = () => {
   const name = needName(); const code = $('code').value.trim().toUpperCase();
   if (!name) return;
   if (!code) { $('homeError').textContent = 'Skriv in en rumskod.'; return; }
-  socket.emit('join', { name, code, token: store.get('code') === code ? store.get('token') : null }, enter);
+  socket.emit('join', { name, code, deck: myDeck(), token: store.get('code') === code ? store.get('token') : null }, enter);
 };
 // Öppna rum: listan skickas live från servern.
 socket.on('openRooms', (list) => {
@@ -2809,7 +3163,7 @@ $('code').addEventListener('keydown', (e) => e.key === 'Enter' && $('joinBtn').c
 socket.on('connect', () => {
   $('conn').classList.add('hidden');
   const code = store.get('code'), token = store.get('token');
-  if (code && token) socket.emit('join', { code, token }, (res) => { if (!res.ok) { store.set('code', null); S = null; show('home'); } });
+  if (code && token) socket.emit('join', { code, token, deck: myDeck() }, (res) => { if (!res.ok) { store.set('code', null); S = null; show('home'); } });
 });
 socket.on('disconnect', () => { $('conn').textContent = 'Anslutningen bröts – försöker igen…'; $('conn').classList.remove('hidden'); });
 
@@ -2971,6 +3325,7 @@ function renderGame() {
   const waiting = ex ? ex.waitingFor : [];
 
   $('gCode').textContent = S.lobby.code;
+  $('deckPile').querySelectorAll('.card').forEach((c) => (c.className = 'card back dk-' + deckOf(S.you)));
   $('seats').innerHTML = others.map((p, k) => {
     const lp = lobbyPlayers[p.id] || {};
     const isTurn = turnId === p.id || waiting.includes(p.id);
@@ -2980,8 +3335,8 @@ function renderGame() {
       <div class="seat-avatar ${lp.bot ? 'bot' : ''}" style="--av:${avColor(p.id)}" ${lp.bot ? `title="${persona(lp.personality).label}: ${persona(lp.personality).desc}"` : ''}>${lp.bot ? persona(lp.personality).emoji : esc(p.name.slice(0, 1).toUpperCase())}${G.leaderId === p.id ? '<span class="crown" title="Styrspelare">♛</span>' : ''}</div>
       <div class="seat-name">${esc(p.name.replace(' (bot)', ''))}${lp.bot ? `<small class="persona">${persona(lp.personality).label}</small>` : ''}
         ${lp.connected ? '' : '<span class="badge bad">offline</span>'}</div>
-      <div class="seat-cards">${Array.from({ length: p.handCount }, () => '<i></i>').join('')}<span>${p.handCount}</span></div>
-      ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</div>` : ''}
+      <div class="seat-cards">${Array.from({ length: p.handCount }, () => `<i class="card back dk-${deckOf(p.id)}"></i>`).join('')}<span>${p.handCount}</span></div>
+      ${offer ? `<div class="seat-offer">Erbjuds ${offer.map((c) => cardHTML(c, { cls: 'mini', deck: deckOf(p.id) })).join('')}</div>` : ''}
       ${vote === true ? '<div class="seat-turn ok">Är med ✓</div>' : vote === false ? '<div class="seat-turn no">Säger nej ✗</div>' : ''}
       ${isTurn ? `<div class="seat-turn">${pl ? 'Spelar…' : 'Väljer…'}</div>` : ''}
     </div>`;
@@ -2997,7 +3352,7 @@ function renderGame() {
     const key = tbl.map((t) => t.cards.map((c) => c.id).join()).join('|');
     lastPileKey = key;
     pileHTML = `<div class="plays ${pl.table.length ? '' : 'old'}">${tbl.map((t, k) => `<div class="play ${t.type}" data-by="${t.by}" data-key="${t.cards.map((c) => c.id).join()}">
-      <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small' })).join('')}</div>
+      <div class="play-cards">${t.cards.map((c) => cardHTML(c, { cls: 'small', deck: deckOf(t.by) })).join('')}</div>
       <div class="tiny">${esc(nameOf(t.by))}${t.type === 'lead' ? ' · startade' : t.type === 'beat' ? ' · tog styret' : t.type === 'over' ? ' · lade över' : t.type === 'out' ? ' · gick ut' : ' · lägsta'}</div>
     </div>`).join('')}</div>`;
   }
@@ -3018,7 +3373,7 @@ function renderGame() {
   $('hand').style.setProperty('--n', Math.max(nh, 1));
   $('hand').innerHTML = G.me.hand.map((c, k) => {
     const off = nh > 1 ? (k - mid) / mid : 0; // -1 … 1
-    return cardHTML(c, { cls: selected.has(c.id) ? 'selected' : '', style: `--rot:${(off * Math.min(8, nh)).toFixed(1)}deg;--dy:${(off * off * Math.min(7, nh)).toFixed(1)}px;z-index:${k + 1}` });
+    return cardHTML(c, { deck: deckOf(S.you), cls: selected.has(c.id) ? 'selected' : '', style: `--rot:${(off * Math.min(8, nh)).toFixed(1)}deg;--dy:${(off * off * Math.min(7, nh)).toFixed(1)}px;z-index:${k + 1}` });
   }).join('');
   renderLastMove(G);
   $('history').querySelector('ol').innerHTML = G.history.map((h) => `<li class="${h.type}">${esc(h.text)}</li>`).reverse().join('');
@@ -3084,7 +3439,7 @@ function renderActions(G) {
         const n = offer.length;
         status = n === 1 ? 'Ditt ersättningskort. Behåll det synliga kortet eller ta ett dolt istället.'
           : `Dina ${n} ersättningskort. Behåll alla synliga eller ta ${n} dolda istället.`;
-        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c)).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
+        offerHTML = `<div class="offer-inner"><div class="offer-cards">${offer.map((c) => cardHTML(c, { deck: deckOf(S.you) })).join('')}</div><div class="tiny">Alla ser dessa kort</div></div>`;
         acts.push(btn(n === 1 ? 'Behåll kortet' : `Behåll alla ${n}`, () => send('exchangeReplace', { keep: true }), 'primary'));
         acts.push(btn(n === 1 ? 'Ta ett dolt kort' : `Ta ${n} dolda kort`, () => send('exchangeReplace', { keep: false })));
       } else status = `Väntar på att ${ex.waitingFor.map((id) => esc(nameOf(id))).join(', ')} väljer ersättningskort…`;
@@ -3175,7 +3530,7 @@ function renderDeal(G) {
   const rounds = Math.max(...G.dealReveal.map((r) => r.cards.length));
   $('dealBody').innerHTML = G.dealReveal.map((r) => `<div class="deal-row ${r.playerId === leader ? 'win' : ''}">
       <span class="deal-name">${r.playerId === leader ? '♛ ' : ''}${esc(nameOf(r.playerId))}${r.playerId === S.you ? ' (du)' : ''}</span>
-      <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
+      <span class="deal-cards">${r.cards.map((c, k) => cardHTML(c, { deck: deckOf(r.playerId), cls: 'small enter', style: `animation-delay:${(k * G.dealReveal.length) * 0.15}s` })).join('')}</span>
     </div>`).join('');
   $('dealInfo').innerHTML = `${rounds > 1 ? 'Det blev lika – extra kort lades ut tills någon hade högst. ' : ''}<strong>${leader === S.you ? 'Du' : esc(nameOf(leader))}</strong> har högst kort och styr inledningen.`
     + (G.multiplierMode && G.multiplierMode !== 'fixed' ? `<br>Multiplikatorn blir <strong>×${G.multiplier}</strong> (${G.multiplierMode === 'highest' ? 'högsta' : 'näst högsta'} synliga kortet).` : '');
@@ -3186,10 +3541,10 @@ $('dealOk').onclick = () => { $('deal').classList.add('hidden'); socket.emit('an
 function renderResults(G) {
   const show = G.phase === 'finished' && !showdownRunning;
   $('results').classList.toggle('hidden', !show);
-  if (!show) return;
+  if (!show) { $('coinGain').classList.add('hidden'); return; }
   $('resultsBody').innerHTML = G.results.map((r) => `<tr class="${r.winner ? 'winner' : r.loser ? 'loser' : ''}">
     <td>${r.winner ? '🏆' : r.loser ? '👎' : ''}</td><td>${esc(r.name)}${r.playerId === S.you ? ' (du)' : ''}${r.wentOut ? ' <span class="badge">gick ut</span>' : ''}</td>
-    <td class="res-cards"><div>${r.hand.map((c) => cardHTML(c, { cls: 'mini' })).join('') || '–'}</div></td>
+    <td class="res-cards"><div>${r.hand.map((c) => cardHTML(c, { cls: 'mini', deck: deckOf(r.playerId) })).join('') || '–'}</div></td>
     <td>${r.value}</td><td><strong>${r.score}</strong></td></tr>`).join('');
   const winners = G.results.filter((r) => r.winner).map((r) => r.name);
   const losers = G.results.filter((r) => r.loser).map((r) => r.name);
@@ -3358,10 +3713,10 @@ function fly(fromEl, toEl, html, delay = 0, dur = 420, linger = false) {
   }));
   if (!linger) setTimeout(() => el.remove(), delay + dur + 360);
 }
-const BACK = '<div class="card back small"></div>';
+const BACK = (pid) => `<div class="card back small dk-${deckOf(pid || (S && S.you))}"></div>`;
 function flyBacks(fromPid, toPid, n, delay = 0) {
   const from = fromPid ? seatEl(fromPid) : $('deckPile'), to = toPid ? seatEl(toPid) : $('deckPile');
-  for (let k = 0; k < n; k++) fly(from, to, BACK, delay + k * 110);
+  for (let k = 0; k < n; k++) fly(from, to, BACK(fromPid || toPid), delay + k * 110);
 }
 /** Ger ett element en start-förskjutning så att det "kommer från" ett annat element. */
 function arriveFrom(el, fromEl, delay = 0) {
@@ -3420,17 +3775,17 @@ function startDealAnim() {
     deck.classList.add('shuffling');
     setTimeout(() => deck.classList.remove('shuffling'), 1500);
     let t = 1700;
-    for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK, t, 450); t += 170; }
+    for (let r = 0; r < 5; r++) for (const p of G.players) { fly(deck, seatEl(p.id), BACK(p.id), t, 450); t += 170; }
     t += 600;
     banner('Det sjätte kortet delas ut med framsidan upp – högst kort styr', t);
     t += 900;
-    for (const p of G.players) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][0], { cls: 'small' }), t, 650, true); t += 900; }
+    for (const p of G.players) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][0], { cls: 'small', deck: deckOf(p.id) }), t, 650, true); t += 900; }
     const extra = Math.max(...G.dealReveal.map((r) => r.cards.length));
     for (let e = 1; e < extra; e++) {
       t += 600;
       banner('Lika högsta kort – ett nytt kort läggs ut', t);
       t += 900;
-      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small' }), t, 650, true); t += 1000; }
+      for (const p of G.players) if (reveal[p.id][e]) { fly(deck, seatEl(p.id), cardHTML(reveal[p.id][e], { cls: 'small', deck: deckOf(p.id) }), t, 650, true); t += 1000; }
     }
     t += 300;
     banner(`${G.leaderId === S.you ? 'Du' : nameOf(G.leaderId)} har högst kort och styr! ♛`, t, 1600);
@@ -3471,7 +3826,7 @@ function renderLastMove(G) {
     if (t) {
       const who = t.by === S.you ? 'Du' : esc(nameOf(t.by).replace(' (bot)', ''));
       html = `<span class="lm-text"><span class="lm-label">Senast:</span> <b>${who}</b> lade ${describePlay(t)}${MOVE_TXT[t.type] ? ` – ${MOVE_TXT[t.type]}` : ''}</span>
-        <span class="lm-cards">${t.cards.map((c) => cardHTML(c, { cls: 'mini' })).join('')}</span>`;
+        <span class="lm-cards">${t.cards.map((c) => cardHTML(c, { cls: 'mini', deck: deckOf(t.by) })).join('')}</span>`;
     }
   }
   el.innerHTML = html;
@@ -3544,8 +3899,8 @@ function stopShowdown() {
   if (showdownRunning) { showdownRunning = false; if (S && S.game) { renderResults(S.game); celebrate(S.game); } }
 }
 /** Ett kort som ligger med baksidan upp och vänds (flip) efter `delay` ms. */
-function flipCard(c, delay) {
-  return `<span class="flip3d" style="--d:${delay}ms"><span class="flip-inner">${cardHTML(null, { back: true, cls: 'sd-card flip-back' })}${cardHTML(c, { cls: 'sd-card flip-front' })}</span></span>`;
+function flipCard(c, delay, deck) {
+  return `<span class="flip3d" style="--d:${delay}ms"><span class="flip-inner">${cardHTML(null, { back: true, deck, cls: 'sd-card flip-back' })}${cardHTML(c, { deck, cls: 'sd-card flip-front' })}</span></span>`;
 }
 function turnFlips(root) { requestAnimationFrame(() => requestAnimationFrame(() => root.querySelectorAll('.flip3d').forEach((f) => f.classList.add('turned')))); }
 function startShowdown(G) {
@@ -3561,13 +3916,13 @@ function startShowdown(G) {
     <div class="sd-title">Uppgörelse</div>
     <div class="sd-out">
       <div class="sd-out-name">🔥 ${who(out)} gick ut</div>
-      <div class="sd-cards">${out.hand.map((c, k) => flipCard(c, 500 + k * 260)).join('')}</div>
+      <div class="sd-cards">${out.hand.map((c, k) => flipCard(c, 500 + k * 260, deckOf(out.playerId))).join('')}</div>
       <div class="sd-value">Kortvärde <b>${out.value}</b></div>
     </div>
     <div class="sd-vs">VS</div>
     <div class="sd-rows">${rest.map((r) => `<div class="sd-row" data-pid="${r.playerId}">
       <span class="sd-name">${who(r)}</span>
-      <span class="sd-cards">${r.hand.map(() => cardHTML(null, { back: true, cls: 'sd-card' })).join('')}</span>
+      <span class="sd-cards">${r.hand.map(() => cardHTML(null, { back: true, deck: deckOf(r.playerId), cls: 'sd-card' })).join('')}</span>
       <span class="sd-sum">?</span><span class="sd-mark"></span></div>`).join('')}</div>
     <div class="sd-actions"><button class="btn" id="sdSkip">Hoppa över</button></div>
   </div>`;
@@ -3581,7 +3936,7 @@ function startShowdown(G) {
     t += 900;
     later(() => {
       row.classList.remove('next'); row.classList.add('shown');
-      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => flipCard(c, k * 220)).join('') || '–';
+      row.querySelector('.sd-cards').innerHTML = r.hand.map((c, k) => flipCard(c, k * 220, deckOf(r.playerId))).join('') || '–';
       turnFlips(row);
       const sum = row.querySelector('.sd-sum'), steps = 12;
       for (let k = 1; k <= steps; k++) later(() => { sum.textContent = Math.round(r.value * k / steps); }, k * 45);
@@ -3665,7 +4020,6 @@ let account = { enabled: false, loggedIn: false };
 const openModal = (id) => $(id).classList.remove('hidden');
 const closeModal = (id) => $(id).classList.add('hidden');
 document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => b.closest('.overlay').classList.add('hidden')));
-const DECKS = { classic: { name: 'Klassisk', desc: 'Vinröd baksida med guldmönster – alla får den.' } };
 
 function renderAccount() {
   const on = !!(Auth && Auth.enabled());
@@ -3690,6 +4044,9 @@ socket.on('account', async (st) => {
   // token gick inte att verifiera: förnya en gång (då ansluter vi igen), annars fortsätter man som gäst
   if (account.badToken && Auth && Auth.loggedIn()) { await Auth.rejected(); return; }
   renderAccount();
+  accountDecks = null;
+  renderWallet();
+  if (account.profile) socket.emit('getProfile', null, (res) => { if (res && res.ok) setAccountData(res.profile, res.decks); });
 });
 if (Auth && !window.GURSCH_LOCAL) {
   Auth.onChange(() => { socket.disconnect(); socket.connect(); });
@@ -3717,6 +4074,7 @@ $('usernameForm').onsubmit = (e) => {
   socket.emit('setUsername', v.username, (res) => {
     if (!res || !res.ok) { $('usernameError').textContent = (res && res.error) || 'Något gick fel.'; return; }
     account = res.account; renderAccount(); toast(`Välkommen, ${account.profile.username}! 🎉`);
+    accountDecks = [Eco.STARTER]; renderWallet(); offerGuestImport();
   });
 };
 $('usernameLater').onclick = () => { closeModal('usernameModal'); Auth.logout(); };
@@ -3727,26 +4085,19 @@ $('userMenu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-menu]'); if (!b) return;
   $('userMenu').classList.add('hidden');
   if (b.dataset.menu === 'logout') { Auth.logout(); toast('Du är utloggad.'); return; }
+  if (b.dataset.menu === 'collection') { openCollection(); return; }
   socket.emit('getProfile', null, (res) => {
     if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte hämta profilen.', 'bad'); return; }
     const p = res.profile;
-    if (b.dataset.menu === 'profile') {
-      $('profTitle').textContent = p.username;
-      $('profEmail').textContent = res.email || '';
-      $('profAvatar').textContent = p.username.slice(0, 1).toUpperCase(); $('profAvatar').style.setProperty('--av', avColor(p.id));
-      const pct = p.games_played ? Math.round((100 * p.wins) / p.games_played) : 0;
-      const since = p.created_at ? new Date(p.created_at).toLocaleDateString('sv-SE', { month: 'short', year: 'numeric' }) : '–';
-      $('profStats').innerHTML = [['Spelade omgångar', p.games_played], ['Vinster', p.wins], ['Vinstandel', pct + ' %'], ['Mynt', p.coins], ['Medlem sedan', since]]
-        .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join('');
-      openModal('profileModal');
-    } else {
-      $('collectionBody').innerHTML = `<div class="collection-grid">${res.decks.map((d) => {
-        const D = DECKS[d.deck_id] || { name: d.deck_id, desc: '' };
-        return `<div class="deck-item ${p.selected_deck === d.deck_id ? 'selected' : ''}">${cardHTML(null, { back: true })}<b>${esc(D.name)}</b><span class="tiny muted">${esc(D.desc)}</span>${p.selected_deck === d.deck_id ? '<span class="badge ok">Vald</span>' : ''}</div>`;
-      }).join('') || '<p class="muted">Inga kortlekar än.</p>'}</div>
-        <p class="muted center tiny">Mynt: <b>${esc(p.coins)}</b> · Öppnade kistor: <b>${esc(p.chests_opened)}</b> · Fler kortlekar kommer snart.</p>`;
-      openModal('collectionModal');
-    }
+    setAccountData(p, res.decks);
+    $('profTitle').textContent = p.username;
+    $('profEmail').textContent = res.email || '';
+    $('profAvatar').textContent = p.username.slice(0, 1).toUpperCase(); $('profAvatar').style.setProperty('--av', avColor(p.id));
+    const pct = p.games_played ? Math.round((100 * p.wins) / p.games_played) : 0;
+    const since = p.created_at ? new Date(p.created_at).toLocaleDateString('sv-SE', { month: 'short', year: 'numeric' }) : '–';
+    $('profStats').innerHTML = [['Spelade omgångar', p.games_played], ['Vinster', p.wins], ['Vinstandel', pct + ' %'], ['Mynt', p.coins], ['Öppnade kistor', p.chests_opened], ['Kortlekar', `${res.decks.length}/${Eco.DECKS.length}`], ['Medlem sedan', since]]
+      .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+    openModal('profileModal');
   });
 });
 $('deleteAccountBtn').onclick = () => {
@@ -3755,6 +4106,218 @@ $('deleteAccountBtn').onclick = () => {
   socket.emit('deleteAccount', null, (res) => {
     if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte radera kontot.', 'bad'); return; }
     closeModal('profileModal'); Auth.forget(); toast('Ditt konto är raderat.');
+  });
+};
+
+// ---------- guldmynt, kistor och kortlekar ----------
+// Inloggade: servern räknar mynten och öppnar kistorna (klienten visar bara resultatet).
+// Gäster (och testversionen): samma regler, men sparat här i webbläsaren.
+const Eco = window.GurschEconomy;
+const WALLET_KEY = 'gursch.wallet';
+let accountDecks = null; // inloggad: id:n på mina lekar (null = inte hämtat än)
+function loadWallet() {
+  let w = null;
+  try { w = JSON.parse(localStorage.getItem(WALLET_KEY) || 'null'); } catch {}
+  w = w && typeof w === 'object' ? w : {};
+  const decks = Array.isArray(w.decks) ? w.decks.filter(Eco.isDeck) : [];
+  if (!decks.includes(Eco.STARTER)) decks.unshift(Eco.STARTER);
+  return { coins: Math.max(0, Math.floor(Number(w.coins) || 0)), decks, selected: decks.includes(w.selected) ? w.selected : Eco.STARTER,
+    pity: Math.max(0, Math.floor(Number(w.pity) || 0)), chests: Math.max(0, Math.floor(Number(w.chests) || 0)) };
+}
+let wallet = loadWallet();
+const saveWallet = () => { try { localStorage.setItem(WALLET_KEY, JSON.stringify(wallet)); } catch {} };
+const isAccount = () => !!(account.loggedIn && account.profile);
+const balance = () => (isAccount() ? account.profile.coins : wallet.coins);
+const ownedDecks = () => (isAccount() ? accountDecks || [Eco.STARTER] : wallet.decks);
+function myDeck() { return isAccount() ? account.profile.selected_deck || Eco.STARTER : wallet.selected; }
+/** Kortleken för en spelare vid bordet (min egen om jag inte är med i något rum). */
+function deckOf(pid) {
+  const p = S && S.lobby && S.lobby.players.find((x) => x.id === pid);
+  if (p && p.deck) return p.deck;
+  return pid === (S && S.you) || !S ? myDeck() : Eco.STARTER;
+}
+function setAccountData(profile, decks) {
+  if (profile) account.profile = profile;
+  if (decks) accountDecks = decks.map((d) => d.deck_id || d);
+  renderWallet();
+}
+
+function renderWallet() {
+  const bal = balance(), cost = Eco.CHEST_COST, ready = bal >= cost;
+  $('coinBal').textContent = bal;
+  document.querySelector('#gameCoins b').textContent = bal;
+  $('chestProg').textContent = `${Math.min(bal, cost)}/${cost} 🪙`;
+  $('chestFill').style.width = Math.min(100, (100 * bal) / cost) + '%';
+  $('chestBtn').classList.toggle('ready', ready);
+  $('chestCta').textContent = ready ? 'Öppna!' : `${cost - bal} kvar`;
+  $('guestSave').classList.toggle('hidden', !(Auth && Auth.enabled() && !account.loggedIn && !window.GURSCH_LOCAL));
+}
+renderWallet();
+$('guestSave').onclick = () => $('loginBtn').click();
+$('walletPill').onclick = () => openCollection();
+$('collectionBtn').onclick = () => openCollection();
+
+// Mynt efter en omgång. Servern skickar dem; gäster sparar dem lokalt.
+let pendingGain = null;
+socket.on('coins', (d) => {
+  if (!d || !(d.earned > 0)) return;
+  if (d.guest) { wallet.coins += d.earned; saveWallet(); }
+  else if (account.profile && typeof d.balance === 'number') account.profile.coins = d.balance;
+  pendingGain = d;
+  showCoinGain();
+});
+function showCoinGain() {
+  const d = pendingGain; if (!d) return;
+  const box = $('coinGain');
+  // vänta tills resultatrutan syns (efter uppgörelsen)
+  if ($('results').classList.contains('hidden')) { clearTimeout(showCoinGain.t); showCoinGain.t = setTimeout(showCoinGain, 400); return; }
+  pendingGain = null;
+  const shown = balance() - d.earned;
+  document.querySelector('#gameCoins b').textContent = shown;
+  box.innerHTML = `<span class="cg-row"><span class="cg-amount">+${d.earned} <span class="coin">🪙</span></span><span class="coin-pill small" id="cgBal"><span class="coin">🪙</span><b>${shown}</b></span></span>`
+    + `<span class="cg-note">${d.botsOnly ? 'Halva mynten – alla motståndare var bottar.' : 'För omgången'}</span>`
+    + (d.guest && Auth && Auth.enabled() && !window.GURSCH_LOCAL ? '<button class="link-btn tiny" id="cgLogin">Logga in för att spara dina mynt</button>' : '');
+  box.classList.remove('hidden');
+  const lb = $('cgLogin'); if (lb) lb.onclick = () => { $('results').classList.add('hidden'); show('home'); $('loginBtn').click(); };
+  // mynten flyger till saldot, som sedan räknas upp
+  coinShower(box.querySelector('.cg-amount'), $('cgBal'), Math.min(10, Math.max(4, Math.round(d.earned / 2))), () => {
+    renderWallet();
+    const bal = $('cgBal'); if (!bal) return;
+    const end = balance(), t0 = performance.now();
+    const step = (t) => { const k = Math.min(1, (t - t0) / 500); bal.querySelector('b').textContent = Math.round(shown + (end - shown) * k); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+    bal.classList.remove('bump'); void bal.offsetWidth; bal.classList.add('bump');
+  });
+}
+/** Mynt som flyger från ett element till ett annat (t.ex. från resultatet upp till saldot). */
+function coinShower(fromEl, toEl, n, done) {
+  const a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+  if (document.documentElement.classList.contains('no-anim') || !b.width) { done(); return; }
+  for (let k = 0; k < n; k++) {
+    const c = document.createElement('span');
+    c.className = 'flying-coin'; c.textContent = '🪙';
+    c.style.left = (a.left + a.width / 2 + (Math.random() - 0.5) * 40) + 'px';
+    c.style.top = (a.top + a.height / 2) + 'px';
+    document.body.appendChild(c);
+    const dx = b.left + b.width / 2 - parseFloat(c.style.left), dy = b.top + b.height / 2 - parseFloat(c.style.top);
+    setTimeout(() => { c.style.transform = `translate(${dx}px, ${dy}px) scale(.6)`; c.style.opacity = '.2'; }, 300 + k * 90);
+    setTimeout(() => { c.remove(); if (k === n - 1) done(); }, 1200 + k * 90);
+  }
+}
+
+// ---------- kistan ----------
+let chestBusy = false;
+$('chestBtn').onclick = () => {
+  if (chestBusy) return;
+  if (balance() < Eco.CHEST_COST) { toast(`Kistan kostar ${Eco.CHEST_COST} 🪙 – spela fler omgångar så fylls mätaren.`); return; }
+  chestBusy = true;
+  const anim = startChestAnim();
+  const finish = (roll) => { chestBusy = false; renderWallet(); anim.reveal(roll); };
+  if (isAccount()) {
+    socket.emit('openChest', null, (res) => {
+      if (!res || !res.ok) { chestBusy = false; anim.abort(); toast((res && res.error) || 'Kunde inte öppna kistan.', 'bad'); return; }
+      setAccountData(res.profile, res.decks);
+      finish(res.roll);
+    });
+  } else {
+    const roll = Eco.rollChest(wallet.decks, wallet.pity);
+    wallet.coins = wallet.coins - Eco.CHEST_COST + roll.refund;
+    wallet.pity = roll.pity; wallet.chests += 1;
+    if (!roll.duplicate) wallet.decks.push(roll.deckId);
+    saveWallet();
+    setTimeout(() => finish(roll), 50);
+  }
+};
+function startChestAnim() {
+  const m = $('chestModal'), t0 = Date.now();
+  m.className = 'overlay chest-overlay shaking';
+  $('chestReveal').innerHTML = ''; $('chestActions').innerHTML = '';
+  const reduce = document.documentElement.classList.contains('no-anim');
+  return {
+    abort() { m.classList.add('hidden'); },
+    reveal(roll) {
+      const wait = Math.max(0, (reduce ? 200 : 1400) - (Date.now() - t0));
+      setTimeout(() => {
+        const R = Eco.RARITIES[roll.rarity], D = Eco.deckById(roll.deckId);
+        m.style.setProperty('--ray', R.color);
+        m.className = `overlay chest-overlay open r-${roll.rarity}`;
+        $('chestReveal').innerHTML = `<div class="cr-cards">${cardHTML(null, { back: true, deck: D.id, cls: 'big cr-back' })}${cardHTML({ id: 'cr', rank: 14, suit: 'H' }, { deck: D.id, cls: 'big cr-face' })}</div>
+          <div class="cr-rarity" style="color:${R.color}">${R.name}</div><div class="cr-name">${esc(D.name)}</div>
+          <div class="cr-note">${roll.duplicate ? `Dubblett – du har redan den här leken. Du får ${roll.refund} 🪙 tillbaka.` : 'Ny kortlek! 🎉'}</div>`;
+        const acts = [];
+        if (myDeck() !== D.id) acts.push(`<button class="btn primary" id="crUse">Spela med ${esc(D.name)}</button>`);
+        if (balance() >= Eco.CHEST_COST) acts.push(`<button class="btn" id="crAgain">Öppna en till (${Eco.CHEST_COST} 🪙)</button>`);
+        acts.push('<button class="btn ghost" id="crClose">Stäng</button>');
+        $('chestActions').innerHTML = acts.join('');
+        const close = () => m.classList.add('hidden');
+        $('crClose').onclick = close;
+        if ($('crUse')) $('crUse').onclick = () => { selectDeck(D.id); close(); };
+        if ($('crAgain')) $('crAgain').onclick = () => $('chestBtn').click();
+      }, wait);
+    },
+  };
+}
+
+// ---------- samlingen ----------
+function openCollection() {
+  const owned = new Set(ownedDecks()), sel = myDeck();
+  const order = Object.keys(Eco.RARITIES);
+  const pity = isAccount() ? account.profile.pity_counter || 0 : wallet.pity;
+  const left = Math.max(1, Eco.PITY - pity + 1);
+  $('collectionBody').innerHTML = `
+    <div class="col-head"><span class="coin-pill small"><span class="coin">🪙</span><b>${balance()}</b></span>
+      <span class="muted tiny">${owned.size}/${Eco.DECKS.length} lekar · ${left === 1 ? 'nästa kista är minst Episk' : `minst Episk inom ${left} kistor`}</span></div>
+    ${order.map((r) => {
+      const R = Eco.RARITIES[r];
+      return `<div class="col-group"><div class="col-rarity" style="--rc:${R.color}">${R.name} <span class="muted tiny">${Math.round(R.chance * 100)} %</span></div>
+        <div class="collection-grid">${Eco.DECKS.filter((d) => d.rarity === r).map((d) => {
+          const has = owned.has(d.id);
+          return `<button class="deck-item ${has ? '' : 'locked'} ${sel === d.id ? 'selected' : ''}" style="--rc:${R.color}" data-deck="${d.id}" ${has ? '' : 'aria-disabled="true"'}>
+            <span class="deck-cards">${cardHTML(null, { back: true, deck: d.id })}${has ? cardHTML({ id: 'p' + d.id, rank: 13, suit: 'S' }, { deck: d.id, cls: 'deck-face' }) : '<span class="lock">🔒</span>'}</span>
+            <b>${has ? esc(d.name) : '???'}</b><span class="rar" style="color:${R.color}">${R.name}</span>
+            ${sel === d.id ? '<span class="badge ok">Vald</span>' : has ? '<span class="tiny muted">Tryck för att välja</span>' : '<span class="tiny muted">Låst</span>'}</button>`;
+        }).join('')}</div></div>`;
+    }).join('')}
+    <p class="muted center tiny">En kista kostar ${Eco.CHEST_COST} 🪙. Dubbletter ger ${Eco.DUPLICATE_REFUND} 🪙 tillbaka. Mynt får du bara genom att spela – de kan aldrig köpas.</p>`;
+  openModal('collectionModal');
+}
+$('collectionBody').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-deck]'); if (!b) return;
+  if (b.classList.contains('locked')) { toast('Den leken är låst – öppna kistor för att hitta den.'); return; }
+  selectDeck(b.dataset.deck, () => openCollection());
+});
+function selectDeck(id, after) {
+  if (!ownedDecks().includes(id)) return;
+  const done = () => { renderWallet(); if (S && S.game) renderGame(); if (after) after(); toast(`Du spelar med ${Eco.deckById(id).name}`); };
+  if (isAccount()) {
+    socket.emit('selectDeck', id, (res) => {
+      if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte välja leken.', 'bad'); return; }
+      setAccountData(res.profile); done();
+    });
+  } else {
+    wallet.selected = id; saveWallet();
+    socket.emit('selectDeck', id, () => {}); // så att de andra vid bordet ser den
+    done();
+  }
+}
+
+// ---------- gäst blir konto: flytta mynt och lekar ----------
+function offerGuestImport() {
+  const want = Eco.guestImport(wallet);
+  if (!want.coins && !want.decks.length) return;
+  const parts = [];
+  if (want.coins) parts.push(`<b>${want.coins} 🪙</b>`);
+  if (want.decks.length) parts.push(`<b>${want.decks.length} ${want.decks.length === 1 ? 'kortlek' : 'kortlekar'}</b> (${want.decks.map((d) => esc(Eco.deckById(d).name)).join(', ')})`);
+  $('importText').innerHTML = `Du har ${parts.join(' och ')} sparade som gäst på den här enheten. Vill du flytta dem till ditt nya konto?`;
+  openModal('importModal');
+}
+$('importYes').onclick = () => {
+  socket.emit('importGuest', { coins: wallet.coins, decks: wallet.decks }, (res) => {
+    closeModal('importModal');
+    if (!res || !res.ok) { toast((res && res.error) || 'Kunde inte flytta mynten.', 'bad'); return; }
+    wallet = loadWallet.call(null); wallet.coins = 0; wallet.decks = [Eco.STARTER]; wallet.selected = Eco.STARTER; wallet.pity = 0; saveWallet();
+    setAccountData(res.profile, res.decks);
+    toast(`Flyttat till ditt konto: ${res.imported.coins} 🪙${res.imported.decks.length ? ` och ${res.imported.decks.length} lekar` : ''}`);
   });
 };
 

@@ -4,6 +4,8 @@
 //  - Databas: tabellerna i db/schema.sql via PostgREST (/rest/v1), alltid med den hemliga nyckeln.
 // Utan miljövariablerna är inloggning avstängd och alla spelar som gäster, precis som förut.
 const { validateUsername } = require('./usernames');
+const Eco = require('./economy');
+const crypto = require('crypto');
 
 class AccountError extends Error {}
 
@@ -58,15 +60,70 @@ function createAccounts({ url, publishableKey, secretKey, fetchImpl = globalThis
       throw new AccountError('Användarnamnet är upptaget – välj ett annat.');
     }
     if (!r.ok) throw new AccountError('Kunde inte spara användarnamnet.');
-    await call('/rest/v1/owned_decks', { method: 'POST', body: { user_id: id, deck_id: 'classic' }, prefer: 'return=minimal,resolution=ignore-duplicates' });
+    await addDeck(id, Eco.STARTER);
     return r.data[0];
   }
 
-  /** Räknar en spelad omgång (och vinst) för en inloggad spelare. */
-  async function recordGame(id, won) {
-    const p = await getProfile(id);
-    if (!p) return;
-    await call(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', body: { games_played: p.games_played + 1, wins: p.wins + (won ? 1 : 0) }, prefer: 'return=minimal' });
+  /** Ändrar profilen säkert: läser, räknar ut ändringen och skriver bara om ingen annan hunnit ändra emellan
+   *  (filter på mynt, kistor och omgångar). Försöker igen några gånger. change(p) returnerar fälten som ska ändras. */
+  async function updateProfile(id, change) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const p = await getProfile(id);
+      if (!p) throw new AccountError('Profilen finns inte.');
+      const patch = await change(p);
+      if (!patch) return { profile: p };
+      const guard = `id=eq.${encodeURIComponent(id)}&coins=eq.${p.coins}&chests_opened=eq.${p.chests_opened}&games_played=eq.${p.games_played}`;
+      const r = await call(`/rest/v1/profiles?${guard}`, { method: 'PATCH', body: patch, prefer: 'return=representation' });
+      if (!r.ok) throw new AccountError('Kunde inte spara.');
+      if (Array.isArray(r.data) && r.data[0]) return { profile: r.data[0], before: p };
+    }
+    throw new AccountError('Försök igen om en stund.');
+  }
+
+  async function addDeck(id, deckId) {
+    const r = await call('/rest/v1/owned_decks', { method: 'POST', body: { user_id: id, deck_id: deckId }, prefer: 'return=minimal,resolution=ignore-duplicates' });
+    if (!r.ok && r.status !== 409) throw new AccountError('Kunde inte spara kortleken.');
+  }
+
+  /** Räknar en spelad omgång (och vinst) och ger mynten för den. */
+  async function recordGame(id, won, coins = 0) {
+    const { profile } = await updateProfile(id, (p) => ({ games_played: p.games_played + 1, wins: p.wins + (won ? 1 : 0), coins: p.coins + Math.max(0, coins | 0) }));
+    return profile;
+  }
+
+  /** Öppnar en kista: servern drar slumpen, drar av mynten och sparar leken. */
+  async function openChest(id) {
+    const owned = (await getCollection(id)).map((d) => d.deck_id);
+    let roll = null;
+    const { profile } = await updateProfile(id, (p) => {
+      if (p.coins < Eco.CHEST_COST) throw new AccountError(`Du behöver ${Eco.CHEST_COST} 🪙 för att öppna en kista.`);
+      roll = Eco.rollChest(owned, p.pity_counter, () => crypto.randomInt(1e9) / 1e9);
+      return { coins: p.coins - Eco.CHEST_COST + roll.refund, chests_opened: p.chests_opened + 1, pity_counter: roll.pity };
+    });
+    if (!roll.duplicate) await addDeck(id, roll.deckId);
+    return { roll, profile };
+  }
+
+  /** Väljer vilken av ens egna kortlekar man spelar med. */
+  async function selectDeck(id, deckId) {
+    const owned = (await getCollection(id)).map((d) => d.deck_id);
+    if (!Eco.isDeck(deckId) || !owned.includes(deckId)) throw new AccountError('Den kortleken har du inte låst upp än.');
+    const r = await call(`/rest/v1/profiles?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', body: { selected_deck: deckId }, prefer: 'return=representation' });
+    if (!r.ok || !r.data || !r.data[0]) throw new AccountError('Kunde inte välja kortleken.');
+    return r.data[0];
+  }
+
+  /** Flyttar en gästs mynt och lekar till ett helt nytt konto (högst 300 mynt, bara Vanliga och Sällsynta lekar). */
+  async function importGuest(id, wallet) {
+    const want = Eco.guestImport(wallet);
+    const owned = (await getCollection(id)).map((d) => d.deck_id);
+    const fresh = (p) => p.coins === 0 && p.games_played === 0 && p.chests_opened === 0 && owned.every((d) => d === Eco.STARTER);
+    const { profile } = await updateProfile(id, (p) => {
+      if (!fresh(p)) throw new AccountError('Gästmynt kan bara flyttas till ett nytt konto.');
+      return want.coins ? { coins: want.coins } : null;
+    });
+    for (const d of want.decks) await addDeck(id, d);
+    return { profile, imported: want };
   }
 
   /** Raderar allt: profilen, samlingen och själva inloggningen (e-post) hos Supabase. */
@@ -85,7 +142,7 @@ function createAccounts({ url, publishableKey, secretKey, fetchImpl = globalThis
     return r.ok;
   }
 
-  return { enabled, verify, getProfile, getCollection, createProfile, recordGame, deleteAccount, keepAlive,
+  return { enabled, verify, getProfile, getCollection, createProfile, recordGame, openChest, selectDeck, importGuest, deleteAccount, keepAlive,
     config: () => (enabled ? { auth: true, supabaseUrl: url, publishableKey } : { auth: false }) };
 }
 

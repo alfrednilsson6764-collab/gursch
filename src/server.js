@@ -10,6 +10,7 @@ const { timeoutMove, createTurnTimers, createPersuadeTimer } = require('./turnti
 const Reactions = require('./reactions');
 const Tally = require('./tally');
 const { createAccounts, AccountError } = require('./accounts');
+const Eco = require('./economy');
 
 // Inloggning (valfritt): sätt de här tre i Render → Environment. Saknas de spelar alla som gäster.
 // Äldre namn (anon/service_role) godtas också. Värdena trimmas så att ett mellanslag vid inklistring inte stoppar inloggningen.
@@ -32,6 +33,7 @@ app.get('/health', (_, res) => res.send('ok'));
 // Klienten hämtar Supabase-adress och publik nyckel här (den hemliga nyckeln lämnar aldrig servern).
 app.get('/config', (_, res) => res.json(accounts.config()));
 app.get('/integritet', (_, res) => res.sendFile(path.join(__dirname, '..', 'public', 'integritet.html')));
+app.get('/economy.js', (_, res) => res.sendFile(path.join(__dirname, 'economy.js')));
 app.get('/usernames.js', (_, res) => res.sendFile(path.join(__dirname, 'usernames.js')));
 // Håll Supabase-projektet vaket: en enkel fråga en gång per dygn (gratisprojekt pausas annars efter en vecka).
 if (accounts.enabled && require.main === module) {
@@ -58,6 +60,8 @@ const TURN_TIMES = [0, 20, 30, 60]; // sekunder per drag, 0 = av
 const DEFAULT_SETTINGS = () => ({ maxPlayers: 6, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0, visibility: 'private' });
 // Inloggade spelare heter alltid sitt användarnamn; gäster väljer namn själva.
 const nameFor = (socket, n) => (socket.data.profile ? socket.data.profile.username : cleanName(n));
+// Kortleken man spelar med: inloggade sin valda (sparad i databasen), gäster den de valt lokalt.
+const deckFor = (socket, d) => (socket.data.profile ? socket.data.profile.selected_deck || Eco.STARTER : Eco.isDeck(d) ? d : Eco.STARTER);
 const cleanName = (n) => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 20) || 'Spelare';
 
 function lobbyView(room) {
@@ -70,7 +74,7 @@ function lobbyView(room) {
     ended: room.ended,
     timers: room.timers ? room.timers.remaining() : {},
     persuadeLeft: room.persuade ? room.persuade.remaining() : null,
-    players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: !!p.bot || p.sockets.size > 0 })),
+    players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, deck: p.deck || Eco.STARTER, connected: !!p.bot || p.sockets.size > 0 })),
     spectators: (room.spectators || []).map((p) => ({ id: p.id, name: p.name, wantsJoin: !!p.wantsJoin, connected: p.sockets.size > 0 })),
   };
 }
@@ -147,13 +151,37 @@ function applyAction(room, pid, a) {
   if (room.game.phase === 'finished' && !room.game.tallied) {
     room.game.tallied = true;
     Tally.addRound(room.tally, room.game.results);
-    // statistik för inloggade spelare (gäster och bottar räknas inte)
-    for (const r of room.game.results) {
-      const p = room.players.find((x) => x.id === r.playerId);
-      if (p && p.userId) accounts.recordGame(p.userId, !!r.winner).catch((e) => console.error('Statistik', e.message));
-    }
+    awardCoins(room);
   }
   botsReact(room);
+}
+
+// Mynt efter en avslutad omgång. Bara den som var med hela omgången (ansluten nu och inte borta mer än
+// 30 sekunder) får mynt. Inloggade: sparas i databasen tillsammans med statistiken. Gäster: klienten sparar dem lokalt.
+const MAX_AWAY_MS = 30 * 1000;
+function awardCoins(room) {
+  const g = room.game, now = Date.now();
+  for (const r of g.results) {
+    const p = room.players.find((x) => x.id === r.playerId);
+    if (!p || p.bot) continue;
+    const away = (p.awayMs || 0) + (p.awaySince ? now - p.awaySince : 0);
+    if (!p.sockets.size || away > MAX_AWAY_MS || p.gameRef !== g) continue;
+    const botsOnly = room.players.filter((x) => x !== p).every((x) => x.bot);
+    const earned = Eco.roundCoins(r, { botsOnly });
+    const send = (data) => { for (const sid of p.sockets) io.to(sid).emit('coins', data); };
+    if (!p.userId) { send({ earned, guest: true, botsOnly }); continue; }
+    accounts.recordGame(p.userId, !!r.winner, earned).then((profile) => {
+      for (const sid of p.sockets) { const s = io.sockets.sockets.get(sid); if (s && s.data.profile) s.data.profile = profile; }
+      send({ earned, balance: profile.coins, botsOnly });
+    }).catch((e) => console.error('Mynt/statistik', e.message));
+  }
+}
+// Håller koll på hur länge en spelare varit borta under en pågående omgång.
+function markAway(room, player) {
+  if (room.game && room.game.phase !== 'finished' && player.sockets.size === 0 && !player.awaySince) player.awaySince = Date.now();
+}
+function markBack(player) {
+  if (player.awaySince) { player.awayMs = (player.awayMs || 0) + Date.now() - player.awaySince; player.awaySince = null; }
 }
 
 // ---------- snabbreaktioner ----------
@@ -202,6 +230,7 @@ function botDelay(room, move) {
 
 function attach(socket, room, player) {
   player.sockets.add(socket.id);
+  markBack(player);
   socket.data.room = room.code;
   socket.data.pid = player.id;
   socket.join(room.code);
@@ -241,11 +270,11 @@ io.on('connection', (socket) => {
     return player ? { room, player } : { room: null, player: null };
   };
 
-  socket.on('create', ({ name, token } = {}, cb) => {
+  socket.on('create', ({ name, token, deck } = {}, cb) => {
     const code = newCode();
     const room = { code, hostId: null, settings: DEFAULT_SETTINGS(), players: [], spectators: [], game: null, tally: Tally.create(), ended: false };
     rooms.set(code, room);
-    const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, ready: false, sockets: new Set() };
+    const player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, deck: deckFor(socket, deck), ready: false, sockets: new Set() };
     room.players.push(player);
     room.hostId = player.id;
     attach(socket, room, player);
@@ -253,7 +282,7 @@ io.on('connection', (socket) => {
     broadcast(room);
   });
 
-  socket.on('join', ({ code, name, token } = {}, cb) => {
+  socket.on('join', ({ code, name, token, deck } = {}, cb) => {
     const room = rooms.get(String(code || '').toUpperCase().trim());
     if (!room) return reply(cb, { ok: false, error: 'Hittar inget rum med den koden.' });
     let player = token && room.players.find((p) => p.token === String(token));
@@ -267,9 +296,9 @@ io.on('connection', (socket) => {
     if (!player) {
       if (room.game) return reply(cb, { ok: false, canWatch: true, error: 'Spelet har redan börjat i det rummet – du kan titta på.' });
       if (room.players.length >= room.settings.maxPlayers) return reply(cb, { ok: false, canWatch: true, error: 'Rummet är fullt – du kan titta på.' });
-      player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, ready: false, sockets: new Set() };
+      player = { id: crypto.randomUUID(), token: String(token || crypto.randomUUID()), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, deck: deckFor(socket, deck), ready: false, sockets: new Set() };
       room.players.push(player);
-    } else if ((name || socket.data.profile) && !room.game) player.name = nameFor(socket, name);
+    } else if ((name || socket.data.profile) && !room.game) { player.name = nameFor(socket, name); player.deck = deckFor(socket, deck); }
     attach(socket, room, player);
     reply(cb, { ok: true, code: room.code, token: player.token });
     broadcast(room);
@@ -296,6 +325,47 @@ io.on('connection', (socket) => {
       reply(cb, { ok: true, profile: socket.data.profile, decks, email: socket.data.user.email });
     } catch (e) { reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' }); }
   });
+  // Kistor och kortlekar för inloggade. Servern drar slumpen, drar av mynten och sparar leken.
+  socket.on('openChest', async (_, cb) => {
+    if (!socket.data.profile) return reply(cb, { ok: false, error: 'Logga in för att öppna kistor på ditt konto.' });
+    if (socket.data.chestBusy) return reply(cb, { ok: false, error: 'Kistan öppnas redan.' });
+    socket.data.chestBusy = true;
+    try {
+      const { roll, profile } = await accounts.openChest(socket.data.user.id);
+      socket.data.profile = profile;
+      reply(cb, { ok: true, roll, profile, decks: await accounts.getCollection(profile.id) });
+    } catch (e) {
+      if (!(e instanceof AccountError)) console.error(e);
+      reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' });
+    } finally { socket.data.chestBusy = false; }
+  });
+  // Byt kortlek. Inloggade måste äga leken; gäster sparar sina lekar lokalt och skickar bara vilken de valt.
+  socket.on('selectDeck', async (deckId, cb) => {
+    deckId = String(deckId || '');
+    try {
+      if (socket.data.profile) socket.data.profile = await accounts.selectDeck(socket.data.user.id, deckId);
+      else if (!Eco.isDeck(deckId)) return reply(cb, { ok: false, error: 'Okänd kortlek.' });
+      const room = rooms.get(socket.data.room);
+      const member = room && [...room.players, ...room.spectators].find((p) => p.id === socket.data.pid);
+      if (member) { member.deck = deckFor(socket, deckId); broadcast(room); }
+      reply(cb, { ok: true, profile: socket.data.profile || null });
+    } catch (e) {
+      if (!(e instanceof AccountError)) console.error(e);
+      reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' });
+    }
+  });
+  // Gäst blir konto: flytta mynt (högst 300) och Vanliga/Sällsynta lekar till ett helt nytt konto.
+  socket.on('importGuest', async (wallet, cb) => {
+    if (!socket.data.profile) return reply(cb, { ok: false, error: 'Du är inte inloggad.' });
+    try {
+      const { profile, imported } = await accounts.importGuest(socket.data.user.id, wallet);
+      socket.data.profile = profile;
+      reply(cb, { ok: true, profile, imported, decks: await accounts.getCollection(profile.id) });
+    } catch (e) {
+      if (!(e instanceof AccountError)) console.error(e);
+      reply(cb, { ok: false, error: e instanceof AccountError ? e.message : 'Något gick fel.' });
+    }
+  });
   // Radera mitt konto: profil, samling och inloggning tas bort hos Supabase.
   socket.on('deleteAccount', async (_, cb) => {
     if (!socket.data.user) return reply(cb, { ok: false, error: 'Du är inte inloggad.' });
@@ -311,14 +381,14 @@ io.on('connection', (socket) => {
 
   // ---------- åskådare ----------
   // Titta på ett rum (pågående match eller fullt rum). Åskådare ser inga dolda kort.
-  socket.on('watch', ({ code, name, token } = {}, cb) => {
+  socket.on('watch', ({ code, name, token, deck } = {}, cb) => {
     const room = rooms.get(String(code || '').toUpperCase().trim());
     if (!room) return reply(cb, { ok: false, error: 'Hittar inget rum med den koden.' });
     if (token && room.players.some((p) => p.token === String(token))) return reply(cb, { ok: false, error: 'Du är redan med i rummet.' });
     let spec = token && room.spectators.find((p) => p.token === String(token));
     if (!spec) {
       if (room.spectators.length >= MAX_SPECTATORS) return reply(cb, { ok: false, error: 'Det är fullt med åskådare.' });
-      spec = { id: 'spec-' + crypto.randomUUID(), token: crypto.randomUUID(), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, wantsJoin: false, sockets: new Set() };
+      spec = { id: 'spec-' + crypto.randomUUID(), token: crypto.randomUUID(), name: nameFor(socket, name), userId: socket.data.profile ? socket.data.profile.id : null, deck: deckFor(socket, deck), wantsJoin: false, sockets: new Set() };
       room.spectators.push(spec);
     }
     attach(socket, room, spec);
@@ -360,7 +430,7 @@ io.on('connection', (socket) => {
     if (room.players.length >= 6) return reply(cb, { ok: false, error: 'Rummet är fullt (högst 6 spelare).' });
     room.settings.maxPlayers = Math.max(room.settings.maxPlayers, room.players.length + 1);
     room.spectators = room.spectators.filter((p) => p !== spec);
-    room.players.push({ id: spec.id, token: spec.token, name: spec.name, userId: spec.userId || null, ready: true, sockets: spec.sockets });
+    room.players.push({ id: spec.id, token: spec.token, name: spec.name, userId: spec.userId || null, deck: spec.deck, ready: true, sockets: spec.sockets });
     for (const sid of spec.sockets) io.to(sid).emit('joinAnswer', { accepted: true });
     reply(cb, { ok: true });
     broadcast(room);
@@ -400,6 +470,7 @@ io.on('connection', (socket) => {
     room.reactSeq = 0;
     room.game = new Game(room.players.map((p) => ({ id: p.id, name: p.name })),
       { multiplier: room.settings.multiplier, extraExchanges: room.settings.extraExchanges, persuade: !!room.settings.persuade });
+    for (const p of room.players) { p.gameRef = room.game; p.awayMs = 0; p.awaySince = p.bot || p.sockets.size ? null : Date.now(); }
     // Bottarna väntar tills utdelningen har visats (eller högst 30 sekunder).
     // Bottar och turtimer väntar tills utdelningen har visats (eller högst 30 sekunder).
     room.hold = true;
@@ -497,6 +568,7 @@ io.on('connection', (socket) => {
     socket.leave(room.code);
     player.sockets.delete(socket.id);
     socket.data.room = null;
+    markAway(room, player);
     if (!room.game) {
       room.players = room.players.filter((p) => p !== player);
       if (room.hostId === player.id && humans(room)[0]) room.hostId = humans(room)[0].id;
@@ -525,6 +597,7 @@ io.on('connection', (socket) => {
     const { room, player } = ctx();
     if (!room || !player) return;
     player.sockets.delete(socket.id);
+    markAway(room, player);
     broadcast(room);
     if (room.players.every((p) => p.sockets.size === 0)) {
       room.cleanup = setTimeout(() => closeRoom(room), 1000 * 60 * 60 * 6);

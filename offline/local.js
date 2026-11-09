@@ -42,9 +42,14 @@ window.GURSCH_LOCAL = function () {
   }
   function lobbyView() {
     const g = room.game;
-    if (g && g.phase === 'finished' && !g.tallied) { g.tallied = true; Tally.addRound(room.tally, g.results); }
+    if (g && g.phase === 'finished' && !g.tallied) {
+      g.tallied = true; Tally.addRound(room.tally, g.results);
+      // mynt som gäst: i testversionen är alla motståndare bottar, så det blir hälften
+      const mine = g.results.find((r) => r.playerId === 'me');
+      if (mine) setTimeout(() => fire('coins', { earned: window.GurschEconomy.roundCoins(mine, { botsOnly: true }), guest: true, botsOnly: true }), 0);
+    }
     return { code: 'TEST', local: true, hostId: 'me', settings: room.settings, inGame: !!room.game, tally: room.tally, ended: !!room.ended, timers: timers.remaining(), persuadeLeft: persuade.remaining(),
-      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, connected: true })) };
+      players: room.players.map((p) => ({ id: p.id, name: p.name, ready: p.ready, bot: !!p.bot, personality: p.personality, deck: p.deck || 'classic', connected: true })) };
   }
   function broadcast() {
     if (!room) return;
@@ -73,7 +78,7 @@ window.GURSCH_LOCAL = function () {
     switch (ev) {
       case 'create':
         room = { settings: { maxPlayers: 4, multiplier: 2, botSpeed: 'normal', extraExchanges: true, persuade: false, turnTime: 0 }, game: null, tally: Tally.create(), ended: false,
-          players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true }] };
+          players: [{ id: 'me', name: (data && data.name) || 'Du', ready: true, deck: data && window.GurschEconomy.isDeck(data.deck) ? data.deck : 'classic' }] };
         syncBots();
         reply(cb, { ok: true, code: 'TEST', token: 'local' });
         return broadcast();
@@ -107,6 +112,9 @@ window.GURSCH_LOCAL = function () {
       case 'react':
         if (room && Reactions.allow(me, String(data))) fire('reaction', { playerId: 'me', emoji: String(data) });
         return;
+      case 'selectDeck':
+        if (room && window.GurschEconomy.isDeck(String(data))) { room.players[0].deck = String(data); broadcast(); }
+        return reply(cb, { ok: true });
       case 'endSession':
         room.ended = true; return broadcast();
       case 'closeSession':

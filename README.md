@@ -71,6 +71,15 @@ E-postlänk (magic link) fungerar direkt. Supabase gratismejl har en låg gräns
 
 Vi sparar bara e-post (sköts av Supabase Auth), användarnamn och spelstatistik/samling. `/integritet` beskriver det för spelarna. Under **Min profil → Radera mitt konto** tas profil, samling och själva inloggningen bort.
 
+## Mynt, kistor och kortlekar
+
+- **Guldmynt 🪙** delas bara ut av servern. Efter varje avslutad omgång får man 10 mynt för att ha spelat klart, +10 vid vinst och +5 om man varken vann eller förlorade. Vinst ger alltså 20, mitten 15 och förlust 10. Mot bara bottar blir det hälften. Bara den som var med hela omgången får mynt: man ska vara ansluten när omgången tar slut och inte ha varit borta i mer än 30 sekunder.
+- **Inloggade** får mynten sparade i databasen. **Gäster** (och testversionen) sparar dem i webbläsaren (localStorage).
+- **En kista** kostar 100 🪙 och ger en kortlek. Oddsen är Vanlig 60 %, Sällsynt 30 %, Episk 9 % och Legendarisk 1 %. Efter 10 kistor i rad utan Episk eller bättre blir nästa kista minst Episk. En dubblett ger 30 🪙 tillbaka. För inloggade öppnas kistan på servern, som drar slumpen, drar av mynten och sparar leken.
+- **12 kortlekar** är ritade i SVG och CSS (`public/decks.js`). Reglerna finns i `src/economy.js`. Klassisk grön är startleken och den följer med alla konton. Den valda leken används för ens egna kort, och de andra ser den på ens plats vid bordet.
+- **Gäst blir konto:** vid första inloggningen erbjuds man att flytta sina gästmynt och gästlekar till kontot. Högst 300 mynt och bara Vanliga och Sällsynta lekar kan flyttas.
+- Mynt kan aldrig köpas för riktiga pengar.
+
 ## Struktur
 
 - `src/game.js` – regelmotorn (utdelning, bytesrundor, spel, poäng). Oklara regler samlas i `RULES` överst.

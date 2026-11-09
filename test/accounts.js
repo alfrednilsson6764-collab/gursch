@@ -4,6 +4,7 @@
 const assert = require('assert');
 const http = require('http');
 const { validateUsername, isOffensive } = require('../src/usernames');
+const Eco = require('../src/economy');
 
 // ---- användarnamn ----
 for (const ok of ['Alfred', 'Thora', 'Horatio', 'Fanny', 'Annalisa', 'Mongolia', 'Kaspar', 'Åsa_92', 'kort-haj', 'Ölgubbe']) {
@@ -16,9 +17,37 @@ assert.strictEqual(validateUsername('  Alfred  ').username, 'Alfred');
 assert.ok(isOffensive('fitta') && !isOffensive('Kaspar'));
 console.log('OK: regler och filter för användarnamn');
 
+// ---- mynt och kistor (regler) ----
+assert.strictEqual(Eco.DECKS.length, 12);
+assert.deepStrictEqual(Object.fromEntries(Object.keys(Eco.RARITIES).map((r) => [r, Eco.DECKS.filter((d) => d.rarity === r).length])), { common: 4, rare: 4, epic: 3, legendary: 1 });
+assert.strictEqual(Eco.roundCoins({ winner: true }), 20);
+assert.strictEqual(Eco.roundCoins({}), 15);
+assert.strictEqual(Eco.roundCoins({ loser: true }), 10);
+assert.strictEqual(Eco.roundCoins({ winner: true }, { botsOnly: true }), 10);
+assert.strictEqual(Eco.roundCoins({ loser: true }, { botsOnly: true }), 5);
+{
+  // oddsen: 60/30/9/1 (med seedad slump), garanti efter 10 kistor utan Episk
+  let seed = 1; const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const n = 200000, count = { common: 0, rare: 0, epic: 0, legendary: 0 };
+  for (let i = 0; i < n; i++) count[Eco.rollChest([], 0, rand).rarity]++;
+  for (const [r, R] of Object.entries(Eco.RARITIES)) assert.ok(Math.abs(count[r] / n - R.chance) < 0.006, `${r}: ${count[r] / n}`);
+  let pity = 0, worst = 0, run = 0;
+  for (let i = 0; i < 20000; i++) {
+    const x = Eco.rollChest([], pity, rand);
+    if (pity >= Eco.PITY) assert.ok(['epic', 'legendary'].includes(x.rarity), 'garantin ger minst Episk');
+    run = Eco.RARITIES[x.rarity].rank >= 2 ? 0 : run + 1; worst = Math.max(worst, run); pity = x.pity;
+    assert.notStrictEqual(x.deckId, 'classic', 'startleken finns inte i kistorna');
+  }
+  assert.ok(worst <= Eco.PITY, 'aldrig fler än 10 kistor i rad utan Episk');
+  const dup = Eco.rollChest(Eco.DECKS.map((d) => d.id), 0, rand);
+  assert.ok(dup.duplicate && dup.refund === 30);
+  assert.deepStrictEqual(Eco.guestImport({ coins: 999, decks: ['navy', 'neon', 'space', 'gold', 'classic', 'fusk'] }), { coins: 300, decks: ['navy', 'neon'] });
+}
+console.log('OK: mynt per omgång, kistornas odds, garanti och dubbletter');
+
 // ---- falsk Supabase ----
 const PUB = 'sb_publishable_test', SECRET = 'sb_secret_test';
-const users = { 'tok-anna': { id: 'u-anna', email: 'anna@example.com' }, 'tok-bo': { id: 'u-bo', email: 'bo@example.com' } };
+const users = { 'tok-anna': { id: 'u-anna', email: 'anna@example.com' }, 'tok-bo': { id: 'u-bo', email: 'bo@example.com' }, 'tok-cid': { id: 'u-cid', email: 'cid@example.com' } };
 const db = { profiles: [], owned_decks: [] };
 const log = [];
 const fake = http.createServer((req, res) => {
@@ -56,7 +85,11 @@ const fake = http.createServer((req, res) => {
       if (!db.owned_decks.some((d) => d.user_id === row.user_id && d.deck_id === row.deck_id)) db.owned_decks.push({ unlocked_at: new Date().toISOString(), ...row });
       return send(201);
     }
-    if (req.method === 'PATCH') { const patch = JSON.parse(body); table.filter(match).forEach((r) => Object.assign(r, patch)); return send(204); }
+    if (req.method === 'PATCH') {
+      const patch = JSON.parse(body), rows = table.filter(match);
+      rows.forEach((r) => Object.assign(r, patch));
+      return /representation/.test(req.headers.prefer || '') ? send(200, rows) : send(204);
+    }
     if (req.method === 'DELETE') { db[m[1]] = table.filter((r) => !match(r)); return send(204); }
     send(405, {});
   });
@@ -112,6 +145,7 @@ async function play(s) {
     s.state = null; s.account = null;
     s.on('state', (st) => (s.state = st));
     s.on('account', (a) => (s.account = a));
+    s.coinEvents = []; s.on('coins', (c) => s.coinEvents.push(c));
     await new Promise((r) => s.on('connect', r));
     for (let i = 0; i < 100 && !s.account; i++) await wait(5);
     return s;
@@ -181,9 +215,50 @@ async function play(s) {
   assert.strictEqual(prof.profile.games_played, 1);
   const annaWon = results.find((x) => x.name === 'Anna_K').winner;
   assert.strictEqual(prof.profile.wins, annaWon ? 1 : 0);
+  // två människor: vinst 20, mitten 15, förlust 10 (oavgjort = 15)
+  const expect = (r) => Eco.roundCoins(r);
+  assert.strictEqual(prof.profile.coins, expect(results.find((x) => x.name === 'Anna_K')));
+  assert.strictEqual(db.profiles.find((p) => p.id === 'u-bo').coins, expect(results.find((x) => x.name === 'Bosse')));
+  assert.ok(anna.coinEvents.length === 1 && anna.coinEvents[0].balance === prof.profile.coins && !anna.coinEvents[0].guest);
   assert.strictEqual(prof.email, 'anna@example.com');
   assert.deepStrictEqual(prof.decks.map((d) => d.deck_id), ['classic']);
-  console.log('OK: statistik efter en omgång och Min profil');
+  console.log('OK: statistik och mynt efter en omgång och Min profil');
+
+  // kistor: för lite mynt nekas, annars dras 100 och leken sparas
+  db.profiles.find((p) => p.id === 'u-anna').coins = 50;
+  r = await emit(anna, 'openChest');
+  assert.ok(!r.ok && /100/.test(r.error), 'för lite mynt');
+  const A = db.profiles.find((p) => p.id === 'u-anna');
+  A.coins = 1000; A.pity_counter = 10;
+  r = await emit(anna, 'openChest');
+  assert.ok(r.ok, r.error);
+  assert.ok(['epic', 'legendary'].includes(r.roll.rarity), 'garantin gäller på servern');
+  assert.strictEqual(A.coins, 900); assert.strictEqual(A.chests_opened, 1); assert.strictEqual(A.pity_counter, 0);
+  assert.ok(db.owned_decks.some((d) => d.user_id === 'u-anna' && d.deck_id === r.roll.deckId));
+  assert.ok(r.decks.some((d) => d.deck_id === r.roll.deckId));
+  const won = r.roll.deckId;
+  // dubbletter: äger man allt ger varje kista 30 tillbaka
+  for (const d of Eco.DECKS) if (!db.owned_decks.some((x) => x.user_id === 'u-anna' && x.deck_id === d.id)) db.owned_decks.push({ user_id: 'u-anna', deck_id: d.id });
+  r = await emit(anna, 'openChest');
+  assert.ok(r.ok && r.roll.duplicate && A.coins === 830, 'dubblett ger 30 tillbaka');
+  // samtidiga öppningar drar aldrig för mycket
+  A.coins = 150;
+  const both = await Promise.all([emit(anna, 'openChest'), emit(anna, 'openChest')]);
+  assert.strictEqual(both.filter((x) => x.ok).length, 1); assert.strictEqual(A.coins, 80);
+  console.log('OK: kistor öppnas på servern (mynt, garanti, dubbletter, inget dubbelköp)');
+
+  // välja lek: bara egna lekar, och de andra ser den vid bordet
+  db.owned_decks = db.owned_decks.filter((d) => !(d.user_id === 'u-anna' && d.deck_id !== 'classic' && d.deck_id !== won));
+  r = await emit(anna, 'selectDeck', Eco.DECKS.find((d) => d.id !== won && d.id !== 'classic').id);
+  assert.ok(!r.ok, 'kan inte välja en lek man inte har');
+  r = await emit(anna, 'selectDeck', won);
+  assert.ok(r.ok, r.error);
+  assert.strictEqual(A.selected_deck, won);
+  await wait(30);
+  assert.strictEqual(bo.state.lobby.players.find((p) => p.name === 'Anna_K').deck, won);
+  r = await emit(bo, 'selectDeck', 'gold');
+  assert.ok(!r.ok, 'Bosse har inte guldleken');
+  console.log('OK: välja kortlek och visa den vid bordet');
 
   // radera kontot: profil, samling och inloggning försvinner
   r = await emit(bo, 'deleteAccount');
@@ -194,6 +269,40 @@ async function play(s) {
   const boAgain = await client('tok-bo');
   assert.strictEqual(boAgain.account.loggedIn, false, 'raderat konto kan inte logga in med gamla token');
   console.log('OK: radera mitt konto');
+
+  // gäst blir konto: högst 300 mynt och bara Vanliga/Sällsynta lekar, bara på ett helt nytt konto
+  const cid = await client('tok-cid');
+  assert.ok((await emit(cid, 'setUsername', 'Cidde')).ok);
+  r = await emit(cid, 'importGuest', { coins: 5000, decks: ['navy', 'ice', 'space', 'gold', 'hack'] });
+  assert.ok(r.ok, r.error);
+  const C = db.profiles.find((p) => p.id === 'u-cid');
+  assert.strictEqual(C.coins, 300);
+  assert.deepStrictEqual(db.owned_decks.filter((d) => d.user_id === 'u-cid').map((d) => d.deck_id).sort(), ['classic', 'ice', 'navy']);
+  r = await emit(cid, 'importGuest', { coins: 300, decks: [] });
+  assert.ok(!r.ok, 'bara en gång');
+  assert.strictEqual(C.coins, 300);
+  cid.close();
+  console.log('OK: gästens mynt och lekar flyttas till nytt konto (med tak)');
+
+  // gäst mot bara bottar: hälften av mynten, sparas av klienten
+  const g = await client(null);
+  const gr = await emit(g, 'create', { name: 'Gäst', deck: 'neon' });
+  assert.ok(gr.ok);
+  assert.ok((await emit(g, 'addBot')).ok);
+  await wait(30);
+  assert.strictEqual(g.state.lobby.players.find((p) => p.id === g.state.you).deck, 'neon', 'gästens valda lek syns');
+  assert.ok((await emit(g, 'start')).ok);
+  await wait(30); g.emit('animDone');
+  iters = 0;
+  while (!g.state.game || g.state.game.phase !== 'finished') {
+    if (++iters > 20000) throw new Error('fastnade mot bot');
+    const a = await play(g); if (a && !a.ok) await wait(5); else if (!a) await wait(5);
+  }
+  await wait(50);
+  const mine = g.state.game.results.find((x) => x.playerId === g.state.you);
+  assert.deepStrictEqual(g.coinEvents, [{ earned: Eco.roundCoins(mine, { botsOnly: true }), guest: true, botsOnly: true }]);
+  g.close();
+  console.log('OK: gäster får hälften mot bottar');
 
   // keepalive
   const before = log.length;
