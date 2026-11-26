@@ -10,6 +10,6 @@ export function visaKommerSnart(el, rubrik, text) {
     </header>
     <div class="tomt-kort">
       <p>Den här delen byggs i nästa steg av prototypen.</p>
-      <a class="knapp sekundar" href="#/sok">Testa plaggsökaren</a>
+      <a class="knapp sekundar" href="#sok">Testa plaggsökaren</a>
     </div>`;
 }

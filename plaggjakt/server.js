@@ -4,7 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { demoSvar } from "./demo.js";
+import { demoSvar } from "./public/js/demo-data.js";
 
 const MAPP = path.dirname(fileURLToPath(import.meta.url));
 

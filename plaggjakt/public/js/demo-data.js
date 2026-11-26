@@ -1,4 +1,5 @@
-// Exempelsvar som visas när ingen API-nyckel finns (demoläge).
+// Exempelsvar som visas i demoläget (ingen API-nyckel, eller ingen server).
+// Används både av servern och av webbläsaren.
 export const demoSvar = {
   sammanfattning:
     "En lugn, avskalad outfit i jordnära toner med tydlig skandinavisk känsla – mjuka material och raka linjer.",

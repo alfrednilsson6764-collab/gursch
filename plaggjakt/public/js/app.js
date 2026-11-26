@@ -14,7 +14,7 @@ const STARTVY = "sok";
 const main = document.getElementById("vy");
 
 function visaVy() {
-  const [namn, fraga] = location.hash.replace(/^#\/?/, "").split("?");
+  const namn = location.hash.replace(/^#\/?/, "");
   const vy = vyer[namn] ? namn : STARTVY;
 
   document.querySelectorAll(".bottenmeny a").forEach((a) => {
@@ -23,7 +23,7 @@ function visaVy() {
   document.body.dataset.vy = vy;
 
   main.innerHTML = "";
-  vyer[vy](main, new URLSearchParams(fraga || ""));
+  vyer[vy](main);
   window.scrollTo(0, 0);
   main.animate(
     [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }],

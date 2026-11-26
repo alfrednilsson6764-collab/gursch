@@ -1,4 +1,5 @@
 // Små hjälpfunktioner som delas av vyerna.
+import { demoSvar } from "./demo-data.js";
 
 // Skydda text som stoppas in i HTML
 export function esc(text) {
@@ -27,14 +28,21 @@ export function lasBild(fil, maxSida = 1280) {
   });
 }
 
-// Skicka en bild till backend för analys
+// Skicka en bild till servern för analys.
+// Finns ingen server (t.ex. när appen visas som förhandsvisning) används demosvaret.
 export async function analyseraBild(bild) {
-  const svar = await fetch("/api/analysera", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ bild }),
-  });
-  const data = await svar.json().catch(() => ({}));
+  let svar, data;
+  try {
+    svar = await fetch("api/analysera", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bild }),
+    });
+    data = await svar.json();
+  } catch {
+    await new Promise((r) => setTimeout(r, 1500));
+    return { ...demoSvar, demo: true };
+  }
   if (!svar.ok) throw new Error(data.fel || "Något gick fel. Försök igen.");
   return data;
 }

@@ -8,16 +8,22 @@ let rot = null; // vyns element medan den visas
 
 const LADDTEXTER = ["Känner igen plaggen…", "Letar efter märkesdetaljer…", "Läser av färg och material…", "Tar fram sökord…"];
 
-// Används av andra vyer (t.ex. flödet) för att skicka en bild hit
+// Används av andra vyer för att skicka en bild eller en sökfras hit
 export function sokMedBild(bild) {
   Object.assign(t, { bild, resultat: null, fel: null, text: "", autostart: true });
-  location.hash = "#/sok";
+  gaTillSok();
+}
+export function sokMedText(text) {
+  Object.assign(t, { text, bild: null, resultat: null, fel: null });
+  gaTillSok();
+}
+function gaTillSok() {
+  if (location.hash === "#sok") window.dispatchEvent(new HashChangeEvent("hashchange"));
+  else location.hash = "#sok";
 }
 
-export function visaSok(el, params) {
+export function visaSok(el) {
   rot = el;
-  const text = params.get("q");
-  if (text) Object.assign(t, { text, bild: null, resultat: null, fel: null });
   rita();
   if (t.autostart) {
     t.autostart = false;
@@ -92,7 +98,7 @@ function resultatHtml(r) {
   const antal = r.plagg.length;
   return `
     <section class="resultat">
-      ${r.demo ? `<p class="demo-notis">Demoläge – ingen API-nyckel är inlagd, så det här är ett exempelsvar.</p>` : ""}
+      ${r.demo ? `<p class="demo-notis">Demoläge – det här är ett exempelsvar, inte en riktig analys av din bild. Lägg in en API-nyckel och kör appen lokalt för riktig AI.</p>` : ""}
       <p class="sammanfattning">${esc(r.sammanfattning)}</p>
       <p class="etikett">${antal === 0 ? "Inga plagg hittades" : `${antal} plagg hittade`}</p>
       ${r.plagg.map(plaggHtml).join("")}
