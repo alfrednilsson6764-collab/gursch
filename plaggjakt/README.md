@@ -8,7 +8,17 @@ En klickbar prototyp av en modeapp. Den är till för att testa idén och känsl
 
 ## Starta
 
-Du behöver [Node.js](https://nodejs.org) version 20.12 eller senare.
+Appen körs på din egen dator. Du behöver [Node.js](https://nodejs.org) version 20.12 eller senare (välj "LTS" på nodejs.org).
+
+**1. Hämta koden.** Antingen:
+- Ladda ner den som zip (du behöver vara inloggad på GitHub): https://github.com/alfrednilsson6764-collab/gursch/archive/refs/heads/claude/plaggjakt-fashion-prototype-6tyw3c.zip och packa upp den.
+- Eller med git:
+  ```bash
+  git clone -b claude/plaggjakt-fashion-prototype-6tyw3c https://github.com/alfrednilsson6764-collab/gursch.git
+  cd gursch
+  ```
+
+**2. Öppna en terminal i mappen och kör:**
 
 ```bash
 cd plaggjakt
